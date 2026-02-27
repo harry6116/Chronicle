@@ -2,3 +2,6 @@ api_key.txt
 .DS_Store
 Push_to_GitHub.command
 Sync_from_GitHub.command
+input_files/
+output_html/
+Input_Scans/
