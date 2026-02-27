@@ -18,8 +18,7 @@ KEY_FILE = os.path.join(SCRIPT_DIR, "api_key.txt")
 
 PDF_CHUNK_PAGES = 5
 TEXT_CHUNK_CHARS = 15000 
-
-SUPPORTED_EXTENSIONS = ['.pdf', '.docx', '.txt', '.md', '.rtf', '.csv', '.js', '.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.webp']
+SUPPORTED_EXTENSIONS = ['.pdf', '.docx', '.txt', '.md', '.rtf', '.csv', '.js', '.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif', '.webp']
 
 def get_api_key():
     if os.path.exists(KEY_FILE):
@@ -438,7 +437,7 @@ def process_files():
                 process_pdf(client, file_path, output_path, format_type, prompt_text, model_name, current_file_obj, current_memory)
             elif ext in ['.docx', '.txt', '.md', '.rtf', '.csv', '.js']:
                 process_text_document(client, file_path, output_path, ext, format_type, prompt_text, model_name, current_file_obj, current_memory)
-            elif ext in ['.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.webp']:
+            elif ext in ['.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif', '.webp']:
                 process_image(client, file_path, output_path, format_type, prompt_text, model_name, current_file_obj, current_memory)
             
             if batch_mode == 'recursive_delete':
