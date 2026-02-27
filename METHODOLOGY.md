@@ -42,8 +42,10 @@ Encoding errors (Mojibake) occur when AI generates "smart" punctuation that olde
 1.  **Prompt Level:** The system explicitly forbids the AI from generating non-ASCII punctuation.
 2.  **Python Scrubber:** A dedicated post-processing function (`clean_text_artifacts`) scans every incoming chunk for byte-order marks and corrupted UTF-8 artifacts, replacing them with standard ASCII equivalents before writing the output.
 
-### Uncensored Historical Accuracy
-Standard AI models utilize safety filters that mask profanity or sensitive language. Chronicle bypasses these filters for historical accuracy by injecting a specific "Uncensored Transcription" directive, instructing the model to treat the document as an immutable historical record.
+### Historical Fidelity and Verbatim Transcription
+Historical and archival documents often contain period-accurate language, including terminology, profanity, or expressions that may be considered sensitive by modern standards. For accessibility and research integrity, Chronicle instructs the model to preserve the source material verbatim wherever possible.
+
+The system prompt emphasizes faithful transcription of the original document without euphemistic substitution, redaction, or contextual reinterpretation. Content is treated as an immutable historical record and reproduced exactly as written to maintain archival accuracy.
 
 ### Terminal Noise Suppression
 Archival PDFs frequently contain corrupted internal cross-reference tables (e.g., `offset 0` errors). To prevent these structural errors from flooding the terminal and overwhelming VoiceOver dictation, Chronicle actively suppresses non-critical warnings from the `pypdf` logger.
