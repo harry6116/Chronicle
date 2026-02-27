@@ -149,7 +149,7 @@ def get_user_preferences():
     print("\nMENU 7: FILE HANDLING")
     print("0. Skip (Default: Process individually)")
     print("1. Process files individually")
-    print("2. Merge all files into one document")
+    print("2. Merge all files into one seamless document")
     while True:
         merge_choice = input("Select option: ").strip()
         if merge_choice in ['0', '1', '']:
@@ -194,13 +194,32 @@ def get_user_preferences():
         else:
             print("Invalid choice.")
 
-    return format_type, output_dir, model_name, merge_files, translate_mode, modernize_punctuation, condition_profiling, unit_conversion, image_descriptions, batch_mode
+    print("\nMENU 10: TECHNICAL APPENDIX (Metadata & Confidence Scores)")
+    print("0. Skip (Default: Exclude for seamless reading)")
+    print("1. Exclude completely (Best for continuous letters)")
+    print("2. Include at the bottom of each page")
+    while True:
+        app_choice = input("Select option: ").strip()
+        if app_choice in ['0', '1', '']:
+            include_appendix = False
+            break
+        elif app_choice == '2':
+            include_appendix = True
+            break
+        else:
+            print("Invalid choice.")
 
-def get_prompt(format_type, translate_mode, modernize_punctuation, condition_profiling, unit_conversion, image_descriptions):
+    return format_type, output_dir, model_name, merge_files, translate_mode, modernize_punctuation, condition_profiling, unit_conversion, image_descriptions, batch_mode, include_appendix
+
+def get_prompt(format_type, translate_mode, modernize_punctuation, condition_profiling, unit_conversion, image_descriptions, include_appendix):
     
-    metadata_rules = "- [Transcription Confidence: X/10 - brief explanation of document legibility]\n       - [Date: Extract the primary date of the document/entry and standardize it as Month DD, YYYY. If none, write Unknown]"
-    if condition_profiling:
-        metadata_rules += "\n       - [Physical Condition: A one-sentence description of the artifact's visual state, e.g., faded ink, water damage]"
+    if include_appendix:
+        metadata_rules = "- [Transcription Confidence: X/10 - brief explanation of document legibility]\n       - [Date: Extract the primary date of the document/entry and standardize it as Month DD, YYYY. If none, write Unknown]"
+        if condition_profiling:
+            metadata_rules += "\n       - [Physical Condition: A one-sentence description of the artifact's visual state, e.g., faded ink, water damage]"
+        appendix_rule = f"1. Metadata Appendix: Do NOT put the Document Metadata at the top. Create a 'TECHNICAL APPENDIX' at the very bottom of your response and place the following tags there:\n       {metadata_rules}"
+    else:
+        appendix_rule = "1. Seamless Reading Mode: Output ONLY the transcription and visual descriptions. DO NOT generate any confidence scores, dates, condition profiles, or technical appendices."
 
     unit_rule = "Unit Conversion: If you encounter outdated historical measurements or currency (e.g., chains, shillings, leagues), quietly insert the modern equivalent in brackets." if unit_conversion else "Unit Conversion: Do not convert any historical measurements or currency. Keep them exactly as written."
     
@@ -218,8 +237,7 @@ def get_prompt(format_type, translate_mode, modernize_punctuation, condition_pro
     base_rules = f"""
     CRITICAL OCR, HANDWRITING, AND ACCESSIBILITY RULES:
     
-    1. Clean Reading Mode (Metadata Appendix): Do NOT put the Document Metadata at the top. You MUST place the main transcription text first. Create a "TECHNICAL APPENDIX" at the very bottom of your response and place the following tags there:
-       {metadata_rules}
+    {appendix_rule}
     2. Encoding Safety: Use strictly standard ASCII punctuation for quotes and dashes. Do NOT use 'smart' curly quotes, long em-dashes, or non-breaking spaces.
     
     TECHNICAL MANUALS & DEVICE GUIDES:
@@ -342,8 +360,8 @@ def process_files():
         print(f"Error: Could not connect. Details: {e}")
         return
 
-    format_type, output_dir, model_name, merge_files, translate_mode, modernize_punctuation, condition_profiling, unit_conversion, image_descriptions, batch_mode = get_user_preferences()
-    prompt_text = get_prompt(format_type, translate_mode, modernize_punctuation, condition_profiling, unit_conversion, image_descriptions)
+    format_type, output_dir, model_name, merge_files, translate_mode, modernize_punctuation, condition_profiling, unit_conversion, image_descriptions, batch_mode, include_appendix = get_user_preferences()
+    prompt_text = get_prompt(format_type, translate_mode, modernize_punctuation, condition_profiling, unit_conversion, image_descriptions, include_appendix)
 
     if batch_mode.startswith('recursive'):
         target_scan_dir = BATCH_INPUT_DIR
@@ -396,12 +414,13 @@ def process_files():
             current_file_obj = master_file_obj
             current_memory = master_memory
             
+            # Invisible stitching for seamless reading flow
             if format_type == 'html':
-                current_file_obj.write(f"\n<hr>\n<h2>Document: {filename}</h2>\n")
+                current_file_obj.write(f"\n<br>\n")
             elif format_type in ['txt', 'md']:
-                current_file_obj.write(f"\n\n--- Document: {filename} ---\n\n")
+                current_file_obj.write(f"\n\n")
             elif format_type in ['docx', 'pdf']:
-                current_memory.append(f"\n\n--- Document: {filename} ---\n\n")
+                current_memory.append(f"\n\n")
         else:
             output_path = os.path.join(output_dir, f"{base_name}.{format_type}")
             if format_type in ['docx', 'pdf'] and os.path.exists(output_path):
