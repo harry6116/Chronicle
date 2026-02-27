@@ -55,6 +55,10 @@ Accessibility is not an afterthought — it is the foundation.
 - 5-page strict chunking for stability
 - Optional cleanup mode after successful conversion
 
+### Latest Updates
+* **Handwriting Support:** The Vision-Language engine now officially supports JPEGs and PDFs of handwritten documents (invoices, letters, diaries).
+* **Character Resilience:** Fixed a bug where non-standard handwritten symbols caused a "terminator" error.
+* **Professional Interface:** The Windows command window now features a dedicated "Chronicle" title for better visibility.
 ---
 
 ## Installation
