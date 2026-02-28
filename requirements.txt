@@ -2,3 +2,5 @@ pypdf
 python-docx
 fpdf2
 google-genai
+openpyxl
+EbookLib>=0.18

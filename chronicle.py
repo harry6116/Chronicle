@@ -1,6 +1,7 @@
 import os
 import platform
 import time
+import json
 from pypdf import PdfReader, PdfWriter
 import docx
 from fpdf import FPDF
@@ -8,6 +9,7 @@ from google import genai
 import logging
 import shutil
 import openpyxl
+from ebooklib import epub
 
 # Silence harmless PDF structural warnings from the PyPDF logger
 logging.getLogger("pypdf").setLevel(logging.ERROR)
@@ -48,8 +50,11 @@ def get_user_preferences():
     print("3. Microsoft Word (.docx)")
     print("4. Markdown (.md)")
     print("5. PDF Document (.pdf)")
+    print("6. JSON Data (.json) - For APIs & Databases")
+    print("7. CSV Spreadsheet (.csv) - For Tabular Data")
+    print("8. EPUB eBook (.epub) - For e-Readers")
     while True:
-        format_choice = input("Type 1, 2, 3, 4, or 5 and press Enter: ").strip()
+        format_choice = input("Type 1-8 and press Enter: ").strip()
         if format_choice == '1':
             format_type, output_dir = 'html', os.path.join(SCRIPT_DIR, "output_html")
             break
@@ -64,6 +69,15 @@ def get_user_preferences():
             break
         elif format_choice == '5':
             format_type, output_dir = 'pdf', os.path.join(SCRIPT_DIR, "output_pdf")
+            break
+        elif format_choice == '6':
+            format_type, output_dir = 'json', os.path.join(SCRIPT_DIR, "output_json")
+            break
+        elif format_choice == '7':
+            format_type, output_dir = 'csv', os.path.join(SCRIPT_DIR, "output_csv")
+            break
+        elif format_choice == '8':
+            format_type, output_dir = 'epub', os.path.join(SCRIPT_DIR, "output_epub")
             break
         else:
             print("Invalid choice.")
@@ -240,49 +254,59 @@ def get_prompt(format_type, translate_mode, modernize_punctuation, condition_pro
     {appendix_rule}
     2. Encoding Safety: Use strictly standard ASCII punctuation for quotes and dashes. Do NOT use 'smart' curly quotes, long em-dashes, or non-breaking spaces.
     
+    LEGAL & STATUTORY DOCUMENTS:
+    3. Legislative Hierarchy: When extracting laws, contracts, or government legislation, strictly preserve the structural hierarchy (Parts, Divisions, Sections, Subsections, Clauses, Subclauses). Use clear indentation or HTML lists so screen readers can navigate the legal tree.
+    4. Defined Terms: Ensure capitalized defined terms remain exact. Do NOT summarize, paraphrase, or alter legal clauses in any way.
+
     TECHNICAL MANUALS & DEVICE GUIDES:
-    3. UI & Button Translation: If processing an instruction manual, translate all inline visual icons, button pictures, and interface symbols into clear spoken text (e.g., replace a picture of a gear with [Settings Icon], or a triangle with [Play Button]). NEVER skip a visual step.
-    4. Device Schematics: If a diagram points out parts of a device using numbers or lines, extract it into a linear, descriptive list mapping the device spatially (e.g., [Part 1: Power Button - located on top right edge]).
+    5. UI & Button Translation: If processing an instruction manual, translate all inline visual icons, button pictures, and interface symbols into clear spoken text (e.g., replace a picture of a gear with [Settings Icon], or a triangle with [Play Button]). NEVER skip a visual step.
+    6. Device Schematics: If a diagram points out parts of a device using numbers or lines, extract it into a linear, descriptive list mapping the device spatially (e.g., [Part 1: Power Button - located on top right edge]).
     
     MILITARY & ARCHIVAL INTELLIGENCE:
-    5. Telegraph & Cablegram Decoder: If the document is a telegram using the word "STOP" for punctuation, replace "STOP" with a standard period and a paragraph break.
-    6. Map Grid References: Format military map coordinates with spaced digits (e.g., [Map Grid Reference: 1 2 3 - 4 5 6]).
-    7. Nominal Rolls & Casualty Lists: Rebuild densely packed lists of soldiers into strict, cleanly scoped tables to maintain structural orientation.
-    8. Security Classifications: Extract stamps (e.g., TOP SECRET) and place them at the very top of the output as [Document Classification: TOP SECRET].
-    9. Chain of Command Header Parsing: Isolate military routing blocks (FM:, TO:), expand acronyms, and place them cleanly at the top.
-    10. Strikethrough Recovery: Do not skip crossed-out text. Read it and tag it (e.g., [Struck through: original text]).
-    11. Official Seals & Watermarks: Look for and describe physical authentication marks (e.g., [Official Embossed Seal]).
-    12. Visual Emphasis: Translate visual intent for heavily underlined/capitalized text (e.g., [Emphasis: IMMEDIATE ACTION]).
-    13. Shorthand Detection: Flag untranscribable shorthand (e.g., [Visual Note: Untranscribed shorthand]).
-    14. Blank Page Detection: If a page is entirely empty or only contains smudges, output exactly: [Page intentionally left blank].
-    15. Redaction Tagging: If text is deliberately blacked out, insert the tag: [Text Redacted by Censor].
-    16. Article Separation: For multi-column newspapers, insert a clear [--- End of Article ---] break.
-    17. Military Abbreviations: Expand acronyms into full spoken forms.
+    7. Telegraph & Cablegram Decoder: If the document is a telegram using the word "STOP" for punctuation, replace "STOP" with a standard period and a paragraph break.
+    8. Map Grid References: Format military map coordinates with spaced digits (e.g., [Map Grid Reference: 1 2 3 - 4 5 6]).
+    9. Nominal Rolls & Casualty Lists: Rebuild densely packed lists of soldiers into strict, cleanly scoped tables to maintain structural orientation.
+    10. Security Classifications: Extract stamps (e.g., TOP SECRET) and place them at the very top of the output as [Document Classification: TOP SECRET].
+    11. Chain of Command Header Parsing: Isolate military routing blocks (FM:, TO:), expand acronyms, and place them cleanly at the top.
+    12. Strikethrough Recovery: Do not skip crossed-out text. Read it and tag it (e.g., [Struck through: original text]).
+    13. Official Seals & Watermarks: Look for and describe physical authentication marks (e.g., [Official Embossed Seal]).
+    14. Visual Emphasis: Translate visual intent for heavily underlined/capitalized text (e.g., [Emphasis: IMMEDIATE ACTION]).
+    15. Shorthand Detection: Flag untranscribable shorthand (e.g., [Visual Note: Untranscribed shorthand]).
+    16. Blank Page Detection: If a page is entirely empty or only contains smudges, output exactly: [Page intentionally left blank].
+    17. Redaction Tagging: If text is deliberately blacked out, insert the tag: [Text Redacted by Censor].
+    18. Article Separation: For multi-column newspapers, insert a clear [--- End of Article ---] break.
+    19. Military Abbreviations: Expand acronyms into full spoken forms.
     
     MODERN BUSINESS & CODE RULES:
-    18. Form Flattening: Extract rigid tax forms/applications into a clean, linear vertical list.
-    19. Checkboxes: Declare the status of visual toggles (e.g., [Checkbox: Selected] or [Checkbox: Empty]).
-    20. Signature Detection: Indicate if a signature block is signed or empty.
-    21. Code Formatting: Cleanly extract programming code (.js files), preserving line breaks and indentation.
-    22. Spreadsheet Flattening: Reformat raw extracted spreadsheet rows (separated by pipes) into a highly readable, logical summary. Break down complex budgets, grids, or multi-tab workbooks into clear, linear text or accessible HTML lists. Make financial numbers easy to comprehend.
+    20. Form Flattening: Extract rigid tax forms/applications into a clean, linear vertical list.
+    21. Checkboxes: Declare the status of visual toggles (e.g., [Checkbox: Selected] or [Checkbox: Empty]).
+    22. Signature Detection: Indicate if a signature block is signed or empty.
+    23. Code Formatting: Cleanly extract programming code (.js files), preserving line breaks and indentation.
+    24. Spreadsheet Flattening: Reformat raw extracted spreadsheet rows (separated by pipes) into a highly readable, logical summary. Break down complex budgets, grids, or multi-tab workbooks into clear, linear text or accessible HTML lists. Make financial numbers easy to comprehend.
     
     DATA INTEGRITY:
-    23. Illegible Text: Do not guess destroyed text. Insert [illegible: approx 3 words].
-    24. Uncensored Transcription: Transcribe all profanity, slurs, and explicit language verbatim. Do NOT censor or asterisk.
-    25. Text Integrity: Never summarize historical content.
-    26. Marginalia: Tag scribbled margin notes clearly.
+    25. Illegible Text: Do not guess destroyed text. Insert [illegible: approx 3 words].
+    26. Uncensored Transcription: Transcribe all profanity, slurs, and explicit language verbatim. Do NOT censor or asterisk.
+    27. Text Integrity: Never summarize historical content.
+    28. Marginalia: Tag scribbled margin notes clearly.
     
     DYNAMIC TOGGLES:
-    27. {unit_rule}
-    28. {translation_rule}
-    29. {punct_rule}
-    30. {image_rule}
+    29. {unit_rule}
+    30. {translation_rule}
+    31. {punct_rule}
+    32. {image_rule}
     """
     
     if format_type == 'html':
         return f"Format the extracted text as well-structured HTML highly accessible for screen readers. Use proper heading tags, paragraphs, and lists. Construct proper HTML tables with scope attributes for headers. Do NOT include markdown block formatting. Do NOT include <html>, <head>, or <body> tags.\n{base_rules}"
     elif format_type == 'md':
         return f"Format the extracted text as clean, semantic Markdown. Use # for headings, standard bullet points, and markdown tables where appropriate.\n{base_rules}"
+    elif format_type == 'json':
+        return f"Format the extracted text strictly as a valid JSON document. Use a logical key-value structure containing the extracted text, any metadata, and tables formatted as JSON arrays. Output ONLY valid JSON, do NOT wrap it in ```json code blocks.\n{base_rules}"
+    elif format_type == 'csv':
+        return f"Format the extracted text strictly as Comma-Separated Values (CSV). Use commas to separate columns and standard line breaks for rows. Quote strings that contain commas. Output ONLY the raw CSV text, do NOT wrap it in ```csv code blocks.\n{base_rules}"
+    elif format_type == 'epub':
+        return f"Format the extracted text as clean, semantic HTML suitable for compiling into an EPUB chapter. Use exactly one <h1> for the main title, and proper <h2>, <p>, and <ul> tags. Output ONLY the HTML content, no html/head/body wrappers.\n{base_rules}"
     else:
         return f"Extract and format the text as clean, readable plain text. Format tabular data cleanly using spaces, but do not use HTML or Markdown. Do NOT use markdown symbols like asterisks or hashes for formatting.\n{base_rules}"
 
@@ -316,9 +340,10 @@ def save_as_pdf(pdf_path, text_content):
     pdf.set_auto_page_break(auto=True, margin=15)
     
     pdf.set_font("Helvetica", size=12)
+    # Convert to latin-1 to prevent fpdf crashes on complex characters
     safe_text = text_content.encode('latin-1', 'replace').decode('latin-1')
     
-    pdf.multi_cell(0, 10, txt=safe_text)
+    pdf.multi_cell(0, 10, text=safe_text)
     try:
         pdf.output(pdf_path)
     except Exception as e:
@@ -331,6 +356,51 @@ def append_to_docx(docx_path, text_content):
         doc = docx.Document()
     doc.add_paragraph(text_content)
     doc.save(docx_path)
+
+def save_as_json(json_path, text_content):
+    text_content = text_content.strip()
+    if text_content.startswith("```json"):
+        text_content = text_content[7:-3].strip()
+    elif text_content.startswith("```"):
+        text_content = text_content[3:-3].strip()
+        
+    try:
+        data = json.loads(text_content)
+    except Exception as e:
+        # Fallback if the AI messes up the strict JSON structure
+        data = {"chronicle_extracted_content": text_content, "error_parsing_json": str(e)}
+    
+    with open(json_path, 'w', encoding='utf-8') as f:
+        json.dump(data, f, indent=4)
+
+def save_as_csv(csv_path, text_content):
+    text_content = text_content.strip()
+    if text_content.startswith("```csv"):
+        text_content = text_content[6:-3].strip()
+    elif text_content.startswith("```"):
+        text_content = text_content[3:-3].strip()
+        
+    with open(csv_path, 'w', encoding='utf-8') as f:
+        f.write(text_content)
+
+def save_as_epub(epub_path, title, text_content):
+    book = epub.EpubBook()
+    book.set_identifier(f"chronicle_{int(time.time())}")
+    book.set_title(title)
+    book.set_language('en')
+    
+    chapter = epub.EpubHtml(title=title, file_name='chapter.xhtml', lang='en')
+    chapter.content = f"<h1>{title}</h1>\n<div>{text_content}</div>"
+    
+    book.add_item(chapter)
+    book.spine = ['nav', chapter]
+    book.add_item(epub.EpubNcx())
+    book.add_item(epub.EpubNav())
+    
+    try:
+        epub.write_epub(epub_path, book, {})
+    except Exception as e:
+        print(f"Error saving EPUB: {e}")
 
 def handle_stream(response, output_path, format_type, file_obj=None, memory_list=None):
     for chunk in response:
@@ -397,7 +467,7 @@ def process_files():
     
     if merge_files:
         print("\n--- MERGE MODE ACTIVE ---")
-        if format_type in ['docx', 'pdf'] and os.path.exists(master_path):
+        if format_type in ['docx', 'pdf', 'json', 'csv', 'epub'] and os.path.exists(master_path):
             os.remove(master_path)
         elif format_type in ['html', 'txt', 'md']:
             master_file_obj = open(master_path, 'w', encoding='utf-8')
@@ -420,11 +490,11 @@ def process_files():
                 current_file_obj.write(f"\n<br>\n")
             elif format_type in ['txt', 'md']:
                 current_file_obj.write(f"\n\n")
-            elif format_type in ['docx', 'pdf']:
+            elif format_type in ['docx', 'pdf', 'json', 'csv', 'epub']:
                 current_memory.append(f"\n\n")
         else:
             output_path = os.path.join(output_dir, f"{base_name}.{format_type}")
-            if format_type in ['docx', 'pdf'] and os.path.exists(output_path):
+            if format_type in ['docx', 'pdf', 'json', 'csv', 'epub'] and os.path.exists(output_path):
                 os.remove(output_path)
             
             current_file_obj = None
@@ -457,6 +527,12 @@ def process_files():
                 append_to_docx(output_path, "".join(current_memory))
             elif format_type == 'pdf' and current_memory:
                 save_as_pdf(output_path, "".join(current_memory))
+            elif format_type == 'json' and current_memory:
+                save_as_json(output_path, "".join(current_memory))
+            elif format_type == 'csv' and current_memory:
+                save_as_csv(output_path, "".join(current_memory))
+            elif format_type == 'epub' and current_memory:
+                save_as_epub(output_path, base_name, "".join(current_memory))
                 
             if current_file_obj:
                 write_footer(current_file_obj, format_type)
@@ -468,6 +544,12 @@ def process_files():
             append_to_docx(master_path, "".join(master_memory))
         elif format_type == 'pdf' and master_memory:
             save_as_pdf(master_path, "".join(master_memory))
+        elif format_type == 'json' and master_memory:
+            save_as_json(master_path, "".join(master_memory))
+        elif format_type == 'csv' and master_memory:
+            save_as_csv(master_path, "".join(master_memory))
+        elif format_type == 'epub' and master_memory:
+            save_as_epub(master_path, "Chronicle Merged Document", "".join(master_memory))
             
         if master_file_obj:
             write_footer(master_file_obj, format_type)
