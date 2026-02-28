@@ -2,7 +2,8 @@
 
 Chronicle is a highly accessible, multi-modal document extraction and transcription tool powered by Google's Gemini AI. It is specifically designed for high-fidelity transcription of complex historical archives, military documents, handwritten letters, technical manuals, financial spreadsheets, and complex legal legislation.
 
-## 🚀 What's New in v1.5.0 (The Enterprise & Accessibility Expansion)
+## 🚀 What's New in v1.6.0 (The Quality of Life Update)
+* **One-Click Auto-Updaters:** Say goodbye to manually downloading ZIP files or dealing with Git commands. Chronicle now includes dedicated `Update_Chronicle` scripts for Mac and Windows. With a single click, the tool will securely fetch the latest engine updates and install any newly required libraries in the background, all without ever touching your personal files or API key.
 * **New Export Formats:** Added native support for exporting to EPUB (`.epub`), JSON (`.json`), and CSV (`.csv`). Chronicle can now generate native eBooks for e-readers, or structured data for corporate API and database integration.
 * **Legal & Statutory Engine:** Overhauled the OCR prompt to recognize and meticulously preserve the strict hierarchical structure of legal contracts and legislation (Parts, Divisions, Sections, Subclauses) without flattening the text.
 * **The WWI War Diary Showcase:** Added a comprehensive HTML showcase in `assets/samples/` demonstrating Chronicle's ability to reconstruct highly degraded, handwritten cursive that completely breaks standard OCR software.
@@ -38,6 +39,38 @@ Chronicle requires specific libraries to read documents and communicate with AI.
 
 ```bash
 pip install --upgrade google-genai pypdf python-docx fpdf2 openpyxl EbookLib
+### 🔑 Gemini API Key & Pricing
+You will need a **Google Gemini API Key** to power the engine. The script will prompt you for this on your first run and save it securely in an `api_key.txt` file. 
+
+Google offers two API tiers:
+| Tier | Cost | Rate Limits | Data Privacy |
+| :--- | :--- | :--- | :--- |
+| **Free Tier** | $0.00 | 15 Requests Per Minute | Data *may* be used to train Google's models. |
+| **Pay-as-you-go** | Paid per Token | High/Custom | Data is strictly private and **not** used for training. |
+
+*Note: If you are processing highly sensitive personal archives, legal contracts, or financial data, the **Pay-as-you-go** tier is strictly recommended to ensure absolute data privacy.*
+
+## ⚙️ Usage
+
+1. Place your historical documents, PDFs, Excel files, or images into the `input_files` or `Input_Scans` folder.
+2. Open your terminal and run the script:
+   * Mac: Run `./Run_Chronicle.command`
+   * Windows: Run `Run_Chronicle.bat`
+   * Or manually via terminal: `python chronicle.py`
+3. Follow the 10-step audio-friendly menu system to configure your extraction.
+4. Your processed, clean-reading files will be saved in the corresponding output directory.
+
+## 🔄 Keeping Chronicle Updated
+
+You no longer need to manually download new ZIP files when Chronicle updates. Inside your folder, you will find an **Update_Chronicle** script (one for Mac, one for Windows). 
+
+Simply run this script to instantly pull the latest code and install any new dependencies. **This process is 100% safe.** It will only update the core engine; it will never overwrite your extracted documents, your input files, or your API key.
+
+## 📜 License & Commercial Integration
+
+Chronicle is available under the open-source **GNU AGPLv3** license. 
+
+For commercial integration, proprietary licensing, or enterprise deployment (e.g., embedding Chronicle into closed-source legal tech suites or private university databases), please contact the developer to arrange a Commercial License.
 
 ## Support the Project
 
