@@ -38,3 +38,16 @@ Chronicle requires specific libraries to read documents and communicate with AI.
 
 ```bash
 pip install --upgrade google-genai pypdf python-docx fpdf2 openpyxl EbookLib
+
+## Support the Project
+
+Chronicle is an open-source project that I offer to the community completely free of charge. 
+
+Developing this tool required hundreds of hours of coding, testing, and refining, along with significant personal financial investment in AI API costs to ensure the extraction engine is as accurate and accessible as possible.
+
+If Chronicle has helped you decipher a family diary, made your archival research easier, or saved you hours of manual transcription, please consider supporting its continued development. Your support helps cover ongoing testing costs and fuels future updates!
+
+* **[Buy Me a Coffee](https://buymeacoffee.com/thevoiceguy)**
+* **[Donate via PayPal](https://paypal.me/MarshallVoiceovers)**
+
+Thank you for your support, and happy archiving!
