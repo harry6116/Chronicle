@@ -2,6 +2,12 @@
 
 All notable changes to the Chronicle Document Extractor will be documented in this file.
 
+## [1.6.0] - 2026-02-28
+### Added
+- **One-Click Auto-Updaters:** Introduced `Update_Chronicle.bat` (Windows) and `Update_Chronicle.command` (Mac). These scripts allow non-technical users to seamlessly download the latest version of the `chronicle.py` script directly from GitHub without needing to navigate git commands or manually re-download ZIP files. 
+- **Automated Dependency Management:** The new updater scripts automatically scan for and install any newly required Python libraries in the background, preventing crashes when users update to feature-heavy versions.
+- **Data Safety Protocol:** Updater scripts use secure `curl` routing to ensure that user-generated directories (`input_files`, `output_html`, etc.) and the sensitive `api_key.txt` file are completely ignored and protected during the update process.
+
 ## [1.5.0] - 2026-02-28
 ### Added
 - **New Export Formats:** Added native support for exporting to EPUB (`.epub`), JSON (`.json`), and CSV (`.csv`). 
