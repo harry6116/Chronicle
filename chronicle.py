@@ -7,6 +7,7 @@ from fpdf import FPDF
 from google import genai
 import logging
 import shutil
+import openpyxl
 
 # Silence harmless PDF structural warnings from the PyPDF logger
 logging.getLogger("pypdf").setLevel(logging.ERROR)
@@ -18,7 +19,7 @@ KEY_FILE = os.path.join(SCRIPT_DIR, "api_key.txt")
 
 PDF_CHUNK_PAGES = 5
 TEXT_CHUNK_CHARS = 15000 
-SUPPORTED_EXTENSIONS = ['.pdf', '.docx', '.txt', '.md', '.rtf', '.csv', '.js', '.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif', '.webp']
+SUPPORTED_EXTENSIONS = ['.pdf', '.docx', '.txt', '.md', '.rtf', '.csv', '.js', '.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif', '.webp', '.xlsx']
 
 def get_api_key():
     if os.path.exists(KEY_FILE):
@@ -263,18 +264,19 @@ def get_prompt(format_type, translate_mode, modernize_punctuation, condition_pro
     19. Checkboxes: Declare the status of visual toggles (e.g., [Checkbox: Selected] or [Checkbox: Empty]).
     20. Signature Detection: Indicate if a signature block is signed or empty.
     21. Code Formatting: Cleanly extract programming code (.js files), preserving line breaks and indentation.
+    22. Spreadsheet Flattening: Reformat raw extracted spreadsheet rows (separated by pipes) into a highly readable, logical summary. Break down complex budgets, grids, or multi-tab workbooks into clear, linear text or accessible HTML lists. Make financial numbers easy to comprehend.
     
     DATA INTEGRITY:
-    22. Illegible Text: Do not guess destroyed text. Insert [illegible: approx 3 words].
-    23. Uncensored Transcription: Transcribe all profanity, slurs, and explicit language verbatim. Do NOT censor or asterisk.
-    24. Text Integrity: Never summarize historical content.
-    25. Marginalia: Tag scribbled margin notes clearly.
+    23. Illegible Text: Do not guess destroyed text. Insert [illegible: approx 3 words].
+    24. Uncensored Transcription: Transcribe all profanity, slurs, and explicit language verbatim. Do NOT censor or asterisk.
+    25. Text Integrity: Never summarize historical content.
+    26. Marginalia: Tag scribbled margin notes clearly.
     
     DYNAMIC TOGGLES:
-    26. {unit_rule}
-    27. {translation_rule}
-    28. {punct_rule}
-    29. {image_rule}
+    27. {unit_rule}
+    28. {translation_rule}
+    29. {punct_rule}
+    30. {image_rule}
     """
     
     if format_type == 'html':
@@ -435,7 +437,7 @@ def process_files():
         try:
             if ext == '.pdf':
                 process_pdf(client, file_path, output_path, format_type, prompt_text, model_name, current_file_obj, current_memory)
-            elif ext in ['.docx', '.txt', '.md', '.rtf', '.csv', '.js']:
+            elif ext in ['.docx', '.txt', '.md', '.rtf', '.csv', '.js', '.xlsx']:
                 process_text_document(client, file_path, output_path, ext, format_type, prompt_text, model_name, current_file_obj, current_memory)
             elif ext in ['.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif', '.webp']:
                 process_image(client, file_path, output_path, format_type, prompt_text, model_name, current_file_obj, current_memory)
@@ -507,6 +509,20 @@ def process_text_document(client, file_path, output_path, ext, format_type, prom
     if ext == '.docx':
         doc = docx.Document(file_path)
         full_text = "\n".join([p.text for p in doc.paragraphs])
+    elif ext == '.xlsx':
+        try:
+            wb = openpyxl.load_workbook(file_path, data_only=True)
+            for sheet_name in wb.sheetnames:
+                full_text += f"\n[--- Begin Spreadsheet Tab: {sheet_name} ---]\n"
+                sheet = wb[sheet_name]
+                for row in sheet.iter_rows(values_only=True):
+                    # Filter out completely empty rows
+                    if any(cell is not None and str(cell).strip() != "" for cell in row):
+                        row_data = [str(cell) if cell is not None else "" for cell in row]
+                        full_text += " | ".join(row_data) + "\n"
+                full_text += f"\n[--- End Spreadsheet Tab: {sheet_name} ---]\n"
+        except Exception as e:
+            print(f"Error reading Excel file: {e}")
     else: 
         with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
             full_text = f.read()
