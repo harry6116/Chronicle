@@ -1,4 +1,4 @@
 tell application "Terminal"
-	activate
-	do script "echo '===================================================' ; echo '    Chronicle Document Extractor - Mac Setup' ; echo '===================================================' ; echo '' ; echo 'Installing required Python libraries...' ; echo '' ; pip3 install pypdf python-docx fpdf2 google-genai openpyxl ; echo '' ; echo '===================================================' ; echo 'Setup complete! You can now run Run_Chronicle.command' ; echo '==================================================='"
+    activate
+    do script "echo '--- Chronicle Document Extractor Setup (Mac) ---'; echo 'Installing required Python libraries...'; pip install --upgrade google-genai pypdf python-docx fpdf2 openpyxl EbookLib; echo ''; echo 'Setup Complete! You can now close this window and run Run_Chronicle.command.'"
 end tell
