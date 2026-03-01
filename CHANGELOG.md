@@ -1,7 +1,12 @@
 # Changelog
 
 All notable changes to the Chronicle Document Extractor will be documented in this file.
-
+## [1.7.0] - 2026-03-01
+### Added
+- **Atomic Saving (`.tmp` Protocol):** Overhauled the file-saving architecture to stream active outputs to temporary files. Files are only converted to their final extension upon 100% successful generation, completely eliminating the risk of corrupted or truncated files during system crashes.
+- **Smart Skip Batching:** The engine now validates the output directory before processing. If an extraction was interrupted by a power failure, rerunning the script will automatically skip all fully completed documents and resume exactly where the crash occurred.
+- **Live Save Merging:** Modified the `merge_files` logic to incrementally write to the master document on the hard drive after every individual file loop, protecting massive continuous archives from memory-loss during unexpected shutdowns.
+- **Testing Documentation:** Added `Chronicle_Fail_Safe_Testing_Report.md` detailing the extreme hardware stress tests used to validate the new resilient architecture.
 ## [1.6.0] - 2026-02-28
 ### Added
 - **One-Click Auto-Updaters:** Introduced `Update_Chronicle.bat` (Windows) and `Update_Chronicle.command` (Mac). These scripts allow non-technical users to seamlessly download the latest version of the `chronicle.py` script directly from GitHub without needing to navigate git commands or manually re-download ZIP files. 
