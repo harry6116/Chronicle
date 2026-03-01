@@ -401,7 +401,6 @@ def save_as_epub(epub_path, title, text_content):
         epub.write_epub(epub_path, book, {})
     except Exception as e:
         print(f"Error saving EPUB: {e}")
-
 def handle_stream(response, output_path, format_type, file_obj=None, memory_list=None):
     for chunk in response:
         if chunk.text:
@@ -484,33 +483,45 @@ def process_files():
             output_path = master_path
             current_file_obj = master_file_obj
             current_memory = master_memory
+            active_write_path = master_path
             
             # Invisible stitching for seamless reading flow
             if format_type == 'html':
                 current_file_obj.write(f"\n<br>\n")
+                current_file_obj.flush()
             elif format_type in ['txt', 'md']:
                 current_file_obj.write(f"\n\n")
+                current_file_obj.flush()
             elif format_type in ['docx', 'pdf', 'json', 'csv', 'epub']:
                 current_memory.append(f"\n\n")
         else:
             output_path = os.path.join(output_dir, f"{base_name}.{format_type}")
-            if format_type in ['docx', 'pdf', 'json', 'csv', 'epub'] and os.path.exists(output_path):
-                os.remove(output_path)
+            active_write_path = output_path + ".tmp"
+            
+            # 1. SMART SKIP LOGIC
+            if os.path.exists(output_path):
+                print(f"  -> [SMART SKIP] {filename} already processed. Skipping to next file.")
+                continue
+                
+            # 2. ATOMIC CLEANUP
+            if os.path.exists(active_write_path):
+                print(f"  -> [FAIL-SAFE] Found broken temporary file for {filename}. Overwriting...")
+                os.remove(active_write_path)
             
             current_file_obj = None
             if format_type in ['html', 'txt', 'md']:
-                current_file_obj = open(output_path, 'w', encoding='utf-8')
+                current_file_obj = open(active_write_path, 'w', encoding='utf-8')
                 write_header(current_file_obj, base_name, format_type)
         
         print(f"\nAnalyzing {filename} using {model_name}...")
         
         try:
             if ext == '.pdf':
-                process_pdf(client, file_path, output_path, format_type, prompt_text, model_name, current_file_obj, current_memory)
+                process_pdf(client, file_path, active_write_path, format_type, prompt_text, model_name, current_file_obj, current_memory)
             elif ext in ['.docx', '.txt', '.md', '.rtf', '.csv', '.js', '.xlsx']:
-                process_text_document(client, file_path, output_path, ext, format_type, prompt_text, model_name, current_file_obj, current_memory)
+                process_text_document(client, file_path, active_write_path, ext, format_type, prompt_text, model_name, current_file_obj, current_memory)
             elif ext in ['.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif', '.webp']:
-                process_image(client, file_path, output_path, format_type, prompt_text, model_name, current_file_obj, current_memory)
+                process_image(client, file_path, active_write_path, format_type, prompt_text, model_name, current_file_obj, current_memory)
             
             if batch_mode == 'recursive_delete':
                 try:
@@ -519,25 +530,47 @@ def process_files():
                 except Exception as e:
                     print(f"  -> [CLEANUP WARNING] Could not delete {filename}: {e}")
 
+            # 3. FINAL SAVING AND ATOMIC RENAME (If successful)
+            if not merge_files:
+                if format_type == 'docx' and current_memory:
+                    append_to_docx(active_write_path, "".join(current_memory))
+                elif format_type == 'pdf' and current_memory:
+                    save_as_pdf(active_write_path, "".join(current_memory))
+                elif format_type == 'json' and current_memory:
+                    save_as_json(active_write_path, "".join(current_memory))
+                elif format_type == 'csv' and current_memory:
+                    save_as_csv(active_write_path, "".join(current_memory))
+                elif format_type == 'epub' and current_memory:
+                    save_as_epub(active_write_path, base_name, "".join(current_memory))
+                    
+                if current_file_obj:
+                    write_footer(current_file_obj, format_type)
+                    current_file_obj.close()
+                    current_file_obj = None # Prevent double closing
+
+                # The actual Atomic Rename
+                if os.path.exists(active_write_path):
+                    os.rename(active_write_path, output_path)
+
+                print(f"Finished formatting {base_name}.")
+            else:
+                # LIVE SAVE FOR MERGED FILES (Incremental saving during loops)
+                if format_type == 'docx' and master_memory:
+                    append_to_docx(master_path, "".join(master_memory))
+                    master_memory.clear() # Clear it so we don't append duplicates
+                elif format_type == 'pdf' and master_memory:
+                    save_as_pdf(master_path, "".join(master_memory))
+                elif format_type == 'json' and master_memory:
+                    save_as_json(master_path, "".join(master_memory))
+                elif format_type == 'csv' and master_memory:
+                    save_as_csv(master_path, "".join(master_memory))
+                elif format_type == 'epub' and master_memory:
+                    save_as_epub(master_path, "Chronicle Merged Document", "".join(master_memory))
+
         except Exception as e:
             print(f"Error processing {filename}: {e}")
-            
-        if not merge_files:
-            if format_type == 'docx' and current_memory:
-                append_to_docx(output_path, "".join(current_memory))
-            elif format_type == 'pdf' and current_memory:
-                save_as_pdf(output_path, "".join(current_memory))
-            elif format_type == 'json' and current_memory:
-                save_as_json(output_path, "".join(current_memory))
-            elif format_type == 'csv' and current_memory:
-                save_as_csv(output_path, "".join(current_memory))
-            elif format_type == 'epub' and current_memory:
-                save_as_epub(output_path, base_name, "".join(current_memory))
-                
             if current_file_obj:
-                write_footer(current_file_obj, format_type)
                 current_file_obj.close()
-            print(f"Finished formatting {base_name}.")
 
     if merge_files:
         if format_type == 'docx' and master_memory:

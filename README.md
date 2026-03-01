@@ -2,11 +2,10 @@
 
 Chronicle is a highly accessible, multi-modal document extraction and transcription tool powered by Google's Gemini AI. It is specifically designed for high-fidelity transcription of complex historical archives, military documents, handwritten letters, technical manuals, financial spreadsheets, and complex legal legislation.
 
-## 🚀 What's New in v1.6.0 (The Quality of Life Update)
-* **One-Click Auto-Updaters:** Say goodbye to manually downloading ZIP files or dealing with Git commands. Chronicle now includes dedicated `Update_Chronicle` scripts for Mac and Windows. With a single click, the tool will securely fetch the latest engine updates and install any newly required libraries in the background, all without ever touching your personal files or API key.
-* **New Export Formats:** Added native support for exporting to EPUB (`.epub`), JSON (`.json`), and CSV (`.csv`). Chronicle can now generate native eBooks for e-readers, or structured data for corporate API and database integration.
-* **Legal & Statutory Engine:** Overhauled the OCR prompt to recognize and meticulously preserve the strict hierarchical structure of legal contracts and legislation (Parts, Divisions, Sections, Subclauses) without flattening the text.
-* **The WWI War Diary Showcase:** Added a comprehensive HTML showcase in `assets/samples/` demonstrating Chronicle's ability to reconstruct highly degraded, handwritten cursive that completely breaks standard OCR software.
+## 🚀 What's New in v1.7.0 (The Resilience Update)
+* **Stateless Fail-Safes (Atomic Saving):** Chronicle is now virtually crash-proof. It uses temporary `.tmp` streaming to ensure that if your computer crashes or loses power mid-scan, no files are ever corrupted. 
+* **Smart Skip Batching:** If you are scanning 1,000 pages and your computer restarts, simply run the script again. Chronicle will automatically skip the pages it already finished and pick up exactly where it left off, requiring zero manual sorting.
+* **Live Save Merging:** When stitching massive archives into a single eBook or database, the engine incrementally saves to your hard drive after every page, ensuring zero data loss if the process is interrupted.
 
 ## ✨ Core Features
 
@@ -35,7 +34,7 @@ To run Chronicle, you must have Python installed on your system.
 * **Mac Users:** You can download Python from the official website, or install it via the Terminal using Homebrew by running: `brew install python`
 
 ### 3. Installing Dependencies
-Chronicle requires specific libraries to read documents and communicate with AI. Open your terminal or command prompt and run this exact command to install everything you need:
+Chronicle requires specific libraries to read documents and communicate with AI. If this is your **first time** installing Chronicle, open your terminal or command prompt and run this exact command to install everything you need:
 
 ```bash
 pip install --upgrade google-genai pypdf python-docx fpdf2 openpyxl EbookLib
