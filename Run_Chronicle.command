@@ -1,3 +1,4 @@
 #!/bin/bash
-cd "$(dirname "$0")"
+echo "Starting Chronicle..."
+cd "$(dirname "$0")" || exit
 python3 chronicle.py
