@@ -1,7 +1,25 @@
-api_key.txt
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+env/
+.env
+
+# Rust
+target/
+
+# macOS
 .DS_Store
-Push_to_GitHub.command
-Sync_from_GitHub.command
-input_files/
-output_html/
-Input_Scans/
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# IDEs and Editors
+.vscode/
+.idea/
+*.swp

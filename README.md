@@ -2,29 +2,26 @@
 
 Chronicle is a highly accessible, multi-modal document extraction and transcription tool powered by Google's Gemini AI. It is specifically designed for high-fidelity transcription of complex historical archives, military documents, handwritten letters, technical manuals, financial spreadsheets, and complex legal legislation.
 
-## 🚀 What's New in v1.7.0 (The Resilience Update)
-* **Stateless Fail-Safes (Atomic Saving):** Chronicle is now virtually crash-proof. It uses temporary `.tmp` streaming to ensure that if your computer crashes or loses power mid-scan, no files are ever corrupted. 
-* **Smart Skip Batching:** If you are scanning 1,000 pages and your computer restarts, simply run the script again. Chronicle will automatically skip the pages it already finished and pick up exactly where it left off, requiring zero manual sorting.
-* **Live Save Merging:** When stitching massive archives into a single eBook or database, the engine incrementally saves to your hard drive after every page, ensuring zero data loss if the process is interrupted.
+## 🚀 What's New in v1.8.0 (The Academic & Compliance Update)
+* **Strict WCAG 2.2 Compliance:** The extraction engine now hardcodes strict HTML semantics, including proper table scopes, unbreakable heading hierarchies, and dynamic language/title tags to meet US Section 508 and Australian AS EN 301 549 standards.
+* **The Academic Engine:** Chronicle can now process dense scientific, theological, and musicology journals. It automatically converts complex mathematical equations into LaTeX, preserves ancient inline languages (Greek, Hebrew), flattens multi-column layouts, and safely anchors footnotes to the end of the document.
+* **Automated Setup Scripts:** We have introduced dedicated Mac and Windows scripts to streamline dependency management.
+* **Stateless Fail-Safes (Atomic Saving):** Chronicle uses temporary `.tmp` streaming to ensure that if your computer crashes mid-scan, no files are ever corrupted. 
 
 ## ✨ Core Features
 
-* **Universal Input:** Supports PDFs, Word Documents, Excel Workbooks (.xlsx), plain text, and multiple image formats (JPG, PNG, TIFF, TIF, WEBP).
+* **Universal Input:** Supports PDFs, Word Documents, Excel Workbooks (.xlsx), plain text, and multiple image formats.
 * **Universal Export:** Generates clean, semantic HTML specifically optimized for screen readers, alongside EPUB, JSON, CSV, TXT, DOCX, Markdown, and PDF output options.
 * **10-Step Customization:** A comprehensive, audio-friendly terminal menu system to control everything from AI engine speed to historical punctuation modernization.
-* **Smart Stitching:** Merge dozens of individual scanned images or pages into a single, seamless reading experience or continuous database file.
-* **Archival Precision:** Features a custom ruleset to handle historical unit conversions, telegraph decoding (STOP to period), military grid references, and strikethrough text recovery.
-* **Visual Scene Descriptions:** Automatically translates diagrams, photographs, and UI icons into detailed, descriptive text strings.
-* **Advanced Batch Scanning:** Supports single-file processing, directory flat-scanning, and recursive scanning.
+* **Archival Precision:** Features a custom ruleset to handle historical unit conversions, telegraph decoding, military grid references, and strikethrough text recovery.
 * **PDF Chunking:** Automatically and safely splits massive archival PDFs in 5-page chunks to prevent memory timeouts.
-
-## 🛠️ Prerequisites & Installation
+* ## 🛠️ Prerequisites & Installation
 
 Chronicle is a Python script, not a compiled binary application. You will not find an installer in the GitHub "Releases" tab.
 
 ### 1. How to Download Chronicle
 1. Click the green **Code** button at the top of the repository page.
-2. Select **Download ZIP** from the dropdown menu.
+2. Select **Download ZIP** from the dropdown menu, or clone the repository to your machine.
 3. Extract the ZIP file to a folder on your computer (e.g., your Documents folder).
 
 ### 2. Installing Python
@@ -33,11 +30,11 @@ To run Chronicle, you must have Python installed on your system.
 * **Windows Users (⚠️ CRITICAL):** Download Python from the official website. When running the installer, **you must check the box that says "Add Python.exe to PATH"** at the bottom of the very first screen. If you miss this, Chronicle will not run.
 * **Mac Users:** You can download Python from the official website, or install it via the Terminal using Homebrew by running: `brew install python`
 
-### 3. Installing Dependencies
-Chronicle requires specific libraries to read documents and communicate with AI. If this is your **first time** installing Chronicle, open your terminal or command prompt and run this exact command to install everything you need:
+### 3. Installing Dependencies & First-Time Setup
+Users can use the Mac or Windows Update scripts (`update_mac.sh` and `update_windows.bat`) to automatically update the software and dependencies, rather than manually running `pip install` or re-downloading ZIP files. 
 
-```bash
-pip install --upgrade google-genai pypdf python-docx fpdf2 openpyxl EbookLib
+For your very first setup, simply open your terminal or command prompt in the Chronicle folder and run the script corresponding to your operating system. This will automatically install required libraries like `google-genai`, `pypdf`, `fpdf2`, `openpyxl`, and `EbookLib`.
+
 ### 🔑 Gemini API Key & Pricing
 You will need a **Google Gemini API Key** to power the engine. The script will prompt you for this on your first run and save it securely in an `api_key.txt` file. 
 
@@ -48,7 +45,6 @@ Google offers two API tiers:
 | **Pay-as-you-go** | Paid per Token | High/Custom | Data is strictly private and **not** used for training. |
 
 *Note: If you are processing highly sensitive personal archives, legal contracts, or financial data, the **Pay-as-you-go** tier is strictly recommended to ensure absolute data privacy.*
-
 ## ⚙️ Usage
 
 1. Place your historical documents, PDFs, Excel files, or images into the `input_files` or `Input_Scans` folder.
@@ -61,9 +57,9 @@ Google offers two API tiers:
 
 ## 🔄 Keeping Chronicle Updated
 
-You no longer need to manually download new ZIP files when Chronicle updates. Inside your folder, you will find an **Update_Chronicle** script (one for Mac, one for Windows). 
+Users can use the Mac or Windows Update scripts (`update_mac.sh` and `update_windows.bat`) to automatically update the software and dependencies, rather than manually running pip install or re-downloading ZIP files.
 
-Simply run this script to instantly pull the latest code and install any new dependencies. **This process is 100% safe.** It will only update the core engine; it will never overwrite your extracted documents, your input files, or your API key.
+Simply run the script for your operating system to instantly pull the latest code and install any new dependencies. **This process is 100% safe.** It will only update the core engine; it will never overwrite your extracted documents, your input files, or your API key.
 
 ## 📜 License & Commercial Integration
 

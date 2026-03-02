@@ -2,6 +2,9 @@ import os
 import platform
 import time
 import json
+import re
+import cv2
+from PIL import Image
 from pypdf import PdfReader, PdfWriter
 import docx
 from fpdf import FPDF
@@ -10,14 +13,28 @@ import logging
 import shutil
 import openpyxl
 from ebooklib import epub
+import textwrap
+import sys
+import glob
 
-# Silence harmless PDF structural warnings from the PyPDF logger
+# Dynamically link Homebrew's Python site-packages for Mac users
+brew_paths = glob.glob("/opt/homebrew/lib/python3.*/site-packages") + glob.glob("/usr/local/lib/python3.*/site-packages")
+for path in brew_paths:
+    if os.path.exists(path) and path not in sys.path:
+        sys.path.append(path)
+
+try:
+    import louis
+except ImportError:
+    louis = None
+
 logging.getLogger("pypdf").setLevel(logging.ERROR)
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 INPUT_DIR = os.path.join(SCRIPT_DIR, "input_files")
 BATCH_INPUT_DIR = os.path.join(SCRIPT_DIR, "Input_Scans")
 KEY_FILE = os.path.join(SCRIPT_DIR, "api_key.txt")
+CONFIG_FILE = os.path.join(SCRIPT_DIR, "user_config.json")
 
 PDF_CHUNK_PAGES = 5
 TEXT_CHUNK_CHARS = 15000 
@@ -27,301 +44,157 @@ def get_api_key():
     if os.path.exists(KEY_FILE):
         with open(KEY_FILE, "r") as f:
             key = f.read().strip()
-            if key:
-                return key
-    
+            if key: return key
     print("\nFIRST TIME SETUP")
-    print("Welcome to Chronicle. To use this tool, you need a Google Gemini API Key.")
-    new_key = input("Please paste your API Key here and press Enter: ").strip()
-    
+    new_key = input("Please paste your Google Gemini API Key here and press Enter: ").strip()
     if new_key:
-        with open(KEY_FILE, "w") as f:
-            f.write(new_key)
-        print("Key saved! You won't need to do this again.\n")
+        with open(KEY_FILE, "w") as f: f.write(new_key)
         return new_key
-    else:
-        print("No key provided. Exiting.")
-        exit()
+    exit()
+
+def get_brf_table():
+    config = {}
+    if os.path.exists(CONFIG_FILE):
+        with open(CONFIG_FILE, "r") as f:
+            config = json.load(f)
+            if "brf_table" in config: return config["brf_table"]
+    
+    print("\nBRAILLE READY FORMAT (BRF) SETUP")
+    options = ["1. UEB Grade 2 (Default)", "2. UEB Grade 1", "3. US English", "4. UK English", "5. Custom Table"]
+    for o in options: print(o)
+    
+    choice = input("Select Standard (1-5): ").strip()
+    table = "en-ueb-g2.ctb"
+    if choice == '2': table = "en-ueb-g1.ctb"
+    elif choice == '3': table = "en-us-g2.ctb"
+    elif choice == '4': table = "en-gb-g2.ctb"
+    elif choice == '5': table = input("Enter exact table name (e.g., fr-bfu-comp8.utb): ").strip()
+    
+    config["brf_table"] = table
+    with open(CONFIG_FILE, "w") as f: json.dump(config, f)
+    return table
+
+def ask_menu(title, options, option_map, default_key=''):
+    print(f"\n{title}")
+    for opt in options: print(opt)
+    while True:
+        choice = input("Select option: ").strip()
+        if choice in option_map: return option_map[choice]
+        if choice == '' and default_key in option_map: return option_map[default_key]
+        print("Invalid choice.")
+
+def ask_bool(title, options, true_choice='2'):
+    print(f"\n{title}")
+    for opt in options: print(opt)
+    while True:
+        choice = input("Select option: ").strip()
+        if choice == true_choice: return True
+        if choice in ['0', '1', '']: return False
+        print("Invalid choice.")
 
 def get_user_preferences():
-    print("\nMENU 1: OUTPUT FORMAT (Mandatory)")
-    print("1. HTML (Best for Screen Readers)")
-    print("2. Plain Text (.txt)")
-    print("3. Microsoft Word (.docx)")
-    print("4. Markdown (.md)")
-    print("5. PDF Document (.pdf)")
-    print("6. JSON Data (.json) - For APIs & Databases")
-    print("7. CSV Spreadsheet (.csv) - For Tabular Data")
-    print("8. EPUB eBook (.epub) - For e-Readers")
-    while True:
-        format_choice = input("Type 1-8 and press Enter: ").strip()
-        if format_choice == '1':
-            format_type, output_dir = 'html', os.path.join(SCRIPT_DIR, "output_html")
-            break
-        elif format_choice == '2':
-            format_type, output_dir = 'txt', os.path.join(SCRIPT_DIR, "output_txt")
-            break
-        elif format_choice == '3':
-            format_type, output_dir = 'docx', os.path.join(SCRIPT_DIR, "output_docx")
-            break
-        elif format_choice == '4':
-            format_type, output_dir = 'md', os.path.join(SCRIPT_DIR, "output_md")
-            break
-        elif format_choice == '5':
-            format_type, output_dir = 'pdf', os.path.join(SCRIPT_DIR, "output_pdf")
-            break
-        elif format_choice == '6':
-            format_type, output_dir = 'json', os.path.join(SCRIPT_DIR, "output_json")
-            break
-        elif format_choice == '7':
-            format_type, output_dir = 'csv', os.path.join(SCRIPT_DIR, "output_csv")
-            break
-        elif format_choice == '8':
-            format_type, output_dir = 'epub', os.path.join(SCRIPT_DIR, "output_epub")
-            break
-        else:
-            print("Invalid choice.")
-
-    print("\nMENU 2: AI ENGINE SELECTION (Mandatory)")
-    print("1. Standard Speed (Best for typed text, fast)")
-    print("2. Deep Scan (Best for faded handwriting, slower)")
-    while True:
-        engine_choice = input("Type 1 or 2 and press Enter: ").strip()
-        if engine_choice == '1':
-            model_name = 'gemini-2.5-flash'
-            break
-        elif engine_choice == '2':
-            model_name = 'gemini-2.5-pro'
-            break
-        else:
-            print("Invalid choice.")
-            
-    print("\nMENU 3: TRANSLATION MODE")
-    print("0. Skip (Default: Keep original language)")
-    print("1. No Translation")
-    print("2. Translate to English (Keep original in brackets)")
-    print("3. Translate to English (Discard original)")
-    while True:
-        trans_choice = input("Select option: ").strip()
-        if trans_choice in ['0', '1', '']:
-            translate_mode = 'none'
-            break
-        elif trans_choice == '2':
-            translate_mode = 'both'
-            break
-        elif trans_choice == '3':
-            translate_mode = 'english_only'
-            break
-        else:
-            print("Invalid.")
-
-    print("\nMENU 4: PUNCTUATION HANDLING")
-    print("0. Skip (Default: Strict/Original)")
-    print("1. Strict (Keep exact historical punctuation)")
-    print("2. Modernize (Insert periods/commas for rhythm)")
-    while True:
-        punct_choice = input("Select option: ").strip()
-        if punct_choice in ['0', '1', '']:
-            modernize_punctuation = False
-            break
-        elif punct_choice == '2':
-            modernize_punctuation = True
-            break
-        else:
-            print("Invalid.")
-
-    print("\nMENU 5: DOCUMENT CONDITION PROFILING")
-    print("0. Skip (Default: No profiling)")
-    print("1. No Profiling")
-    print("2. Enable (Describe physical condition of artifact)")
-    while True:
-        condition_choice = input("Select option: ").strip()
-        if condition_choice in ['0', '1', '']:
-            condition_profiling = False
-            break
-        elif condition_choice == '2':
-            condition_profiling = True
-            break
-        else:
-            print("Invalid.")
-
-    print("\nMENU 6: HISTORICAL UNIT CONVERSION")
-    print("0. Skip (Default: Strict/Original)")
-    print("1. Strict (Keep chains/shillings/leagues)")
-    print("2. Convert (Insert modern equivalents in brackets)")
-    while True:
-        unit_choice = input("Select option: ").strip()
-        if unit_choice in ['0', '1', '']:
-            unit_conversion = False
-            break
-        elif unit_choice == '2':
-            unit_conversion = True
-            break
-        else:
-            print("Invalid.")
-
-    print("\nMENU 7: FILE HANDLING")
-    print("0. Skip (Default: Process individually)")
-    print("1. Process files individually")
-    print("2. Merge all files into one seamless document")
-    while True:
-        merge_choice = input("Select option: ").strip()
-        if merge_choice in ['0', '1', '']:
-            merge_files = False
-            break
-        elif merge_choice == '2':
-            merge_files = True
-            break
-        else:
-            print("Invalid.")
-            
-    print("\nMENU 8: VISUAL SCENE DESCRIPTIONS")
-    print("0. Skip (Default: Enable descriptions)")
-    print("1. Disable (Ignore all photographs, maps, and logos)")
-    print("2. Enable (Write detailed descriptions for visual elements)")
-    while True:
-        image_choice = input("Select option: ").strip()
-        if image_choice in ['0', '2', '']:
-            image_descriptions = True
-            break
-        elif image_choice == '1':
-            image_descriptions = False
-            break
-        else:
-            print("Invalid.")
-
-    print("\nMENU 9: DIRECTORY BATCH SCANNING")
-    print("0. Skip (Default: Standard flat scan of 'input_files')")
-    print("1. Recursive Scan of 'Input_Scans' folder (Keep originals)")
-    print("2. Recursive Scan of 'Input_Scans' folder (DELETE originals after processing)")
-    while True:
-        batch_choice = input("Select option: ").strip()
-        if batch_choice in ['0', '']:
-            batch_mode = 'flat'
-            break
-        elif batch_choice == '1':
-            batch_mode = 'recursive_keep'
-            break
-        elif batch_choice == '2':
-            batch_mode = 'recursive_delete'
-            break
-        else:
-            print("Invalid choice.")
-
-    print("\nMENU 10: TECHNICAL APPENDIX (Metadata & Confidence Scores)")
-    print("0. Skip (Default: Exclude for seamless reading)")
-    print("1. Exclude completely (Best for continuous letters)")
-    print("2. Include at the bottom of each page")
-    while True:
-        app_choice = input("Select option: ").strip()
-        if app_choice in ['0', '1', '']:
-            include_appendix = False
-            break
-        elif app_choice == '2':
-            include_appendix = True
-            break
-        else:
-            print("Invalid choice.")
-
-    return format_type, output_dir, model_name, merge_files, translate_mode, modernize_punctuation, condition_profiling, unit_conversion, image_descriptions, batch_mode, include_appendix
-
-def get_prompt(format_type, translate_mode, modernize_punctuation, condition_profiling, unit_conversion, image_descriptions, include_appendix):
+    config = {}
     
-    if include_appendix:
-        metadata_rules = "- [Transcription Confidence: X/10 - brief explanation of document legibility]\n       - [Date: Extract the primary date of the document/entry and standardize it as Month DD, YYYY. If none, write Unknown]"
-        if condition_profiling:
-            metadata_rules += "\n       - [Physical Condition: A one-sentence description of the artifact's visual state, e.g., faded ink, water damage]"
-        appendix_rule = f"1. Metadata Appendix: Do NOT put the Document Metadata at the top. Create a 'TECHNICAL APPENDIX' at the very bottom of your response and place the following tags there:\n       {metadata_rules}"
+    fmt_options = ["1. HTML", "2. TXT", "3. DOCX", "4. MD", "5. PDF", "6. JSON", "7. CSV", "8. EPUB", "9. BRF"]
+    fmt_map = {
+        '1': ('html', 'output_html'), '2': ('txt', 'output_txt'), '3': ('docx', 'output_docx'),
+        '4': ('md', 'output_md'), '5': ('pdf', 'output_pdf'), '6': ('json', 'output_json'),
+        '7': ('csv', 'output_csv'), '8': ('epub', 'output_epub'), '9': ('brf', 'output_brf')
+    }
+    fmt, out_folder = ask_menu("MENU 1: OUTPUT FORMAT", fmt_options, fmt_map)
+    
+    if fmt == 'brf' and louis is None:
+        print("WARNING: Liblouis not installed. Falling back to TXT.")
+        fmt, out_folder = 'txt', 'output_txt'
+        
+    config['format_type'] = fmt
+    config['output_dir'] = os.path.join(SCRIPT_DIR, out_folder)
+    if fmt == 'brf': config['brf_table'] = get_brf_table()
+
+    config['model_name'] = ask_menu("MENU 2: AI ENGINE", ["1. Standard (Flash)", "2. Deep Scan (Pro)"], {'1':'gemini-2.5-flash', '2':'gemini-2.5-pro', '':'gemini-2.5-flash'}, '')
+    config['translate_mode'] = ask_menu("MENU 3: TRANSLATION", ["0. Skip", "2. Translate (Keep original)", "3. Translate (Discard original)"], {'0':'none', '1':'none', '2':'both', '3':'english_only', '':'none'}, '')
+    config['modernize_punctuation'] = ask_bool("MENU 4: PUNCTUATION", ["0. Skip", "2. Modernize"])
+    config['condition_profiling'] = ask_bool("MENU 5: CONDITION PROFILING", ["0. Skip", "2. Enable"])
+    config['unit_conversion'] = ask_bool("MENU 6: UNIT CONVERSION", ["0. Skip", "2. Convert"])
+    config['merge_files'] = ask_bool("MENU 7: FILE HANDLING", ["0. Process individually", "2. Merge files"])
+    
+    img_choice = ask_menu("MENU 8: VISUAL DESCRIPTIONS", ["0. Enable (Default)", "1. Disable"], {'0':True, '1':False, '2':True, '':True}, '')
+    config['image_descriptions'] = img_choice
+    
+    config['batch_mode'] = ask_menu("MENU 9: BATCH SCANNING", ["0. Standard scan", "1. Recursive (Keep)", "2. Recursive (Delete)"], {'0':'flat', '1':'recursive_keep', '2':'recursive_delete', '':'flat'}, '')
+    config['include_appendix'] = ask_bool("MENU 10: TECHNICAL APPENDIX", ["0. Exclude", "2. Include"])
+    config['academic_mode'] = ask_bool("MENU 11: ACADEMIC ENGINE", ["0. Standard", "2. Enable"])
+    config['toc_mode'] = ask_bool("MENU 12: AUTO-LINKING TOC", ["0. Disable", "2. Enable"])
+    config['flatten_headers'] = ask_bool("MENU 13: HEADER FLATTENING", ["0. Keep verbatim", "2. Flatten"])
+    
+    return config
+
+def get_prompt(config):
+    if config['include_appendix']:
+        metadata_rules = "- [Transcription Confidence: X/10]\n       - [Date: Month DD, YYYY]"
+        if config['condition_profiling']: metadata_rules += "\n       - [Physical Condition]"
+        appendix_rule = f"1. Metadata Appendix: Create a 'TECHNICAL APPENDIX' at the bottom:\n       {metadata_rules}"
     else:
-        appendix_rule = "1. Seamless Reading Mode: Output ONLY the transcription and visual descriptions. DO NOT generate any confidence scores, dates, condition profiles, or technical appendices."
+        appendix_rule = "1. Seamless Reading Mode: Output ONLY the transcription. NO metadata appendices."
 
-    unit_rule = "Unit Conversion: If you encounter outdated historical measurements or currency (e.g., chains, shillings, leagues), quietly insert the modern equivalent in brackets." if unit_conversion else "Unit Conversion: Do not convert any historical measurements or currency. Keep them exactly as written."
-    
-    if translate_mode == 'none':
-        translation_rule = "Language: Transcribe the text exactly in its original language. Do not translate."
-    elif translate_mode == 'both':
-        translation_rule = "Translation: If you detect text in a language other than English, translate it into English. Immediately follow the translated sentence with the original foreign text in square brackets."
-    elif translate_mode == 'english_only':
-        translation_rule = "Translation: If you detect text in a language other than English, translate it entirely into English. Discard the original foreign text completely."
+    unit_rule = "Convert historical measurements/currency in brackets." if config['unit_conversion'] else "Do not convert measurements."
+    translate_rule = "Do not translate." if config['translate_mode'] == 'none' else "Translate to English, keep original in brackets." if config['translate_mode'] == 'both' else "Translate to English, discard original."
+    punct_rule = "Modernize punctuation for rhythm." if config['modernize_punctuation'] else "Maintain exact original punctuation."
+    image_rule = "Describe images in brackets [Image Description: ...]. Use <img alt=\"\"> in HTML if toggled off." if config['image_descriptions'] else "Ignore all images. If using HTML, use <img alt=\"\">."
+    flatten_rule = "Header Flattening: Strip repetitive page numbers and security stamps. Stitch broken sentences together." if config['flatten_headers'] else "Preserve all headers and footers exactly."
 
-    punct_rule = "Punctuation Restoration: Insert proper sentence breaks, periods, and commas where they are missing to create a smooth reading rhythm. Do not change actual words." if modernize_punctuation else "Punctuation: Maintain the exact original punctuation. Do not add missing periods or commas."
-    
-    image_rule = "Visual Scene Descriptions: If the document contains any photographs, maps, diagrams, or illustrations, insert a detailed visual description of the image enclosed in square brackets, formatted exactly like this: [Image Description: a brief, highly descriptive explanation]." if image_descriptions else "Visual Scene Descriptions: Ignore all photographs, maps, diagrams, logos, and illustrations. Do not describe them."
+    wcag_rules = "WCAG 2.2 COMPLIANCE: Use strict semantic HTML heading hierarchies (H1, H2). NEVER skip levels. Tables MUST use <th> and scope=\"col\"/row."
+    academic_rules = "ACADEMIC RULES: Convert math to LaTeX. Group footnotes at the bottom. Preserve indigenous languages (e.g. Māori macrons) and ancient scripts (Hieroglyphs). If HTML, wrap in <span lang=\"x\">." if config['academic_mode'] else ""
+    toc_rules = "TABLE OF CONTENTS: Create internal HTML anchor links for all chapters." if config['toc_mode'] else ""
+    anti_hallucinate = "ANTI-HALLUCINATION: If text is degraded or microscopic, NEVER guess. Output [Illegible Micro-text: approx X words]."
 
     base_rules = f"""
-    CRITICAL OCR, HANDWRITING, AND ACCESSIBILITY RULES:
-    
+    CRITICAL RULES:
     {appendix_rule}
-    2. Encoding Safety: Use strictly standard ASCII punctuation for quotes and dashes. Do NOT use 'smart' curly quotes, long em-dashes, or non-breaking spaces.
+    {anti_hallucinate}
+    - Extract legal structures strictly.
+    - Describe device schematics sequentially.
+    - Read strikethroughs: [Struck through: text].
+    - Flatten forms and checkboxes linearly.
     
-    LEGAL & STATUTORY DOCUMENTS:
-    3. Legislative Hierarchy: When extracting laws, contracts, or government legislation, strictly preserve the structural hierarchy (Parts, Divisions, Sections, Subsections, Clauses, Subclauses). Use clear indentation or HTML lists so screen readers can navigate the legal tree.
-    4. Defined Terms: Ensure capitalized defined terms remain exact. Do NOT summarize, paraphrase, or alter legal clauses in any way.
-
-    TECHNICAL MANUALS & DEVICE GUIDES:
-    5. UI & Button Translation: If processing an instruction manual, translate all inline visual icons, button pictures, and interface symbols into clear spoken text (e.g., replace a picture of a gear with [Settings Icon], or a triangle with [Play Button]). NEVER skip a visual step.
-    6. Device Schematics: If a diagram points out parts of a device using numbers or lines, extract it into a linear, descriptive list mapping the device spatially (e.g., [Part 1: Power Button - located on top right edge]).
-    
-    MILITARY & ARCHIVAL INTELLIGENCE:
-    7. Telegraph & Cablegram Decoder: If the document is a telegram using the word "STOP" for punctuation, replace "STOP" with a standard period and a paragraph break.
-    8. Map Grid References: Format military map coordinates with spaced digits (e.g., [Map Grid Reference: 1 2 3 - 4 5 6]).
-    9. Nominal Rolls & Casualty Lists: Rebuild densely packed lists of soldiers into strict, cleanly scoped tables to maintain structural orientation.
-    10. Security Classifications: Extract stamps (e.g., TOP SECRET) and place them at the very top of the output as [Document Classification: TOP SECRET].
-    11. Chain of Command Header Parsing: Isolate military routing blocks (FM:, TO:), expand acronyms, and place them cleanly at the top.
-    12. Strikethrough Recovery: Do not skip crossed-out text. Read it and tag it (e.g., [Struck through: original text]).
-    13. Official Seals & Watermarks: Look for and describe physical authentication marks (e.g., [Official Embossed Seal]).
-    14. Visual Emphasis: Translate visual intent for heavily underlined/capitalized text (e.g., [Emphasis: IMMEDIATE ACTION]).
-    15. Shorthand Detection: Flag untranscribable shorthand (e.g., [Visual Note: Untranscribed shorthand]).
-    16. Blank Page Detection: If a page is entirely empty or only contains smudges, output exactly: [Page intentionally left blank].
-    17. Redaction Tagging: If text is deliberately blacked out, insert the tag: [Text Redacted by Censor].
-    18. Article Separation: For multi-column newspapers, insert a clear [--- End of Article ---] break.
-    19. Military Abbreviations: Expand acronyms into full spoken forms.
-    
-    MODERN BUSINESS & CODE RULES:
-    20. Form Flattening: Extract rigid tax forms/applications into a clean, linear vertical list.
-    21. Checkboxes: Declare the status of visual toggles (e.g., [Checkbox: Selected] or [Checkbox: Empty]).
-    22. Signature Detection: Indicate if a signature block is signed or empty.
-    23. Code Formatting: Cleanly extract programming code (.js files), preserving line breaks and indentation.
-    24. Spreadsheet Flattening: Reformat raw extracted spreadsheet rows (separated by pipes) into a highly readable, logical summary. Break down complex budgets, grids, or multi-tab workbooks into clear, linear text or accessible HTML lists. Make financial numbers easy to comprehend.
-    
-    DATA INTEGRITY:
-    25. Illegible Text: Do not guess destroyed text. Insert [illegible: approx 3 words].
-    26. Uncensored Transcription: Transcribe all profanity, slurs, and explicit language verbatim. Do NOT censor or asterisk.
-    27. Text Integrity: Never summarize historical content.
-    28. Marginalia: Tag scribbled margin notes clearly.
-    
-    DYNAMIC TOGGLES:
-    29. {unit_rule}
-    30. {translation_rule}
-    31. {punct_rule}
-    32. {image_rule}
+    TOGGLES:
+    - {unit_rule}
+    - {translate_rule}
+    - {punct_rule}
+    - {image_rule}
+    - {flatten_rule}
+    {wcag_rules}
+    {academic_rules}
+    {toc_rules}
     """
     
-    if format_type == 'html':
-        return f"Format the extracted text as well-structured HTML highly accessible for screen readers. Use proper heading tags, paragraphs, and lists. Construct proper HTML tables with scope attributes for headers. Do NOT include markdown block formatting. Do NOT include <html>, <head>, or <body> tags.\n{base_rules}"
-    elif format_type == 'md':
-        return f"Format the extracted text as clean, semantic Markdown. Use # for headings, standard bullet points, and markdown tables where appropriate.\n{base_rules}"
-    elif format_type == 'json':
-        return f"Format the extracted text strictly as a valid JSON document. Use a logical key-value structure containing the extracted text, any metadata, and tables formatted as JSON arrays. Output ONLY valid JSON, do NOT wrap it in ```json code blocks.\n{base_rules}"
-    elif format_type == 'csv':
-        return f"Format the extracted text strictly as Comma-Separated Values (CSV). Use commas to separate columns and standard line breaks for rows. Quote strings that contain commas. Output ONLY the raw CSV text, do NOT wrap it in ```csv code blocks.\n{base_rules}"
-    elif format_type == 'epub':
-        return f"Format the extracted text as clean, semantic HTML suitable for compiling into an EPUB chapter. Use exactly one <h1> for the main title, and proper <h2>, <p>, and <ul> tags. Output ONLY the HTML content, no html/head/body wrappers.\n{base_rules}"
-    else:
-        return f"Extract and format the text as clean, readable plain text. Format tabular data cleanly using spaces, but do not use HTML or Markdown. Do NOT use markdown symbols like asterisks or hashes for formatting.\n{base_rules}"
+    fmt = config['format_type']
+    if fmt == 'html': return f"Format strictly as HTML. No markdown wrappers. No body/html tags.\n{base_rules}"
+    elif fmt == 'md': return f"Format as strict Markdown.\n{base_rules}"
+    elif fmt == 'json': return f"Format as valid JSON.\n{base_rules}"
+    elif fmt == 'csv': return f"Format as valid CSV.\n{base_rules}"
+    elif fmt == 'epub': return f"Format as semantic HTML for EPUB processing.\n{base_rules}"
+    elif fmt == 'pdf': return f"Format as semantic HTML. This will be compiled into a PDF.\n{base_rules}"
+    elif fmt == 'brf': return f"Format strictly as plain text with standard spacing. NO markdown. NO HTML. This will be translated directly to Braille.\n{base_rules}"
+    else: return f"Format as plain text.\n{base_rules}"
+def enhance_image_for_microtext(file_path):
+    try:
+        img = cv2.imread(file_path)
+        if img is None: return file_path
+        width, height = int(img.shape[1] * 2), int(img.shape[0] * 2)
+        resized = cv2.resize(img, (width, height), interpolation=cv2.INTER_LANCZOS4)
+        gray = cv2.cvtColor(resized, cv2.COLOR_BGR2GRAY)
+        temp_path = file_path + "_enhanced.png"
+        cv2.imwrite(temp_path, gray)
+        return temp_path
+    except Exception as e:
+        print(f"Warning: Could not enhance image ({e}). Using original.")
+        return file_path
 
 def clean_text_artifacts(text):
-    if not text:
-        return ""
-    
-    replacements = {
-        "â€™": "'", "â€œ": '"', "â€": '"', "â€“": "-", "â€”": "-", 
-        "’": "'", "‘": "'", "“": '"', "”": '"', "–": "-", "—": "-", "…": "...",
-        "Â\xa0": " ", "Â ": " ", "Â": ""
-    }
-    
-    for old, new in replacements.items():
-        text = text.replace(old, new)
+    if not text: return ""
+    replacements = {"â€™": "'", "â€œ": '"', "â€": '"', "â€“": "-", "â€”": "-", "’": "'", "‘": "'", "“": '"', "”": '"', "–": "-", "—": "-", "Â\xa0": " ", "Â": ""}
+    for old, new in replacements.items(): text = text.replace(old, new)
     return text
 
 def write_header(file_obj, title, format_type):
@@ -338,338 +211,225 @@ def save_as_pdf(pdf_path, text_content):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=15)
-    
-    pdf.set_font("Helvetica", size=12)
-    # Convert to latin-1 to prevent fpdf crashes on complex characters
+    pdf.set_font("Helvetica", size=11)
     safe_text = text_content.encode('latin-1', 'replace').decode('latin-1')
-    
-    pdf.multi_cell(0, 10, text=safe_text)
     try:
+        pdf.write_html(safe_text)
         pdf.output(pdf_path)
     except Exception as e:
-        print(f"Error saving PDF (formatting issue): {e}")
+        print(f"Warning: HTML-PDF compilation failed, falling back to flat text. {e}")
+        pdf.multi_cell(0, 10, text=safe_text)
+        pdf.output(pdf_path)
 
 def append_to_docx(docx_path, text_content):
-    if os.path.exists(docx_path):
-        doc = docx.Document(docx_path)
-    else:
-        doc = docx.Document()
-    doc.add_paragraph(text_content)
+    doc = docx.Document(docx_path) if os.path.exists(docx_path) else docx.Document()
+    for line in text_content.split('\n'):
+        clean_line = line.strip()
+        if clean_line.startswith('# '): doc.add_heading(clean_line[2:], level=1)
+        elif clean_line.startswith('## '): doc.add_heading(clean_line[3:], level=2)
+        elif clean_line.startswith('### '): doc.add_heading(clean_line[4:], level=3)
+        elif clean_line.startswith('- ') or clean_line.startswith('* '): doc.add_paragraph(clean_line[2:], style='List Bullet')
+        elif clean_line != "": doc.add_paragraph(clean_line)
     doc.save(docx_path)
 
 def save_as_json(json_path, text_content):
     text_content = text_content.strip()
-    if text_content.startswith("```json"):
-        text_content = text_content[7:-3].strip()
-    elif text_content.startswith("```"):
-        text_content = text_content[3:-3].strip()
-        
-    try:
-        data = json.loads(text_content)
-    except Exception as e:
-        # Fallback if the AI messes up the strict JSON structure
-        data = {"chronicle_extracted_content": text_content, "error_parsing_json": str(e)}
-    
-    with open(json_path, 'w', encoding='utf-8') as f:
-        json.dump(data, f, indent=4)
+    if text_content.startswith("```json"): text_content = text_content[7:-3].strip()
+    try: data = json.loads(text_content)
+    except: data = {"chronicle_extracted_content": text_content}
+    with open(json_path, 'w', encoding='utf-8') as f: json.dump(data, f, indent=4)
 
 def save_as_csv(csv_path, text_content):
-    text_content = text_content.strip()
-    if text_content.startswith("```csv"):
-        text_content = text_content[6:-3].strip()
-    elif text_content.startswith("```"):
-        text_content = text_content[3:-3].strip()
-        
-    with open(csv_path, 'w', encoding='utf-8') as f:
-        f.write(text_content)
+    text_content = text_content.replace("```csv", "").replace("```", "").strip()
+    with open(csv_path, 'w', encoding='utf-8') as f: f.write(text_content)
 
 def save_as_epub(epub_path, title, text_content):
     book = epub.EpubBook()
-    book.set_identifier(f"chronicle_{int(time.time())}")
+    book.set_identifier(f"chron_{int(time.time())}")
     book.set_title(title)
     book.set_language('en')
     
-    chapter = epub.EpubHtml(title=title, file_name='chapter.xhtml', lang='en')
-    chapter.content = f"<h1>{title}</h1>\n<div>{text_content}</div>"
+    chapters = re.split(r'(<h2.*?>.*?</h2>)', text_content, flags=re.IGNORECASE)
+    epub_chapters, current_title, current_content, chap_idx = [], title, "", 1
     
-    book.add_item(chapter)
-    book.spine = ['nav', chapter]
+    for segment in chapters:
+        if segment.lower().startswith('<h2'):
+            if current_content.strip():
+                c = epub.EpubHtml(title=current_title, file_name=f'chap_{chap_idx}.xhtml', lang='en')
+                c.content = f"<h1>{current_title}</h1><div>{current_content}</div>"
+                epub_chapters.append(c)
+                chap_idx += 1
+            current_title = re.sub(r'<[^>]+>', '', segment)
+            current_content = segment 
+        else:
+            current_content += segment
+            
+    if current_content.strip():
+        c = epub.EpubHtml(title=current_title, file_name=f'chap_{chap_idx}.xhtml', lang='en')
+        c.content = f"<h1>{current_title}</h1><div>{current_content}</div>"
+        epub_chapters.append(c)
+
+    for c in epub_chapters: book.add_item(c)
+    book.spine = ['nav'] + epub_chapters
     book.add_item(epub.EpubNcx())
     book.add_item(epub.EpubNav())
-    
+    epub.write_epub(epub_path, book, {})
+
+def save_as_brf(brf_path, text_content, table_name):
+    if louis is None: return
     try:
-        epub.write_epub(epub_path, book, {})
+        translated = louis.translateString([table_name], text_content)[0]
+        lines = textwrap.wrap(translated, width=40)
+        pages = ["\n".join(lines[i:i+25]) for i in range(0, len(lines), 25)]
+        final_brf = "\n\x0C\n".join(pages) 
+        with open(brf_path, 'a', encoding='utf-8') as f: f.write(final_brf + "\n")
     except Exception as e:
-        print(f"Error saving EPUB: {e}")
+        print(f"Braille translation failed: {e}")
+
+def dispatch_save(config, path, memory_list, title, clear_memory=False):
+    """Centralized router that handles all advanced export formats."""
+    content = "".join(memory_list)
+    if not content: return
+    fmt = config['format_type']
+    
+    if fmt == 'docx': 
+        append_to_docx(path, content)
+        if clear_memory: memory_list.clear()
+    elif fmt == 'pdf': save_as_pdf(path, content)
+    elif fmt == 'json': save_as_json(path, content)
+    elif fmt == 'csv': save_as_csv(path, content)
+    elif fmt == 'epub': save_as_epub(path, title, content)
+    elif fmt == 'brf': 
+        save_as_brf(path, content, config.get('brf_table'))
+        if clear_memory: memory_list.clear()
 def handle_stream(response, output_path, format_type, file_obj=None, memory_list=None):
     for chunk in response:
         if chunk.text:
             clean_chunk = clean_text_artifacts(chunk.text)
-            
             if format_type in ['html', 'txt', 'md'] and file_obj:
                 file_obj.write(clean_chunk)
                 file_obj.flush()
-                
             if memory_list is not None:
                 memory_list.append(clean_chunk)
 
 def play_completion_sound():
     print("\nProcessing complete!")
-    system_os = platform.system()
-    if system_os == "Darwin":
-        os.system('afplay /System/Library/Sounds/Glass.aiff')
-    elif system_os == "Windows":
-        os.system('PowerShell -Command "(New-Object Media.SoundPlayer \'C:\Windows\Media\notify.wav\').PlaySync();"')
+    if platform.system() == "Darwin": os.system('afplay /System/Library/Sounds/Glass.aiff')
+    elif platform.system() == "Windows": os.system('PowerShell -Command "(New-Object Media.SoundPlayer \'C:\Windows\Media\notify.wav\').PlaySync();"')
 
 def process_files():
     api_key = get_api_key()
-    print("\nInitializing Gemini Client...")
-    try:
-        client = genai.Client(api_key=api_key)
-    except Exception as e:
-        print(f"Error: Could not connect. Details: {e}")
-        return
+    try: client = genai.Client(api_key=api_key)
+    except Exception as e: return print(f"Connection Error: {e}")
 
-    format_type, output_dir, model_name, merge_files, translate_mode, modernize_punctuation, condition_profiling, unit_conversion, image_descriptions, batch_mode, include_appendix = get_user_preferences()
-    prompt_text = get_prompt(format_type, translate_mode, modernize_punctuation, condition_profiling, unit_conversion, image_descriptions, include_appendix)
+    config = get_user_preferences()
+    prompt_text = get_prompt(config)
 
-    if batch_mode.startswith('recursive'):
-        target_scan_dir = BATCH_INPUT_DIR
-        print(f"\n--- BATCH MODE ACTIVE: Scanning {target_scan_dir} and subfolders ---")
-    else:
-        target_scan_dir = INPUT_DIR
-
-    os.makedirs(target_scan_dir, exist_ok=True)
-    os.makedirs(output_dir, exist_ok=True)
+    target_scan_dir = BATCH_INPUT_DIR if config['batch_mode'].startswith('recursive') else INPUT_DIR
+    os.makedirs(target_scan_dir, exist_ok=True); os.makedirs(config['output_dir'], exist_ok=True)
     
     valid_files = []
-    if batch_mode.startswith('recursive'):
-        for root, dirs, files in os.walk(target_scan_dir):
-            for f in files:
-                if not f.startswith('.') and os.path.splitext(f)[1].lower() in SUPPORTED_EXTENSIONS:
-                    valid_files.append(os.path.join(root, f))
-        valid_files.sort()
+    if config['batch_mode'].startswith('recursive'):
+        for r, d, f in os.walk(target_scan_dir):
+            valid_files.extend([os.path.join(r, file) for file in f if os.path.splitext(file)[1].lower() in SUPPORTED_EXTENSIONS and not file.startswith('.')])
     else:
         if os.path.exists(target_scan_dir):
-            files = sorted([f for f in os.listdir(target_scan_dir) if not f.startswith('.')])
-            for f in files:
-                if os.path.splitext(f)[1].lower() in SUPPORTED_EXTENSIONS:
-                    valid_files.append(os.path.join(target_scan_dir, f))
+            valid_files = [os.path.join(target_scan_dir, f) for f in os.listdir(target_scan_dir) if os.path.splitext(f)[1].lower() in SUPPORTED_EXTENSIONS and not f.startswith('.')]
     
-    if not valid_files:
-        print(f"No valid files found in {target_scan_dir}. Supported formats: {', '.join(SUPPORTED_EXTENSIONS)}")
-        return
+    if not valid_files: return print("No valid files found.")
 
-    master_file_obj = None
-    master_memory = []
-    master_path = os.path.join(output_dir, f"Chronicle_Merged_Document.{format_type}")
+    master_path = os.path.join(config['output_dir'], f"Chronicle_Merged.{config['format_type']}")
+    master_file_obj, master_memory = None, []
     
-    if merge_files:
-        print("\n--- MERGE MODE ACTIVE ---")
-        if format_type in ['docx', 'pdf', 'json', 'csv', 'epub'] and os.path.exists(master_path):
-            os.remove(master_path)
-        elif format_type in ['html', 'txt', 'md']:
+    if config['merge_files']:
+        if os.path.exists(master_path): os.remove(master_path)
+        if config['format_type'] in ['html', 'txt', 'md']:
             master_file_obj = open(master_path, 'w', encoding='utf-8')
-            write_header(master_file_obj, "Chronicle Merged Document", format_type)
+            write_header(master_file_obj, "Chronicle Merged", config['format_type'])
 
-    for file_path in valid_files:
+    for file_path in sorted(valid_files):
         filename = os.path.basename(file_path)
-        base_name = os.path.splitext(filename)[0]
-        ext = os.path.splitext(filename)[1].lower()
+        base_name, ext = os.path.splitext(filename)[0], os.path.splitext(filename)[1].lower()
         
         current_memory = []
-        
-        if merge_files:
-            output_path = master_path
-            current_file_obj = master_file_obj
-            current_memory = master_memory
-            active_write_path = master_path
-            
-            # Invisible stitching for seamless reading flow
-            if format_type == 'html':
-                current_file_obj.write(f"\n<br>\n")
-                current_file_obj.flush()
-            elif format_type in ['txt', 'md']:
-                current_file_obj.write(f"\n\n")
-                current_file_obj.flush()
-            elif format_type in ['docx', 'pdf', 'json', 'csv', 'epub']:
-                current_memory.append(f"\n\n")
+        if config['merge_files']:
+            output_path, active_write_path = master_path, master_path
+            current_file_obj, current_memory = master_file_obj, master_memory
+            if config['format_type'] == 'html': current_file_obj.write("<br>")
+            elif config['format_type'] in ['txt', 'md']: current_file_obj.write("\n\n")
         else:
-            output_path = os.path.join(output_dir, f"{base_name}.{format_type}")
+            output_path = os.path.join(config['output_dir'], f"{base_name}.{config['format_type']}")
             active_write_path = output_path + ".tmp"
+            if os.path.exists(output_path): continue
+            if os.path.exists(active_write_path): os.remove(active_write_path)
             
-            # 1. SMART SKIP LOGIC
-            if os.path.exists(output_path):
-                print(f"  -> [SMART SKIP] {filename} already processed. Skipping to next file.")
-                continue
-                
-            # 2. ATOMIC CLEANUP
-            if os.path.exists(active_write_path):
-                print(f"  -> [FAIL-SAFE] Found broken temporary file for {filename}. Overwriting...")
-                os.remove(active_write_path)
-            
-            current_file_obj = None
-            if format_type in ['html', 'txt', 'md']:
-                current_file_obj = open(active_write_path, 'w', encoding='utf-8')
-                write_header(current_file_obj, base_name, format_type)
+            current_file_obj = open(active_write_path, 'w', encoding='utf-8') if config['format_type'] in ['html', 'txt', 'md'] else None
+            if current_file_obj: write_header(current_file_obj, base_name, config['format_type'])
         
-        print(f"\nAnalyzing {filename} using {model_name}...")
-        
+        print(f"\nProcessing {filename}...")
         try:
-            if ext == '.pdf':
-                process_pdf(client, file_path, active_write_path, format_type, prompt_text, model_name, current_file_obj, current_memory)
-            elif ext in ['.docx', '.txt', '.md', '.rtf', '.csv', '.js', '.xlsx']:
-                process_text_document(client, file_path, active_write_path, ext, format_type, prompt_text, model_name, current_file_obj, current_memory)
-            elif ext in ['.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif', '.webp']:
-                process_image(client, file_path, active_write_path, format_type, prompt_text, model_name, current_file_obj, current_memory)
+            if ext == '.pdf': process_pdf(client, file_path, active_write_path, config['format_type'], prompt_text, config['model_name'], current_file_obj, current_memory)
+            elif ext in ['.docx', '.txt', '.md', '.rtf', '.csv', '.js', '.xlsx']: process_text_document(client, file_path, active_write_path, ext, config['format_type'], prompt_text, config['model_name'], current_file_obj, current_memory)
+            elif ext in ['.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif', '.webp']: process_image(client, file_path, active_write_path, config['format_type'], prompt_text, config['model_name'], current_file_obj, current_memory)
             
-            if batch_mode == 'recursive_delete':
-                try:
-                    os.remove(file_path)
-                    print(f"  -> [CLEANUP] Deleted original file: {filename}")
-                except Exception as e:
-                    print(f"  -> [CLEANUP WARNING] Could not delete {filename}: {e}")
+            if config['batch_mode'] == 'recursive_delete': os.remove(file_path)
 
-            # 3. FINAL SAVING AND ATOMIC RENAME (If successful)
-            if not merge_files:
-                if format_type == 'docx' and current_memory:
-                    append_to_docx(active_write_path, "".join(current_memory))
-                elif format_type == 'pdf' and current_memory:
-                    save_as_pdf(active_write_path, "".join(current_memory))
-                elif format_type == 'json' and current_memory:
-                    save_as_json(active_write_path, "".join(current_memory))
-                elif format_type == 'csv' and current_memory:
-                    save_as_csv(active_write_path, "".join(current_memory))
-                elif format_type == 'epub' and current_memory:
-                    save_as_epub(active_write_path, base_name, "".join(current_memory))
-                    
-                if current_file_obj:
-                    write_footer(current_file_obj, format_type)
-                    current_file_obj.close()
-                    current_file_obj = None # Prevent double closing
-
-                # The actual Atomic Rename
-                if os.path.exists(active_write_path):
-                    os.rename(active_write_path, output_path)
-
-                print(f"Finished formatting {base_name}.")
+            if not config['merge_files']:
+                dispatch_save(config, active_write_path, current_memory, base_name)
+                if current_file_obj: write_footer(current_file_obj, config['format_type']); current_file_obj.close()
+                if os.path.exists(active_write_path): os.rename(active_write_path, output_path)
             else:
-                # LIVE SAVE FOR MERGED FILES (Incremental saving during loops)
-                if format_type == 'docx' and master_memory:
-                    append_to_docx(master_path, "".join(master_memory))
-                    master_memory.clear() # Clear it so we don't append duplicates
-                elif format_type == 'pdf' and master_memory:
-                    save_as_pdf(master_path, "".join(master_memory))
-                elif format_type == 'json' and master_memory:
-                    save_as_json(master_path, "".join(master_memory))
-                elif format_type == 'csv' and master_memory:
-                    save_as_csv(master_path, "".join(master_memory))
-                elif format_type == 'epub' and master_memory:
-                    save_as_epub(master_path, "Chronicle Merged Document", "".join(master_memory))
+                # Incremental live-saving for merged files
+                dispatch_save(config, master_path, master_memory, "Merged", clear_memory=True)
 
         except Exception as e:
-            print(f"Error processing {filename}: {e}")
-            if current_file_obj:
-                current_file_obj.close()
+            print(f"Error on {filename}: {e}")
+            if current_file_obj and not config['merge_files']: current_file_obj.close()
 
-    if merge_files:
-        if format_type == 'docx' and master_memory:
-            append_to_docx(master_path, "".join(master_memory))
-        elif format_type == 'pdf' and master_memory:
-            save_as_pdf(master_path, "".join(master_memory))
-        elif format_type == 'json' and master_memory:
-            save_as_json(master_path, "".join(master_memory))
-        elif format_type == 'csv' and master_memory:
-            save_as_csv(master_path, "".join(master_memory))
-        elif format_type == 'epub' and master_memory:
-            save_as_epub(master_path, "Chronicle Merged Document", "".join(master_memory))
-            
-        if master_file_obj:
-            write_footer(master_file_obj, format_type)
-            master_file_obj.close()
-        print(f"\nFinished merging all files into Chronicle_Merged_Document.{format_type}")
-
+    if config['merge_files']:
+        dispatch_save(config, master_path, master_memory, "Merged", clear_memory=True)
+        if master_file_obj: write_footer(master_file_obj, config['format_type']); master_file_obj.close()
     play_completion_sound()
 
 def process_pdf(client, pdf_path, output_path, format_type, prompt_text, model_name, file_obj, memory_list):
     reader = PdfReader(pdf_path)
-    total_pages = len(reader.pages)
-    print(f"PDF has {total_pages} pages. Splitting into chunks.")
-
-    for start_page in range(0, total_pages, PDF_CHUNK_PAGES):
-        end_page = min(start_page + PDF_CHUNK_PAGES, total_pages)
-        chunk_filename = os.path.join(SCRIPT_DIR, f"temp_chunk_{start_page}_to_{end_page}.pdf")
-        
-        print(f"  -> Uploading pages {start_page + 1} to {end_page}...")
+    for start_page in range(0, len(reader.pages), PDF_CHUNK_PAGES):
+        end_page = min(start_page + PDF_CHUNK_PAGES, len(reader.pages))
+        chunk_filename = os.path.join(SCRIPT_DIR, f"temp_{start_page}.pdf")
         writer = PdfWriter()
-        for i in range(start_page, end_page):
-            writer.add_page(reader.pages[i])
-        
-        with open(chunk_filename, "wb") as temp_pdf:
-            writer.write(temp_pdf)
+        for i in range(start_page, end_page): writer.add_page(reader.pages[i])
+        with open(chunk_filename, "wb") as f: writer.write(f)
 
-        uploaded_file = client.files.upload(file=chunk_filename)
-        response = client.models.generate_content_stream(
-            model=model_name, 
-            contents=[uploaded_file, f"Extract text from this PDF chunk.\n{prompt_text}"]
-        )
-        handle_stream(response, output_path, format_type, file_obj, memory_list)
-        
-        client.files.delete(name=uploaded_file.name)
-        os.remove(chunk_filename)
+        uploaded = client.files.upload(file=chunk_filename)
+        handle_stream(client.models.generate_content_stream(model=model_name, contents=[uploaded, prompt_text]), output_path, format_type, file_obj, memory_list)
+        client.files.delete(name=uploaded.name); os.remove(chunk_filename)
 
 def process_text_document(client, file_path, output_path, ext, format_type, prompt_text, model_name, file_obj, memory_list):
-    print(f"Extracting text locally from {ext} file for chunking...")
     full_text = ""
-    if ext == '.docx':
-        doc = docx.Document(file_path)
-        full_text = "\n".join([p.text for p in doc.paragraphs])
+    if ext == '.docx': full_text = "\n".join([p.text for p in docx.Document(file_path).paragraphs])
     elif ext == '.xlsx':
-        try:
-            wb = openpyxl.load_workbook(file_path, data_only=True)
-            for sheet_name in wb.sheetnames:
-                full_text += f"\n[--- Begin Spreadsheet Tab: {sheet_name} ---]\n"
-                sheet = wb[sheet_name]
-                for row in sheet.iter_rows(values_only=True):
-                    # Filter out completely empty rows
-                    if any(cell is not None and str(cell).strip() != "" for cell in row):
-                        row_data = [str(cell) if cell is not None else "" for cell in row]
-                        full_text += " | ".join(row_data) + "\n"
-                full_text += f"\n[--- End Spreadsheet Tab: {sheet_name} ---]\n"
-        except Exception as e:
-            print(f"Error reading Excel file: {e}")
-    else: 
-        with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-            full_text = f.read()
+        wb = openpyxl.load_workbook(file_path, data_only=True)
+        for name in wb.sheetnames:
+            full_text += f"\n[--- Tab: {name} ---]\n"
+            for row in wb[name].iter_rows(values_only=True):
+                if any(c for c in row if str(c).strip()): full_text += " | ".join([str(c) if c else "" for c in row]) + "\n"
+    else: full_text = open(file_path, 'r', encoding='utf-8', errors='ignore').read()
 
-    paragraphs = full_text.split('\n')
-    chunks, current_chunk = [], ""
-    for p in paragraphs:
-        if len(current_chunk) + len(p) > TEXT_CHUNK_CHARS and current_chunk:
-            chunks.append(current_chunk)
-            current_chunk = p + "\n"
-        else:
-            current_chunk += p + "\n"
-    if current_chunk:
-        chunks.append(current_chunk)
+    chunks, current = [], ""
+    for p in full_text.split('\n'):
+        if len(current) + len(p) > TEXT_CHUNK_CHARS and current: chunks.append(current); current = p + "\n"
+        else: current += p + "\n"
+    if current: chunks.append(current)
 
-    for i, chunk_text in enumerate(chunks):
-        print(f"  -> Processing chunk {i + 1} of {len(chunks)}...")
-        response = client.models.generate_content_stream(
-            model=model_name, 
-            contents=[chunk_text, f"Clean up and format this text chunk.\n{prompt_text}"]
-        )
-        handle_stream(response, output_path, format_type, file_obj, memory_list)
+    for chunk in chunks:
+        handle_stream(client.models.generate_content_stream(model=model_name, contents=[chunk, prompt_text]), output_path, format_type, file_obj, memory_list)
 
 def process_image(client, file_path, output_path, format_type, prompt_text, model_name, file_obj, memory_list):
-    print(f"  -> Uploading image to Gemini for text extraction...")
-    uploaded_file = client.files.upload(file=file_path)
-    response = client.models.generate_content_stream(
-        model=model_name, 
-        contents=[uploaded_file, f"Extract text from this image.\n{prompt_text}"]
-    )
-    handle_stream(response, output_path, format_type, file_obj, memory_list)
-    client.files.delete(name=uploaded_file.name)
+    enhanced_path = enhance_image_for_microtext(file_path)
+    uploaded = client.files.upload(file=enhanced_path)
+    handle_stream(client.models.generate_content_stream(model=model_name, contents=[uploaded, prompt_text]), output_path, format_type, file_obj, memory_list)
+    client.files.delete(name=uploaded.name)
+    if enhanced_path != file_path: os.remove(enhanced_path)
 
 if __name__ == "__main__":
     process_files()

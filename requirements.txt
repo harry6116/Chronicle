@@ -1,6 +1,9 @@
+google-genai
 pypdf
 python-docx
 fpdf2
-google-genai
 openpyxl
-EbookLib>=0.18
+EbookLib
+Pillow
+opencv-python
+louis
