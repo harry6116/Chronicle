@@ -6,6 +6,11 @@ All notable changes to the Chronicle Document Extractor will be documented in th
 ### Added
 - **Automated Setup Scripts:** Added dedicated `update_mac.sh` and `update_windows.bat` scripts to handle automatic dependency installation and repository pulling across operating systems.
 - **Accessibility Compliance:** Published the `Chronicle_Accessibility_Compliance_Statement.md` documenting strict WCAG 2.2 Level AA, US Section 508, and AS EN 301 549 adherence.
+- **Advanced Semantic Formatting:** Enforced strict programmatic semantics for HTML and EPUB outputs, including null alt attributes for toggled visual descriptions, strict table scopes, dynamic title tags, and auto-linking internal Tables of Contents.
+- **Dynamic Language & Cultural Preservation:** Added dynamic ISO language code detection and inline span tags (e.g., `<span lang="mi">` for te reo Māori). This ensures screen readers correctly switch pronunciation profiles and voice critical diacritical marks like macrons.
+- **Academic & Epigraphic Engine:** The engine now reconstructs visual formulas into LaTeX/MathML, safely anchors footnotes, flattens dense multi-column layouts, and extracts ancient scripts (including Egyptian Hieroglyphs and Sanskrit) alongside structured transliterations.
+- **Braille Ready Format (BRF) Architecture:** Integrated support for direct-to-Braille translation via the global open-source Liblouis library, allowing direct mapping to strict BRF structural grids (Unified English Braille Grade 1 & 2).
+- **Anti-Hallucination Directives:** Implemented algorithmic Lanczos resampling for degraded media and a strict "Zero-Guessing" policy that systematically outputs `[Illegible Micro-text]` rather than hallucinating text.
 - **Streamlined Run Scripts:** Optimized Mac and Windows execution files with immediate screen reader audio feedback upon launch.
 ### Removed
 - Removed GUI testing mockups from the production environment to keep the main directory clean.
@@ -16,13 +21,13 @@ All notable changes to the Chronicle Document Extractor will be documented in th
 - **Smart Skip Batching:** The engine now validates the output directory before processing. If an extraction was interrupted by a power failure, rerunning the script will automatically skip all fully completed documents and resume exactly where the crash occurred.
 - **Live Save Merging:** Modified the `merge_files` logic to incrementally write to the master document on the hard drive after every individual file loop, protecting massive continuous archives from memory-loss during unexpected shutdowns.
 - **Testing Documentation:** Added `Chronicle_Fail_Safe_Testing_Report.md` detailing the extreme hardware stress tests used to validate the new resilient architecture.
-- ## [1.6.0] - 2026-02-28
+
+## [1.6.0] - 2026-02-28
 ### Added
 - **One-Click Auto-Updaters:** Introduced initial updater scripts allowing non-technical users to seamlessly download the latest version of the `chronicle.py` script directly from GitHub without needing to navigate git commands. 
 - **Automated Dependency Management:** Updater scripts automatically scan for and install any newly required Python libraries in the background, preventing crashes.
 - **Data Safety Protocol:** Updater scripts use secure routing to ensure that user-generated directories (`input_files`, `output_html`, etc.) and the sensitive `api_key.txt` file are completely ignored and protected during the update process.
-
-## [1.5.0] - 2026-02-28
+- ## [1.5.0] - 2026-02-28
 ### Added
 - **New Export Formats:** Added native support for exporting to EPUB (`.epub`), JSON (`.json`), and CSV (`.csv`). 
 - **EPUB Engine:** Integrated `EbookLib` to generate native, accessible eBooks directly from raw document scans, perfect for compiling large historical diaries.
