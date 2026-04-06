@@ -1,0 +1,866 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chronicle Help Guide (Accessibility and Operations)</title>
+  <style>
+    :root {
+      --bg: #f6f7f9;
+      --panel: #ffffff;
+      --ink: #111827;
+      --muted: #374151;
+      --line: #d1d5db;
+      --accent: #0f766e;
+      --accent-ink: #064e3b;
+      --warn-bg: #fff7ed;
+      --warn-line: #fb923c;
+      --ok-bg: #ecfdf5;
+      --ok-line: #10b981;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+      line-height: 1.55;
+      color: var(--ink);
+      background: var(--bg);
+    }
+
+    .skip-link {
+      position: absolute;
+      left: -999px;
+      top: 0;
+      background: #111;
+      color: #fff;
+      padding: 0.6rem 0.9rem;
+      z-index: 9999;
+      text-decoration: none;
+    }
+    .skip-link:focus { left: 0.5rem; top: 0.5rem; }
+
+    .wrap {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 1rem;
+    }
+
+    header {
+      background: linear-gradient(135deg, #e6fffa, #f0fdf4);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 1rem 1.2rem;
+      margin-bottom: 1rem;
+    }
+
+    h1, h2, h3 { line-height: 1.25; }
+    h1 { margin: 0 0 0.35rem; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: 1rem;
+    }
+
+    nav {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 0.9rem;
+      align-self: start;
+      position: sticky;
+      top: 1rem;
+    }
+
+    nav h2 { margin-top: 0; font-size: 1.1rem; }
+    nav ul { margin: 0; padding-left: 1.1rem; }
+    nav li { margin: 0.3rem 0; }
+
+    main {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 1rem 1.2rem;
+    }
+
+    section { margin-bottom: 1.8rem; }
+    code, kbd {
+      background: #f3f4f6;
+      border: 1px solid #e5e7eb;
+      border-radius: 4px;
+      padding: 0.05rem 0.3rem;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.95em;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 0.5rem 0 0.75rem;
+    }
+
+    caption {
+      text-align: left;
+      font-weight: 700;
+      margin-bottom: 0.35rem;
+    }
+
+    th, td {
+      border: 1px solid var(--line);
+      padding: 0.5rem;
+      vertical-align: top;
+    }
+
+    th { background: #f9fafb; }
+
+    .note, .warning, .success {
+      border-left: 5px solid;
+      border-radius: 8px;
+      padding: 0.75rem 0.8rem;
+      margin: 0.75rem 0;
+    }
+
+    .note {
+      background: #ecfeff;
+      border-color: #22d3ee;
+    }
+
+    .warning {
+      background: var(--warn-bg);
+      border-color: var(--warn-line);
+    }
+
+    .success {
+      background: var(--ok-bg);
+      border-color: var(--ok-line);
+    }
+
+    a { color: var(--accent-ink); }
+    a:focus, button:focus, input:focus, select:focus {
+      outline: 3px solid #0ea5e9;
+      outline-offset: 2px;
+    }
+
+    .top-link { font-size: 0.9rem; }
+
+    @media (max-width: 960px) {
+      .grid { grid-template-columns: 1fr; }
+      nav { position: static; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Skip to main content</a>
+  <div class="wrap">
+    <header role="banner" aria-labelledby="page-title">
+      <h1 id="page-title">Chronicle Help Guide</h1>
+      <p><strong>Scope:</strong> complete usage, menus, dialogs, accessibility behavior, document profiles, automatic reading-engine behavior, queue logic, device import workflows, output formats, troubleshooting, and build guidance.</p>
+      <p><strong>Last Updated:</strong> March 21, 2026 (accessibility remediation and preset expansion refresh)</p>
+    </header>
+
+    <div class="grid">
+      <nav aria-label="Table of contents">
+        <h2>Table of Contents</h2>
+        <ul>
+          <li><a href="#overview">1. Overview</a></li>
+          <li><a href="#privacy">2. Privacy and API Keys</a></li>
+          <li><a href="#quickstart">3. Quick Start</a></li>
+          <li><a href="#ui">4. Interface Walkthrough</a></li>
+          <li><a href="#models">5. Automatic Reading Engine and Best Use</a></li>
+          <li><a href="#presets">6. Document Presets</a></li>
+          <li><a href="#prefs">7. Preferences (All Pickers)</a></li>
+          <li><a href="#outputs">8. Output Formats (HTML and Word Included)</a></li>
+          <li><a href="#html-word">9. Working with HTML and Word Outputs</a></li>
+          <li><a href="#queue-behavior">10. Queue Rules and Selection Behavior</a></li>
+          <li><a href="#accessibility">11. Accessibility and Screen Reader Notes</a></li>
+          <li><a href="#troubleshooting">12. Troubleshooting and Diagnostics</a></li>
+          <li><a href="#build">13. Build and Frozen App Notes</a></li>
+          <li><a href="#system-requirements">14. System Requirements</a></li>
+          <li><a href="#shortcuts">15. Keyboard Shortcuts</a></li>
+        </ul>
+      </nav>
+
+      <main id="main-content" role="main">
+        <section id="overview" aria-labelledby="overview-title">
+          <h2 id="overview-title">1. Overview</h2>
+          <p>Chronicle is a visually intelligent document reader that reads and restructures content from scans and digital files into accessible outputs. The interface is designed around a friendly queue-first workflow, document profiles that choose the best reading path automatically, and readable logs.</p>
+          <p>Chronicle is especially strong on difficult real-world material: degraded scans, long-form books, archival pages, repeated page furniture, mixed-format queues, and documents that need a careful review-and-rerun workflow rather than a one-click pass.</p>
+          <div class="note">
+            <p><strong>Development note:</strong> Chronicle was built using AI-assisted ("vibe-coded") workflows, with final integration, review, and testing directed by the author.</p>
+          </div>
+          <div class="success">
+            <p><strong>Current queue rule:</strong> every file in the queue is ready to be read. You do not need to manually highlight files to process them.</p>
+          </div>
+          <div class="warning">
+            <p><strong>What to expect on hard scans:</strong> Chronicle prioritizes fidelity, structure, and accessibility over raw speed. Difficult books, newspapers, and degraded PDFs can take significantly longer because Chronicle is trying to preserve paragraph continuity, suppress scan junk, and avoid misleading omissions.</p>
+          </div>
+          <p class="top-link"><a href="#page-title">Back to top</a></p>
+        </section>
+
+        <section id="privacy" aria-labelledby="privacy-title">
+          <h2 id="privacy-title">2. Privacy and API Keys</h2>
+          <ul>
+            <li>Chronicle stores keys locally in your OS app-data profile.</li>
+            <li>Keys can be saved to your OS keychain/keyring (Keychain on macOS) when available, and this is the recommended storage mode.</li>
+            <li>When keychain/keyring is used, local files keep masked placeholders rather than raw secrets.</li>
+            <li>API key vault supports Gemini, Claude, and OpenAI keys.</li>
+            <li>The key vault includes a <strong>Show API keys</strong> checkbox so users can verify typed characters.</li>
+            <li>Saving keys shows an in-app confirmation message.</li>
+          </ul>
+          <table>
+            <caption>Provider key mapping</caption>
+            <thead>
+              <tr>
+                <th scope="col">Vault key</th>
+                <th scope="col">Required for models</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row"><code>gemini</code> (Google Gemini key)</th>
+                <td>Gemini 2.5 Flash, Gemini 2.5 Pro</td>
+              </tr>
+              <tr>
+                <th scope="row"><code>claude</code> (Anthropic key)</th>
+                <td>Claude Sonnet 4</td>
+              </tr>
+              <tr>
+                <th scope="row"><code>openai</code> (OpenAI key)</th>
+                <td>GPT-4o</td>
+              </tr>
+            </tbody>
+          </table>
+          <ul>
+            <li>You only need keys for providers you intend to use.</li>
+            <li>If a provider key is missing, Chronicle's automatic engine selection now avoids routing work to that provider.</li>
+            <li>If you force a model whose provider key is missing or invalid, extraction will fail with an authentication error.</li>
+            <li>Google Gemini API keys from Google AI Studio can work on Google's free tier, subject to current model availability, region support, quotas, and rate limits.</li>
+            <li>Even with valid keys, live providers can occasionally return temporary high-demand or unavailable responses during busy periods. A later rerun may succeed without any Chronicle code change.</li>
+            <li>Anthropic Claude API access is separate from the consumer Claude.ai chat plans. A free Claude account does not include API access, and even paid Claude chat plans still require separate Claude Console/API billing setup.</li>
+            <li>Provider retention/training behavior depends on your provider account tier and settings.</li>
+            <li>Chronicle stores keys locally, but extraction content is sent to the selected provider for processing.</li>
+          </ul>
+          <table>
+            <caption>Free vs paid provider access (general guidance)</caption>
+            <thead>
+              <tr>
+                <th scope="col">Access type</th>
+                <th scope="col">What it usually means in practice</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row">Free / trial access</th>
+                <td>Usually suitable for testing only. Expect lower quotas, stricter rate limits, more variable availability, and weaker or less predictable privacy terms depending on the provider.</td>
+              </tr>
+              <tr>
+                <th scope="row">Paid API access</th>
+                <td>Usually offers higher throughput, more stable operational limits, and clearer privacy/commercial terms for production or sensitive workloads.</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="note">
+            <p><strong>Provider difference:</strong> Gemini and Claude do not behave the same here. Gemini API use may be possible on Google's free API tier. Claude API use should be treated as a separate developer product from Claude.ai chat plans, with its own billing/access setup.</p>
+          </div>
+          <div class="warning">
+            <p>If confidentiality is critical, avoid free tiers and use paid provider plans/settings that explicitly disable training on your submitted content.</p>
+          </div>
+          <div class="warning">
+            <p>Confidentiality boundary: Chronicle cannot enforce provider retention/training policy. Treat free-tier processing as non-confidential unless your provider terms explicitly guarantee otherwise.</p>
+          </div>
+          <div class="warning">
+            <p>User responsibility: you are solely responsible for reviewing extracted/scanned material and confirming that your provider tier/settings satisfy your confidentiality and compliance requirements.</p>
+          </div>
+          <div class="note">
+            <p><strong>Practical summary:</strong> a free Gemini API key may be enough to test Chronicle. A Claude.ai free account or paid chat subscription is not the same thing as Claude API access for Chronicle.</p>
+          </div>
+          <div class="note">
+            <p><strong>Free-tier planning example (rough only):</strong> Gemini 2.5 Pro may handle around 500 pages/day, while Gemini 2.5 Flash may handle around 1,000 pages/day. Actual throughput varies by document complexity, retries/rate limits, file types, and provider-side limits.</p>
+          </div>
+          <div class="warning">
+            <p>Do not process sensitive records on an account tier that does not meet your confidentiality requirements.</p>
+          </div>
+          <p class="top-link"><a href="#page-title">Back to top</a></p>
+        </section>
+
+        <section id="quickstart" aria-labelledby="quickstart-title">
+          <h2 id="quickstart-title">3. Quick Start</h2>
+          <ol>
+            <li>Open <strong>File &gt; API Keys...</strong> and save at least one provider key.</li>
+            <li>Choose an output format and a document profile.</li>
+            <li>Add files with <strong>Add Files...</strong>, or bring in a folder or scanned pages from the File menu if needed.</li>
+            <li>Pick a <strong>Document Preset</strong> for the kind of document you are reading.</li>
+            <li>Press <strong>Start Reading</strong> to run now, or <strong>Schedule Reading...</strong> to run later.</li>
+          </ol>
+          <div class="note">
+            <p>Use the preset picker tooltips first. They show recommended model and default behavior for that document class.</p>
+          </div>
+          <p class="top-link"><a href="#page-title">Back to top</a></p>
+        </section>
+
+        <section id="ui" aria-labelledby="ui-title">
+          <h2 id="ui-title">4. Interface Walkthrough</h2>
+          <table>
+            <caption>Main window controls</caption>
+            <thead>
+              <tr>
+                <th scope="col">Control</th>
+                <th scope="col">Purpose</th>
+                <th scope="col">Notes</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row">Quick Actions</th>
+                <td>The top quick-actions row keeps queue building simple: <strong>Add Files...</strong> and <strong>Add Folder...</strong>. The actual run controls live lower in the window near scheduling so the queue workflow reads more naturally from top to bottom.</td>
+                <td>The queue instruction above the list reads: <strong>Queue your files here, then press Start Reading when you are ready.</strong></td>
+              </tr>
+              <tr>
+                <th scope="row">Output Format</th>
+                <td>Selects export type (<code>HTML</code>, <code>TXT</code>, <code>DOCX</code>, etc.).</td>
+                <td>Different formats have different accessibility and structure characteristics.</td>
+              </tr>
+              <tr>
+                <th scope="row">Files Table</th>
+                <td>Shows the queue with file name, status, and saved reading settings.</td>
+                <td>Any listed item is eligible to run when reading starts.</td>
+              </tr>
+              <tr>
+                <th scope="row">Folder Scanning</th>
+                <td>Choose current-folder only vs recursive subfolders.</td>
+                <td>Recursive mode preserves subfolder structure in custom destination mode.</td>
+              </tr>
+              <tr>
+                <th scope="row">Save Output To</th>
+                <td>Same folder as source, or one custom destination.</td>
+                <td>Custom destination can mirror relative source subfolders.</td>
+              </tr>
+              <tr>
+                <th scope="row">Document Preset</th>
+                <td>Applies a preset reading profile for the document type.</td>
+                <td>Tooltip explains each preset and recommended model.</td>
+              </tr>
+              <tr>
+                <th scope="row">Start Reading / Schedule Reading</th>
+                <td>Runs reading for all queued files.</td>
+                <td>Requires at least one file in the queue and the relevant API keys.</td>
+              </tr>
+              <tr>
+                <th scope="row">Schedule Reading...</th>
+                <td>Schedules extraction to start at a chosen local date/time.</td>
+                <td>Chronicle must remain open. A scheduled run starts the same queue-wide reading flow.</td>
+              </tr>
+              <tr>
+                <th scope="row">Find Connected Devices...</th>
+                <td>Checks for available input devices from the File menu.</td>
+                <td>Useful when you want to confirm device visibility before importing pages through NAPS2.</td>
+              </tr>
+              <tr>
+                <th scope="row">Scan via NAPS2...</th>
+                <td>Launches page acquisition and imports the resulting files back into the queue.</td>
+                <td>After a successful scan, Chronicle auto-adds detected output files and selects them in the queue.</td>
+              </tr>
+              <tr>
+                <th scope="row">Open User Guide / About Build / Support Chronicle</th>
+                <td>Help menu entries for documentation, build details, and optional donation links.</td>
+                <td><strong>Support Chronicle...</strong> offers <strong>Buy Me a Coffee</strong> and <strong>PayPal</strong>. <strong>About Build...</strong> shows build stamp, runtime, Python, and wx version.</td>
+              </tr>
+            </tbody>
+          </table>
+          <h3>Queue and toolbar commands</h3>
+          <ul>
+            <li><strong>Add Files...</strong>: opens a multi-select file picker for supported formats.</li>
+            <li><strong>Add Folder...</strong>: scans a chosen folder and adds supported files; can work flat or recursively depending on the folder-scanning picker.</li>
+            <li><strong>Find Connected Devices...</strong>: checks for connected input devices and presents a summary list.</li>
+            <li><strong>Scan via NAPS2...</strong>: opens page-acquisition settings, starts a scan import run, and auto-imports the resulting files into the queue.</li>
+            <li><strong>Remove Selected</strong>: removes only the selected queue rows.</li>
+            <li><strong>Task Actions...</strong>: opens the same task-action menu available from the queue context menu.</li>
+            <li><strong>Select All</strong> / <strong>Deselect All</strong>: changes queue selection without changing queue contents.</li>
+            <li><strong>Clear List</strong>: removes the entire queue.</li>
+          </ul>
+
+          <h3>Run-time reading settings on the main window</h3>
+          <ul>
+            <li><strong>Document Preset</strong> chooses the reading behavior for the document type, and Chronicle automatically routes to the appropriate engine for that preset.</li>
+            <li><strong>Tabular Data &amp; Spreadsheets preset</strong>: best for CSV, XLS, and XLSX material where Chronicle should generate one accessible HTML table with row and column headers, a short spoken summary, and clearer total rows.</li>
+            <li><strong>Output Format for Next Run</strong>: output type for upcoming queued work.</li>
+            <li><strong>Translation</strong>: disable translation, keep original with bracketed translation, or translate only.</li>
+            <li><strong>Punctuation</strong>: preserve archival punctuation or modernize legacy punctuation. If modernization or abbreviation expansion is enabled, reading may take a bit longer because Chronicle has to correct punctuation, suppress false punctuation from broken layouts, and expand abbreviations.</li>
+            <li><strong>Units/Currency</strong>: keep original units only or add bracketed modern equivalents.</li>
+            <li><strong>Abbreviations</strong>: keep abbreviations as printed or expand them in brackets.</li>
+            <li><strong>Image Descriptions</strong>: enable or disable generated image descriptions.</li>
+            <li><strong>Original Page Numbers</strong>: suppress standalone folios or preserve them as explicit original-page references in the output.</li>
+            <li><strong>Seamless Merge</strong>: save each queued source separately or merge them into one continuous output.</li>
+            <li><strong>PDF Display</strong>: standard PDF or large-print PDF.</li>
+            <li><strong>PDF Pages</strong>: optional page scope for PDF jobs. Use values like <code>1,3,5-7</code> to limit reading to specific pages. Leave it blank to read the whole PDF.</li>
+            <li><strong>Folder Scanning</strong>: current folder only or include subfolders recursively.</li>
+            <li><strong>Save Output To</strong>: same folder as source or a custom output folder.</li>
+            <li><strong>Custom Folder</strong>: target folder used when custom destination mode is enabled.</li>
+            <li><strong>Document Preset</strong>: preset tuned to the document class.</li>
+            <li><strong>Preserve source folder structure</strong>: mirrors source subfolders into the output folder when scanning directories into a custom destination.</li>
+            <li><strong>Delete originals after successful reading</strong>: permanently deletes each source file only after a successful output write and after confirmation at run start.</li>
+            <li><strong>Apply Current Settings To Selected</strong>: this action now sits below the safety checkboxes and copies the current output format, document profile, and run-time reading settings to the selected rows. If nothing is selected, Chronicle applies the settings to all queued or paused rows.</li>
+          </ul>
+
+          <h3>Progress and status displays</h3>
+          <ul>
+            <li><strong>Scheduled Extraction Status</strong>: shows whether a future run is scheduled.</li>
+            <li><strong>Task Progress Gauge</strong>: visual progress bar based on terminal queue states.</li>
+            <li><strong>Task Progress Summary</strong>: accessible text summary of queued, processing, paused, done, review, stopped, and error states.</li>
+            <li><strong>Processing Log</strong>: engine-focused log window intended for readable screen-reader review.</li>
+            <li><strong>Save Log...</strong>: exports the current processing log to a text file.</li>
+            <li><strong>Status bar</strong>: brief status updates such as model guidance, queue progress, schedule changes, and reading start notices.</li>
+          </ul>
+          <p class="top-link"><a href="#page-title">Back to top</a></p>
+        </section>
+
+        <section id="models" aria-labelledby="models-title">
+          <h2 id="models-title">5. Automatic Reading Engine and Best Use</h2>
+          <table>
+            <caption>Model guidance</caption>
+            <thead>
+              <tr>
+                <th scope="col">Model</th>
+                <th scope="col">Best for</th>
+                <th scope="col">Tradeoff</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row">Gemini 2.5 Flash</th>
+                <td>Fast batch throughput and lower-cost processing.</td>
+                <td>Less robust than Pro on degraded or complex documents.</td>
+              </tr>
+              <tr>
+                <th scope="row">Gemini 2.5 Pro</th>
+                <td>Difficult scans, archival nuance, dense structure.</td>
+                <td>Higher cost and slower than Flash.</td>
+              </tr>
+              <tr>
+                <th scope="row">Claude Sonnet 4</th>
+                <td>High-quality narrative and instruction adherence; currently the strongest non-Gemini PDF option in Chronicle.</td>
+                <td>Can be slower/pricey depending on workload; dense PDFs can still require chunking or fallback.</td>
+              </tr>
+              <tr>
+                <th scope="row">GPT-4o</th>
+                <td>Broad multimodal reasoning and fallback coverage.</td>
+                <td>Chronicle's current OpenAI integration is still not the preferred PDF path and may fall back to text-layer recovery.</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="note">
+            <p><strong>Current PDF guidance:</strong> Gemini remains the default PDF recommendation. Claude is now the strongest non-Gemini PDF path in Chronicle because the app prefers Anthropic Files API transport for Claude PDF slices when available. OpenAI remains available, but Chronicle does not yet use OpenAI's newer dedicated PDF file-input route, so GPT PDF work should be treated as a fallback path rather than the preferred PDF engine. For short but unusually heavy historical newspaper PDFs, Chronicle can now proactively shrink slicing to one page at a time and log that heuristic so long upload waits are easier to interpret.</p>
+          </div>
+          <p class="top-link"><a href="#page-title">Back to top</a></p>
+        </section>
+
+        <section id="presets" aria-labelledby="presets-title">
+          <h2 id="presets-title">6. Document Presets</h2>
+          <p>Presets align reading rules with document class and automatically choose the most suitable engine behind the scenes. When <strong>Engine Override</strong> stays on <strong>Automatic</strong>, Chronicle can start easier PDFs on the faster Gemini path and keep <strong>Gemini 2.5 Pro</strong> in reserve for hard pages or hard whole-document cases. Manual engine overrides belong in Preferences and advanced settings, not on the main screen.</p>
+          <p>The broadest presets are now designed so that ordinary PDFs, damaged Word exports, messy HTML, and public-sector reports still come back as something cleaner and more accessible, not just as a literal copy of the source defects.</p>
+          <table>
+            <caption>Preset map</caption>
+            <thead>
+              <tr>
+                <th scope="col">Preset</th>
+                <th scope="col">Target material</th>
+                <th scope="col">Notable behavior</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><th scope="row">Everyday Mixed Documents</th><td>General PDFs and mixed everyday documents</td><td>Best starting point when you are not sure which specialist preset fits.</td></tr>
+              <tr><th scope="row">Work Reports / Office Documents</th><td>Reports, exported HTML, Word docs, business files, meeting packs</td><td>Heading/list/table repair with Word-friendly structure.</td></tr>
+              <tr><th scope="row">Government Reports / Public Records</th><td>Agency reports, annexes, appendices, public records</td><td>Repeated-header cleanup, appendix structure, and numbered-section fidelity.</td></tr>
+              <tr><th scope="row">Letters / Memos / Notices</th><td>Letters, circulars, notices, typed correspondence</td><td>Sender/recipient/sign-off structure preserved without forcing an archival ledger layout.</td></tr>
+              <tr><th scope="row">Archives / Ledgers / Manuscripts</th><td>Ledgers, accessioned records, mixed typewritten/manuscript files</td><td>Ledger structure, docket/folio fidelity, and archival uncertainty handling.</td></tr>
+              <tr><th scope="row">Handwritten Notes / Drafts / Diary Pages</th><td>Rough handwritten notes, drafts, diary fragments</td><td>Conservative letter-level reading with strong uncertainty tagging.</td></tr>
+              <tr><th scope="row">Medical Notes / Clinical Forms / Doctor Handwriting</th><td>Clinical notes, referral letters, handwritten doctor notes, medical paperwork</td><td>Conservative clinical transcription with explicit uncertainty tagging and no silent abbreviation expansion.</td></tr>
+              <tr><th scope="row">War Diaries / Military Orders / Service Records</th><td>War diaries, operations logs, telegrams, service records</td><td>STOP decoding, grid refs, acronym fidelity.</td></tr>
+              <tr><th scope="row">Cables / Intelligence Briefings / Signals</th><td>Cables, routing-heavy records</td><td>FROM/TO/INFO/REF chains and classification labels preserved.</td></tr>
+              <tr><th scope="row">Newspapers / Multi-Column Pages</th><td>Columns, ads, grids</td><td>Layout flattening, table reconstruction, and smaller slices for very dense short scans.</td></tr>
+              <tr><th scope="row">Books / Novels / Long-Form Prose</th><td>Novels, memoirs, long-form scanned prose</td><td>Paragraph continuity across page turns and chapter structure.</td></tr>
+              <tr><th scope="row">Manuals / Instructions / SOPs</th><td>Manuals, procedures, diagrams, maintenance guides</td><td>Step order, warnings, and specification structure preserved.</td></tr>
+              <tr><th scope="row">Forms / Checklists / Worksheets</th><td>Forms, worksheets, checklists</td><td>Checkbox state, key-value flattening, and blank-field visibility.</td></tr>
+              <tr><th scope="row">Flyers / Posters / Event Notices</th><td>Flyers, event sheets, posters, short notices</td><td>Short-form headline/date/location/call-to-action hierarchy.</td></tr>
+              <tr><th scope="row">Brochures / Catalogues / Pamphlets</th><td>Pamphlets, brochures, product or service panels</td><td>Panel order, feature grouping, and short section recovery.</td></tr>
+              <tr><th scope="row">Slides / Decks / Handouts</th><td>Presentation slides and compact handouts</td><td>Slide titles, bullets, charts, and repeated template-footers handled cleanly.</td></tr>
+              <tr><th scope="row">Spreadsheets / CSV / Registers</th><td>CSV, XLS, XLSX, score tables, ledgers</td><td>Single semantic table output, summary paragraph, row headers, and marked total rows.</td></tr>
+              <tr><th scope="row">Research Papers / Equations / Footnotes</th><td>Equations and footnotes</td><td>Strict LaTeX math and structural preservation.</td></tr>
+              <tr><th scope="row">Transcripts / Interviews / Plays</th><td>Dialogue and stage cues</td><td>Speech pacing and stage-direction retention.</td></tr>
+              <tr><th scope="row">Poetry / Verse / Line-Break Layouts</th><td>Poems and verse</td><td>Stanza and line-break fidelity.</td></tr>
+              <tr><th scope="row">Laws / Regulations / Contracts</th><td>Clauses and legal numbering</td><td>Hierarchy and defined-term fidelity.</td></tr>
+              <tr><th scope="row">Museum Labels / Captions / Exhibit Text</th><td>Captions and provenance labels</td><td>Metadata accuracy and caption-object linkage.</td></tr>
+            </tbody>
+          </table>
+          <p class="top-link"><a href="#page-title">Back to top</a></p>
+        </section>
+
+        <section id="prefs" aria-labelledby="prefs-title">
+          <h2 id="prefs-title">7. Preferences (All Pickers)</h2>
+          <p>Chronicle uses picker-style controls for multi-choice settings so screen readers announce options consistently.</p>
+          <p><strong>Hardcoded fidelity rules:</strong> Chronicle is configured for zero guessing and no broad spelling correction. A narrow readability exception allows intelligent column splicing, false-punctuation cleanup, and obvious print-artifact repair when the intended reading is clearly recoverable and factual meaning is preserved. If <em>Legacy Punctuation Mode</em> is enabled, only punctuation/spacing can be normalized beyond those layout repairs. Reading may also take a bit longer when punctuation modernization or abbreviation expansion is enabled, because Chronicle has to correct punctuation, suppress false punctuation from broken layouts, and expand abbreviations before finalizing the output. The modern punctuation post-processor also hardcodes spacing repair for cleaned `.-` and `,-` sequences so adjacent words do not jam together after archaic dash removal.</p>
+          <h3>Intelligent Column Splicing and Print Artifact Correction</h3>
+          <ul>
+            <li>Chronicle can rejoin words split across line or column breaks when the visible hyphen exists only because of physical layout constraints.</li>
+            <li>Chronicle suppresses false punctuation created by column edges, broken type, or visual artifacts so sentences read continuously.</li>
+            <li>Chronicle may correct minor optical print defects when the intended word is obvious and the correction improves screen-reader readability without changing factual truth.</li>
+            <li>This helps create a more seamless continuous reading experience for screen reader users without sacrificing historical accuracy.</li>
+          </ul>
+          <h3>Tabular Data &amp; Spreadsheets</h3>
+          <ul>
+            <li>Chronicle can map CSV and spreadsheet-style material into a single accessible HTML5 table for each logical dataset.</li>
+            <li>Column headers are emitted with <code>&lt;th scope="col"&gt;</code>, and the primary row key can be emitted with <code>&lt;th scope="row"&gt;</code>.</li>
+            <li>A short summary paragraph can be placed before the table so screen reader users hear the overall structure before navigating rows and cells.</li>
+            <li>Total and summary rows can be marked with the <code>chronicle-total-row</code> class and an ARIA label for clearer subtotal announcements.</li>
+            <li>Entirely empty or redundant metadata columns may be omitted to reduce clutter for VoiceOver users.</li>
+          </ul>
+          <h3>Malformed source recovery</h3>
+          <ul>
+            <li>Chronicle can rebuild broken but readable HTML, poor Word exports, duplicated OCR overlays, damaged paragraph wrapping, and weak list structure into something more accessible.</li>
+            <li>It does this conservatively: the output may become cleaner and easier to navigate, but it should not become less faithful to the visible source.</li>
+            <li>True tables are reconstructed only when Chronicle can preserve the real row/column relationships confidently.</li>
+          </ul>
+          <ul>
+            <li>Document Profile</li>
+            <li>Engine Override (Automatic, Gemini 2.5 Flash, Gemini 2.5 Pro, Claude Sonnet 4, or GPT-4o)</li>
+            <li>Language Translation</li>
+            <li>Translation Target Language</li>
+            <li>Legacy Punctuation Mode</li>
+            <li>Historical Units/Currency handling (keep, bracketed modern equivalent, or modern-only replacement)</li>
+            <li>Abbreviation Handling (keep, bracketed expansion, or expanded-only replacement)</li>
+            <li>Image Description Mode</li>
+            <li>PDF Display Mode (including large print)</li>
+            <li>PDF page scope for targeted testing or partial reruns</li>
+            <li>Merge Mode</li>
+            <li>Academic Footnote Handling (Academic profile)</li>
+            <li>Academic Annotation Handling (Academic profile)</li>
+            <li>Source File Deletion</li>
+            <li>File Collision Mode</li>
+          </ul>
+          <h3>Preference dialog behavior</h3>
+          <ul>
+            <li><strong>Document Profile</strong> updates its tooltip dynamically so the dialog explains the selected preset.</li>
+            <li><strong>Engine Override</strong> lets you keep automatic preset-based routing or force a specific engine from Preferences.</li>
+            <li>When <strong>Engine Override</strong> is left on <strong>Automatic</strong>, Chronicle follows the preset recommendation, can start supported easy PDFs on the faster Gemini path, and then falls back only to providers with configured API keys instead of trying to use an unavailable provider.</li>
+            <li>Automatic routing is designed to keep easy technical/business/government-style PDFs moving faster while preserving the deeper engine for hard pages, hard documents, and specialist profiles that still need the conservative path.</li>
+            <li>For PDF-heavy work, <strong>Automatic</strong> is usually the safest choice unless you have a specific reason to force Claude or GPT.</li>
+            <li>If you manually force a model, Chronicle stays on that choice instead of using the fast-first adaptive Gemini path.</li>
+            <li>Claude PDF jobs now prefer Anthropic Files API transport when available and fall back to inline PDF mode with a log message if that route is unavailable.</li>
+            <li>OpenAI PDF jobs are still more limited in Chronicle's current integration and may fall back to text-layer recovery with an explicit log message.</li>
+            <li><strong>Translation Target Language</strong> is enabled only when translation mode is active.</li>
+            <li><strong>Academic Footnote Handling</strong> and <strong>Academic Annotation Handling</strong> are intended for the Academic preset and are disabled for non-academic presets.</li>
+            <li><strong>File Collision Mode</strong> controls whether Chronicle skips, overwrites, or auto-numbers when an output filename already exists.</li>
+            <li><strong>Source File Deletion</strong> only applies after a successful write; Chronicle does not delete the source after a failed or interrupted run.</li>
+            <li><strong>Save</strong> writes the preference set to Chronicle's local configuration file immediately.</li>
+            <li><strong>Cancel</strong> closes the dialog without writing changes.</li>
+          </ul>
+
+          <h3>Advanced Preferences</h3>
+          <ul>
+            <li>Custom Prompt Additions (appended to core rule set).</li>
+            <li>Custom Command/Rule Strings.</li>
+            <li>Enable PDF text-layer omission audit (default on).</li>
+            <li>Enable page confidence scoring (default off).</li>
+            <li>Enable custom page/slide selection for PDF and PPTX queue rows using the text input field (not a slider). Use a hyphen for ranges (for example <code>30-45</code>), and use commas only to combine groups (for example <code>1-5,8,11</code>).</li>
+          </ul>
+          <p class="top-link"><a href="#page-title">Back to top</a></p>
+        </section>
+
+        <section id="outputs" aria-labelledby="outputs-title">
+          <h2 id="outputs-title">8. Output Formats (HTML and Word Included)</h2>
+          <table>
+            <caption>Format behaviors</caption>
+            <thead>
+              <tr>
+                <th scope="col">Format</th>
+                <th scope="col">Strength</th>
+                <th scope="col">Best case</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><th scope="row">HTML</th><td>Strong accessibility semantics and language metadata.</td><td>Screen-reader-first reading and web sharing.</td></tr>
+              <tr><th scope="row">TXT</th><td>Maximum simplicity.</td><td>Fast search/index or plain-text workflows.</td></tr>
+              <tr><th scope="row">DOCX (Word)</th><td>Editability, headings, lists, tables, and section navigation.</td><td>Manual correction, collaborative editing, and accessibility review in Word.</td></tr>
+              <tr><th scope="row">MD</th><td>Portable structured plain text.</td><td>Documentation pipelines.</td></tr>
+              <tr><th scope="row">PDF</th><td>Portable fixed document copy.</td><td>Distribution-ready files.</td></tr>
+              <tr><th scope="row">JSON / CSV</th><td>Machine-readable data.</td><td>Data workflows.</td></tr>
+              <tr><th scope="row">EPUB</th><td>E-reader packaging.</td><td>Long-form reading.</td></tr>
+            </tbody>
+          </table>
+          <p class="top-link"><a href="#page-title">Back to top</a></p>
+        </section>
+
+        <section id="html-word" aria-labelledby="html-word-title">
+          <h2 id="html-word-title">9. Working with HTML and Word Outputs</h2>
+          <h3>HTML output details</h3>
+          <ul>
+            <li>Chronicle writes semantic HTML with language metadata (<code>lang</code>) and direction support (<code>dir</code>).</li>
+            <li>Headings and tables are designed for screen-reader structural navigation.</li>
+            <li>Use browser shortcuts to jump by headings, regions, and tables.</li>
+          </ul>
+
+          <h3>Word (DOCX) output details</h3>
+          <ul>
+            <li>Chronicle maps heading-like text, lists, and pipe-table structure into Word-friendly structure.</li>
+            <li>Major report boundaries can be emitted as internal <code>[[PAGE BREAK]]</code> markers so the DOCX exporter can create cleaner page navigation for title pages, appendices, and section starts.</li>
+            <li>During processing, Chronicle may show a sidecar file such as <code>My File.docx.progress.txt.tmp</code>. This is intentional: it is a readable in-progress recovery snapshot, not the final Word file.</li>
+            <li>Progress wording is now format-aware, so long DOCX and other text-like files report extraction chunks instead of pretending the whole file is one page.</li>
+            <li>If you enable <strong>Original Page Numbers</strong>, Chronicle preserves visible printed page numbers as explicit references instead of suppressing them as page furniture.</li>
+            <li>Use Word styles and Navigation Pane for manual cleanup and fast section movement.</li>
+            <li>For accessibility review, run Word's built-in accessibility checker before final distribution.</li>
+          </ul>
+
+          <div class="note">
+            <p>If your target is strict assistive-tech reading, start with <strong>HTML</strong>. If your target is editing/collaboration, use <strong>DOCX</strong> then export final delivery format afterward.</p>
+          </div>
+          <p class="top-link"><a href="#page-title">Back to top</a></p>
+        </section>
+
+        <section id="queue-behavior" aria-labelledby="queue-title">
+          <h2 id="queue-title">10. Queue Rules and Selection Behavior</h2>
+          <ul>
+            <li>Queue status values include <code>Queued</code>, <code>Processing</code>, <code>Done</code>, <code>Error</code>, <code>Skipped</code>, and <code>Missing</code>.</li>
+            <li><strong>Start Reading</strong> processes all queued rows, not only selected rows.</li>
+            <li><strong>PDF Pages</strong> applies only to PDF files. Non-PDF formats ignore that field.</li>
+            <li><strong>Schedule Reading...</strong> also processes all queued rows when the scheduled time is reached.</li>
+            <li>Selection is used for row-level actions (remove selected, apply engine to selected).</li>
+            <li>Advanced Page Selection applies per row for PDF/PPTX input and uses text syntax: hyphen ranges like <code>30-45</code>; commas only when combining groups (for example <code>1-5,8,11</code>); plus quick presets (<code>First 5</code>, <code>Odd</code>, <code>Even</code>, <code>Last 10</code>).</li>
+            <li>Quick syntax reference: <code>30-45</code> (range), <code>15</code> (single page/slide), <code>1-5,8,11</code> (multiple groups). Invalid form: <code>30 to 45</code>.</li>
+            <li>If custom page selection is set for an unsupported source type, Chronicle logs the scope as ignored and continues full-file extraction.</li>
+            <li>The main Extraction Settings include a <strong>Seamless Merge</strong> control so you can switch between one-output-per-source and one continuous merged output.</li>
+            <li>When Merge Mode is enabled, Chronicle can produce one seamless merged output file.</li>
+            <li>If an output filename already exists, <strong>File Collision Mode</strong> decides the result: <strong>Skip</strong> leaves the existing file untouched, <strong>Overwrite</strong> replaces it with the finished run, and <strong>Auto-Number</strong> keeps the old file and writes the new result with an incremented filename.</li>
+            <li>For filename patterns like <code>page 01</code>, <code>page 02</code>, sequence lock is applied in merge mode.</li>
+            <li>Synthetic filename headings (for example <code>page 002.JPG</code>) are removed from merged output unless printed in source content.</li>
+            <li>DOCX, PDF, EPUB, JSON, and CSV runs can also create a readable sidecar file ending in <code>.progress.txt.tmp</code> in the destination folder while Chronicle is still assembling the final output.</li>
+            <li>Progress counters are format-specific: PDF files report pages, slide decks report slides, and DOCX/text-like inputs report chunks.</li>
+            <li>Original page-number handling is user-selectable, so you can keep printed folios for source cross-reference or suppress them for smoother continuous reading.</li>
+          </ul>
+          <h3>Queue status values</h3>
+          <ul>
+            <li><code>Queued</code>: waiting to run.</li>
+            <li><code>Processing</code>: currently being processed.</li>
+            <li><code>Paused</code>: paused by the user or loaded in a paused state.</li>
+            <li><code>Done</code>: completed successfully.</li>
+            <li><code>Done (Review)</code>: completed but flagged for manual review.</li>
+            <li><code>Error</code>: processing failed.</li>
+            <li><code>Skipped</code>: skipped due to output collision rules or other skip logic.</li>
+            <li><code>Missing</code>: source file is no longer available.</li>
+            <li><code>Unsupported</code>: source file type is not supported.</li>
+            <li><code>Stopped</code>: stopped by the user.</li>
+          </ul>
+
+          <h3>Selection, keyboard, and context-menu behavior</h3>
+          <ul>
+            <li>The queue supports extended selection for row-level actions.</li>
+            <li>Double-clicking a queue row opens the containing folder for that item.</li>
+            <li><strong>Task Actions...</strong> and the queue context menu provide <strong>Stop Task</strong>, <strong>Pause Task</strong>, <strong>Resume Task</strong>, <strong>Delete Task</strong>, and <strong>Open Containing Folder</strong>.</li>
+            <li><strong>Space</strong> toggles the current queue-row selection.</li>
+            <li><strong>Delete</strong> removes the selected queue rows when Chronicle is not actively running.</li>
+            <li><strong>Shift+F10</strong> or the menu/context key opens the queue context menu.</li>
+            <li><strong>Escape</strong> clears queue selection.</li>
+            <li><strong>Ctrl/Cmd+A</strong> selects all queued rows.</li>
+          </ul>
+
+          <h3>Session recovery and close-safety behavior</h3>
+          <ul>
+            <li>At startup, Chronicle can show <strong>Recover Previous Session</strong> when it finds unfinished work.</li>
+            <li><strong>Resume Previous Task</strong> reloads the saved queue and starts processing again.</li>
+            <li><strong>Load but Pause</strong> restores the queue without starting extraction.</li>
+            <li><strong>Start Fresh</strong> deletes the saved active session and clears the queue.</li>
+            <li>If you try to close Chronicle while work is active, the close-safety dialog offers <strong>Keep Working</strong>, <strong>Pause and Stay Open</strong>, or <strong>Save and Exit</strong>.</li>
+          </ul>
+
+          <div class="note">
+            <p>If a scheduled time arrives while the queue is empty, Chronicle clears the schedule without starting a run.</p>
+          </div>
+          <p class="top-link"><a href="#page-title">Back to top</a></p>
+        </section>
+
+        <section id="accessibility" aria-labelledby="a11y-title">
+          <h2 id="a11y-title">11. Accessibility and Screen Reader Notes</h2>
+          <ul>
+            <li>Multi-choice controls use native picker widgets.</li>
+            <li>Pickers include explanatory tooltips and accessible names.</li>
+            <li>Queue uses explicit row/state presentation and is intended to be workable with NVDA, JAWS, and VoiceOver.</li>
+            <li>The processing log is engine-focused for lower-noise assistive reading.</li>
+            <li>Use <strong>Save Processing Log</strong> to export diagnostics; default directory follows scan context when possible.</li>
+            <li>Document profiles provide contextual hints so users can decide without opening external docs, while the reading engine is chosen automatically in the background.</li>
+            <li>Windows validation should explicitly test menu shortcuts, queue traversal, Preferences, API Keys, connected-device lookup, NAPS2 import flow, and saved-log export with NVDA and JAWS.</li>
+          </ul>
+          <div class="warning">
+            <p>On macOS, if folder read permission blocks scanning, use <strong>File &gt; Check Mac Folder Access...</strong> and grant access.</p>
+          </div>
+          <p class="top-link"><a href="#page-title">Back to top</a></p>
+        </section>
+
+        <section id="troubleshooting" aria-labelledby="troubleshooting-title">
+          <h2 id="troubleshooting-title">12. Troubleshooting and Diagnostics</h2>
+          <h3>Welcome and first-run behavior</h3>
+          <ul>
+            <li>If no provider keys are stored yet, Chronicle may show a welcome dialog offering <strong>Open API Key Vault</strong> or <strong>Later</strong>.</li>
+            <li>If you choose <strong>Later</strong>, you can still open the vault afterward from <strong>File &gt; API Keys...</strong>.</li>
+          </ul>
+
+          <h3>Device import details</h3>
+          <ul>
+            <li><strong>Scan via NAPS2</strong> opens a page-import dialog with input device, scan preset, DPI, and output folder controls.</li>
+            <li>Scan presets include <strong>Text (300 DPI)</strong>, <strong>Archival (600 DPI)</strong>, <strong>Draft (200 DPI)</strong>, and <strong>Custom</strong>.</li>
+            <li>Chronicle validates DPI values and output-folder creation before starting the scan import.</li>
+            <li>Imported pages are added to the queue for review first; Chronicle does not auto-start reading from the scan dialog in the current workflow.</li>
+          </ul>
+
+          <h3>Scheduling details</h3>
+          <ul>
+            <li>The schedule dialog uses local date, local time, and the local timezone shown in the dialog.</li>
+            <li><strong>Clear Schedule</strong> removes any pending scheduled run.</li>
+            <li>If reading is started manually while a schedule exists, Chronicle clears the schedule and starts immediately.</li>
+            <li>Chronicle must remain open for the scheduled run to trigger.</li>
+          </ul>
+
+          <h3>Gemini 403 file permission during gearshift</h3>
+          <p>This was addressed by delaying file cleanup until stream completion. If seen again, verify key scope and network/proxy behavior.</p>
+
+          <h3>Build errors</h3>
+          <ul>
+            <li><code>--name expected one argument</code>: fixed by preserving argument ordering in build script.</li>
+            <li><code>Directory not empty: dist</code>: fixed with retry-safe removal.</li>
+            <li>PyInstaller cache permission denied under macOS Library path: fixed by local cache dir override.</li>
+          </ul>
+
+          <h3>Output path issues</h3>
+          <ul>
+            <li>If custom destination is enabled, make sure the folder exists and is writable.</li>
+            <li>If files are skipped, review collision mode.</li>
+          </ul>
+          <h3>Help and external links</h3>
+          <ul>
+            <li>If <strong>Open User Guide</strong> reports a missing file, confirm <code>docs/user/chronicle_help.html</code> exists in the app bundle or source tree.</li>
+            <li>If donation links do not open, check the default browser configuration and any OS prompts for opening external links.</li>
+          </ul>
+          <h3>Confidence and quality signals</h3>
+          <ul>
+            <li>When enabled, page confidence logs appear as score out of 10 with a short condition description.</li>
+            <li>Image quality notes may flag faded writing, blur, or possible stain/water-damage artifacts.</li>
+            <li>Confidence scoring is diagnostic guidance, not a guaranteed correctness metric.</li>
+          </ul>
+          <h3>PDF omission audit output</h3>
+          <ul>
+            <li>Text-layer audit can append recovered lines when coverage appears low.</li>
+            <li>For severe mismatch, Chronicle may append a full text-layer safety appendix for manual review.</li>
+          </ul>
+          <h3>OpenAI PDF fallback message</h3>
+          <p>If Chronicle logs that OpenAI PDF handling is falling back to the PDF text layer, the current OpenAI route in Chronicle could not continue on a direct PDF path for that request. Chronicle will then try to recover text from the PDF text layer instead of silently skipping the file.</p>
+          <h3>Claude PDF transport fallback</h3>
+          <p>If Chronicle logs that Claude Files API is unavailable for a PDF slice, the app will fall back to inline Claude PDF mode for that slice. This usually means the local Anthropic SDK or environment does not expose the newer Files API route yet.</p>
+          <p class="top-link"><a href="#page-title">Back to top</a></p>
+        </section>
+
+        <section id="build" aria-labelledby="build-title">
+          <h2 id="build-title">13. Build and Frozen App Notes</h2>
+          <h3>Help, About, and Support entries</h3>
+          <ul>
+            <li><strong>Help &gt; Open User Guide</strong> opens this documentation in the default browser.</li>
+            <li><strong>Help &gt; About Build...</strong> shows the build stamp, runtime path, Python version, and wx version.</li>
+            <li><strong>Help &gt; Support Chronicle...</strong> opens a donation chooser with <strong>Buy Me a Coffee</strong> and <strong>PayPal</strong>.</li>
+            <li>On macOS, <strong>File &gt; Check Mac Folder Access...</strong> prompts for folder-access remediation when permission issues block scanning or folder ingestion.</li>
+          </ul>
+
+          <ul>
+            <li>macOS build launcher: <code>build.command</code></li>
+            <li>Windows build launcher: <code>build_windows.bat</code> (which calls <code>build_windows.ps1</code>).</li>
+            <li>Windows staged bundles must include <code>build_windows.ps1</code>, <code>build_windows.bat</code>, <code>chronicle_app/</code>, <code>assets/</code>, and <code>docs/</code>.</li>
+            <li>Build scripts include broad dependency collection to reduce missing-runtime issues on new systems/drives.</li>
+          </ul>
+          <div class="success">
+            <p>Help can be opened directly in the app from <strong>Help &gt; Open User Guide</strong> (shortcut <kbd>F1</kbd>).</p>
+          </div>
+          <ul>
+            <li><strong>Help &gt; About Build...</strong> shows the current build stamp, runtime path, Python version, and wx version.</li>
+            <li><strong>Help &gt; Support Chronicle...</strong> opens the in-app donation chooser with <strong>Buy Me a Coffee</strong> and <strong>PayPal</strong>.</li>
+          </ul>
+          <p class="top-link"><a href="#page-title">Back to top</a></p>
+        </section>
+
+        <section id="system-requirements" aria-labelledby="system-requirements-title">
+          <h2 id="system-requirements-title">14. System Requirements</h2>
+          <p>Chronicle can run from source or as a frozen app bundle. Requirements vary by workload size and output mode.</p>
+          <table>
+            <caption>Minimum vs recommended requirements</caption>
+            <thead>
+              <tr>
+                <th scope="col">Category</th>
+                <th scope="col">Minimum</th>
+                <th scope="col">Recommended</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row">Operating system</th>
+                <td>macOS 12+ or Windows 10+</td>
+                <td>Latest supported macOS / Windows 11 updates</td>
+              </tr>
+              <tr>
+                <th scope="row">CPU</th>
+                <td>Dual-core 64-bit processor</td>
+                <td>Modern 4+ core CPU (Apple Silicon or current Intel/AMD)</td>
+              </tr>
+              <tr>
+                <th scope="row">Memory (RAM)</th>
+                <td>8 GB</td>
+                <td>16 GB+ for large PDFs, merge-heavy runs, and multi-hour batches</td>
+              </tr>
+              <tr>
+                <th scope="row">Storage</th>
+                <td>5 GB free</td>
+                <td>20 GB+ free SSD space for scans, temp files, and outputs</td>
+              </tr>
+              <tr>
+                <th scope="row">Network</th>
+                <td>Stable internet for provider API calls</td>
+                <td>Low-latency, reliable broadband with minimal dropouts</td>
+              </tr>
+              <tr>
+                <th scope="row">API access</th>
+                <td>At least one valid provider key (Gemini/Claude/OpenAI)</td>
+                <td>Paid API tier for higher quotas and stronger privacy controls</td>
+              </tr>
+            </tbody>
+          </table>
+          <h3>Low-memory systems</h3>
+          <ul>
+            <li>Enable <strong>Low-Memory Mode</strong> in Preferences for constrained devices.</li>
+            <li>Prefer non-merge runs and smaller queue batches.</li>
+            <li>For very large PDFs, disable optional diagnostic features if stability is the priority.</li>
+          </ul>
+          <div class="warning">
+            <p>Free API tiers are suitable for testing, but production workloads should generally use paid tiers for throughput and policy stability.</p>
+          </div>
+          <p class="top-link"><a href="#page-title">Back to top</a></p>
+        </section>
+
+        <section id="shortcuts" aria-labelledby="shortcuts-title">
+          <h2 id="shortcuts-title">15. Keyboard Shortcuts</h2>
+          <ul>
+            <li><kbd>F1</kbd>: Open this user guide.</li>
+            <li><kbd>Alt</kbd> + <kbd>P</kbd>: Preferences.</li>
+            <li><kbd>Alt</kbd> + <kbd>K</kbd>: API Keys.</li>
+            <li><kbd>Alt</kbd> + <kbd>S</kbd>: Find connected devices.</li>
+            <li><kbd>Alt</kbd> + <kbd>N</kbd>: Scan via NAPS2.</li>
+            <li><kbd>Alt</kbd> + <kbd>L</kbd>: Save processing log.</li>
+            <li><kbd>Alt</kbd> + <kbd>M</kbd> (macOS): Check Mac folder access.</li>
+            <li><kbd>Space</kbd>: Toggle selection of the current queue row.</li>
+            <li><kbd>Escape</kbd>: Deselect all queue rows.</li>
+            <li><kbd>Shift</kbd> + <kbd>F10</kbd>: Open the queue context menu.</li>
+            <li><kbd>Delete</kbd>: Remove selected queue rows.</li>
+            <li><kbd>Ctrl/Cmd</kbd> + <kbd>A</kbd>: Select all queue rows.</li>
+          </ul>
+          <p class="top-link"><a href="#page-title">Back to top</a></p>
+        </section>
+      </main>
+    </div>
+  </div>
+</body>
+</html>

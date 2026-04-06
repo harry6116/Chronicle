@@ -1,0 +1,1 @@
+"""Chronicle modular package scaffolding."""

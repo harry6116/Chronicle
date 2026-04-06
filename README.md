@@ -1,81 +1,132 @@
-# Chronicle Document Extractor
+# Chronicle
 
-Chronicle is a highly accessible, multi-modal document extraction and transcription tool powered by Google's Gemini AI. It is specifically designed for high-fidelity transcription of complex historical archives, military documents, handwritten letters, technical manuals, financial spreadsheets, and complex legal legislation.
+Chronicle is an accessibility-first document recovery tool for difficult real-world material.
 
-## 🚀 What's New in v1.8.0 (The Academic & Compliance Update)
-* **Strict WCAG 2.2 Compliance:** The extraction engine now hardcodes strict HTML semantics, including proper table scopes, unbreakable heading hierarchies, and dynamic language/title tags to meet US Section 508 and Australian AS EN 301 549 standards.
-* **The Academic Engine:** Chronicle can now process dense scientific, theological, and musicology journals. It automatically converts complex mathematical equations into LaTeX, preserves ancient inline languages (Greek, Hebrew), flattens multi-column layouts, and safely anchors footnotes to the end of the document.
-* **Automated Setup Scripts:** We have introduced dedicated Mac and Windows scripts to streamline dependency management.
-* **Stateless Fail-Safes (Atomic Saving):** Chronicle uses temporary `.tmp` streaming to ensure that if your computer crashes mid-scan, no files are ever corrupted. 
+Current public launch line: **Chronicle 1.0.0**.
 
-## ✨ Core Features
+It is especially strong on degraded scans, long-form books, archival records, legal and policy material, tables, handwriting, multi-column layouts, and mixed-format batches where preserving reading order, usable structure, and review workflow matters more than raw one-click speed.
 
-* **Universal Input:** Supports PDFs, Word Documents, Excel Workbooks (.xlsx), plain text, and multiple image formats.
-* **Universal Export:** Generates clean, semantic HTML specifically optimized for screen readers, alongside EPUB, JSON, CSV, TXT, DOCX, Markdown, and PDF output options.
-* **10-Step Customization:** A comprehensive, audio-friendly terminal menu system to control everything from AI engine speed to historical punctuation modernization.
-* **Archival Precision:** Features a custom ruleset to handle historical unit conversions, telegraph decoding, military grid references, and strikethrough text recovery.
-* **PDF Chunking:** Automatically and safely splits massive archival PDFs in 5-page chunks to prevent memory timeouts.
-* ## 🛠️ Prerequisites & Installation
+Chronicle provides a screen-reader-friendly GUI, queue/task controls, scan-ingestion workflows, and structured output generation across multiple AI providers.
 
-Chronicle is a Python script, not a compiled binary application. You will not find an installer in the GitHub "Releases" tab.
+**Built for hard documents.**
 
-### 1. How to Download Chronicle
-1. Click the green **Code** button at the top of the repository page.
-2. Select **Download ZIP** from the dropdown menu, or clone the repository to your machine.
-3. Extract the ZIP file to a folder on your computer (e.g., your Documents folder).
+Chronicle is for the files people usually describe as:
 
-### 2. Installing Python
-To run Chronicle, you must have Python installed on your system.
+- "the scan is awful"
+- "the OCR is almost right but keeps breaking the prose"
+- "the page furniture keeps getting in the way"
+- "I need something I can actually review, not just raw extracted text"
 
-* **Windows Users (⚠️ CRITICAL):** Download Python from the official website. When running the installer, **you must check the box that says "Add Python.exe to PATH"** at the bottom of the very first screen. If you miss this, Chronicle will not run.
-* **Mac Users:** You can download Python from the official website, or install it via the Terminal using Homebrew by running: `brew install python`
+Chronicle is especially useful when you need:
 
-### 3. Installing Dependencies & First-Time Setup
-Users can use the Mac or Windows Update scripts (`update_mac.sh` and `update_windows.bat`) to automatically update the software and dependencies, rather than manually running `pip install` or re-downloading ZIP files. 
+- better recovery on degraded scans
+- stronger paragraph continuity for books and long-form prose
+- clearer review output in HTML or Word
+- operator control over presets, merge behavior, and runtime settings
+- a queue-and-rerun workflow for difficult material
+- a faster path to review-ready output on messy source material
 
-For your very first setup, simply open your terminal or command prompt in the Chronicle folder and run the script corresponding to your operating system. This will automatically install required libraries like `google-genai`, `pypdf`, `fpdf2`, `openpyxl`, and `EbookLib`.
+## Why Use Chronicle
 
-### 🔑 Gemini API Key & Pricing
-You will need a **Google Gemini API Key** to power the engine. The script will prompt you for this on your first run and save it securely in an `api_key.txt` file. 
+- Built for hard documents, not just clean born-digital files
+- Strong on books, archives, newspapers, forms, and mixed-format recovery work
+- Gives operators control through presets, queue workflow, merge behavior, and runtime toggles
+- Produces outputs that are easier to review in HTML or Word
+- Prioritizes fidelity, continuity, and accessibility over blind OCR dumping
 
-Google offers two API tiers:
-| Tier | Cost | Rate Limits | Data Privacy |
-| :--- | :--- | :--- | :--- |
-| **Free Tier** | $0.00 | 15 Requests Per Minute | Data *may* be used to train Google's models. |
-| **Pay-as-you-go** | Paid per Token | High/Custom | Data is strictly private and **not** used for training. |
+## Key Features
 
-*Note: If you are processing highly sensitive personal archives, legal contracts, or financial data, the **Pay-as-you-go** tier is strictly recommended to ensure absolute data privacy.*
-## ⚙️ Usage
+- Accessibility-first GUI with keyboard and screen-reader oriented workflows
+- Multi-provider AI support:
+  - Google Gemini (`gemini-2.5-flash`, `gemini-2.5-pro`)
+  - Anthropic Claude (`claude-sonnet-4-20250514`)
+  - OpenAI (`gpt-4o`)
+- Input support:
+  - `PDF`, `DOCX`, `TXT`, `MD`, `RTF`, `CSV`, `XLSX`, `PPTX`, `EPUB`, common image formats
+- Output support:
+  - `HTML`, `TXT`, `DOCX`, `MD`, `PDF`, `JSON`, `CSV`, `EPUB`
+- Queue operations:
+  - add files / add folder / scanner discovery / NAPS2 import
+  - pause / resume / stop / delete / open folder
+- Safety controls:
+  - preserve source folder structure
+  - optional delete originals after successful extraction
+  - session recovery
+  - merge mode and page/slide scope controls
 
-1. Place your historical documents, PDFs, Excel files, or images into the `input_files` or `Input_Scans` folder.
-2. Open your terminal and run the script:
-   * Mac: Run `./Run_Chronicle.command`
-   * Windows: Run `Run_Chronicle.bat`
-   * Or manually via terminal: `python chronicle.py`
-3. Follow the 10-step audio-friendly menu system to configure your extraction.
-4. Your processed, clean-reading files will be saved in the corresponding output directory.
+## What Users Should Expect
 
-## 🔄 Keeping Chronicle Updated
+- Easy files may move quickly.
+- Difficult books, degraded PDFs, and dense historical material can take longer.
+- Chronicle deliberately spends more time on hard cases when that improves paragraph continuity, structural recovery, and accessibility-friendly output.
+- Chronicle is designed to reduce manual cleanup and help users reach review-ready output more quickly, but human review is still required.
 
-Users can use the Mac or Windows Update scripts (`update_mac.sh` and `update_windows.bat`) to automatically update the software and dependencies, rather than manually running pip install or re-downloading ZIP files.
+## First Public Release
 
-Simply run the script for your operating system to instantly pull the latest code and install any new dependencies. **This process is 100% safe.** It will only update the core engine; it will never overwrite your extracted documents, your input files, or your API key.
+Chronicle `1.0.0` is the first public release of the current standalone app line.
 
-## 📜 License & Commercial Integration
+It should be presented as a fresh release track, separate from the older terminal-first public repository history.
 
-Chronicle is available under the open-source **GNU AGPLv3** license. 
+Planned public release assets:
 
-For commercial integration, proprietary licensing, or enterprise deployment (e.g., embedding Chronicle into closed-source legal tech suites or private university databases), please contact the developer to arrange a Commercial License.
+- macOS: `Chronicle 1.0 mac.zip`
+- Windows: `Chronicle 1.0 windows.zip`
 
-## Support the Project
+## Contact
 
-Chronicle is an open-source project that I offer to the community completely free of charge. 
+- General enquiries and evaluation requests: `hello.chronicle.app@gmail.com`
+- Product support: `chronicle.app+support@gmail.com`
+- Press and media: `chronicle.app+press@gmail.com`
 
-Developing this tool required hundreds of hours of coding, testing, and refining, along with significant personal financial investment in AI API costs to ensure the extraction engine is as accurate and accessible as possible.
+## Build and Run
 
-If Chronicle has helped you decipher a family diary, made your archival research easier, or saved you hours of manual transcription, please consider supporting its continued development. Your support helps cover ongoing testing costs and fuels future updates!
+### Run from source
 
-* **[Buy Me a Coffee](https://buymeacoffee.com/thevoiceguy)**
-* **[Donate via PayPal](https://paypal.me/MarshallVoiceovers)**
+1. Install Python 3.11.
+2. Install dependencies:
+   - `pip install -r requirements.txt`
+3. Run GUI:
+   - `python chronicle_gui.py`
 
-Thank you for your support, and happy archiving!
+### Build standalone apps
+
+- macOS:
+  - `./build.command`
+- Windows:
+  - `build_windows.bat` (calls `build_windows.ps1`)
+
+### Portable Windows build staging
+
+- Run `./stage_windows_bundle.command`
+- Copy `dist_windows_bundle/Chronicle_Windows_Bundle` to the Windows machine
+- Run `build_windows.bat` from the staged bundle root
+- Ensure the staged bundle includes `build_windows.ps1`, `build_windows.bat`, `chronicle_app/`, `assets/`, and `docs/`
+
+## API Keys and Provider Boundary
+
+Chronicle stores API keys locally, but extracted content is sent to the selected provider API for processing.
+
+- Keys are stored locally on the user's own machine in Chronicle app-data storage.
+- Keys are not intended to be embedded in release artifacts or committed to the repository.
+- Chronicle cannot enforce provider retention/training policy.
+- Provider privacy/confidentiality behavior depends on account tier and provider settings.
+- Google Gemini API keys from Google AI Studio can work on Google's free tier, subject to current quotas, rate limits, model availability, and region support.
+- Anthropic Claude API access is separate from Claude.ai chat plans and should be treated as requiring Claude Console/API billing or prepaid credits.
+
+Detailed guidance:
+
+- `docs/github_rollout/PROVIDER_PRIVACY_AND_TIER_GUIDE.md`
+- `docs/github_rollout/LEGAL_DISCLAIMER_GITHUB.md`
+
+## Contributing and Security
+
+- Contribution guide: `docs/github_rollout/CONTRIBUTING_GITHUB.md`
+- Security policy: `docs/github_rollout/SECURITY_GITHUB.md`
+- Local commit safety:
+  - run `bash tools/install_git_hooks.sh` to enable the pre-commit secret scanner
+
+## License
+
+Current source-repository license: GNU AGPLv3.
+
+Chronicle's commercial/offline desktop licensing direction is being prepared separately and should be described explicitly as a separate licensing path if published. Do not present the current AGPL repository snapshot as simple donationware if the intended public model is paid desktop licensing.

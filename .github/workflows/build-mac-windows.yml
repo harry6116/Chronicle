@@ -1,0 +1,94 @@
+name: Build Mac and Windows
+
+on:
+  push:
+    branches:
+      - "**"
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Build target"
+        required: true
+        default: windows
+        type: choice
+        options:
+          - windows
+          - macos
+          - all
+
+jobs:
+  build-macos:
+    name: Build macOS
+    if: ${{ github.event_name == 'workflow_dispatch' && (inputs.target == 'macos' || inputs.target == 'all') }}
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Build macOS app
+        run: |
+          python Mac/build_mac.py
+
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Chronicle-macOS-${{ github.sha }}
+          path: |
+            dist/Chronicle.app
+            dist/Chronicle
+          if-no-files-found: error
+
+  build-windows:
+    name: Build Windows
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.target == 'windows' || inputs.target == 'all' }}
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Build Windows app
+        shell: pwsh
+        run: .\build_windows.ps1
+
+      - name: Upload Windows build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Chronicle-Windows-logs-${{ github.sha }}
+          path: |
+            ${{ env.APPDATA }}\Chronicle\logs
+          if-no-files-found: ignore
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Chronicle-Windows-${{ github.sha }}
+          path: |
+            dist/Chronicle
+          if-no-files-found: error

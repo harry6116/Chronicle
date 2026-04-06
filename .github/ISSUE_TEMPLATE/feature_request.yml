@@ -1,0 +1,31 @@
+name: Feature request
+description: Propose an improvement for Chronicle.
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      description: What user problem does this address?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe your preferred behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: checkboxes
+    id: accessibility
+    attributes:
+      label: Accessibility impact
+      options:
+        - label: I considered screen-reader and keyboard navigation behavior.
+        - label: I considered tooltip/help discoverability.

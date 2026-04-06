@@ -3,8 +3,49 @@ __pycache__/
 *.py[cod]
 *$py.class
 venv/
+venv311/
 env/
 .env
+.venv/
+
+# Runtime secrets and local state
+api_keys.json
+api_key.txt
+api_key_gemini.txt
+api_key_anthropic.txt
+api_key_openai.txt
+user_config.json
+chronicle_active_session.json
+chronicle-license.json
+chronicle_license_public_key.pem
+
+# Build artifacts
+build/
+dist/
+windows_builds/
+.pyinstaller-cache/
+*.spec
+*.tmp
+*.merge_journal.jsonl
+artifacts/benchmarks/
+artifacts/*.zip
+artifacts/public_repo_stage/
+benchmark_web_outputs/
+benchmark_web_report.json
+benchmark_web_summary.md
+patches_applied/
+benchmark_local_inputs/
+benchmark_local_outputs/
+temp_old_chronicle_control/
+dist_windows_bundle/
+assets/test_corpus_2026-03/
+benchmarks/
+input_files/
+output_html/
+testing documents/
+scanning problems.md
+Prepare_Windows_VM_Handoff.command
+Mac/Prepare_Windows_VM_Handoff.command
 
 # Rust
 target/
@@ -23,3 +64,9 @@ Desktop.ini
 .vscode/
 .idea/
 *.swp
+
+# Local worktrees and historical backups
+.worktrees/
+back5_dns_folder/
+review_archives_*/
+Chronicle_Source_*.zip

@@ -1,0 +1,62 @@
+name: Bug report
+description: Report a defect or regression in Chronicle.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. Please include reproducible details.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: Clear description of what is wrong.
+      placeholder: Describe the issue.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Provide exact steps.
+      placeholder: |
+        1. Open app
+        2. Add file ...
+        3. Click ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - macOS
+        - Windows
+        - Linux
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Chronicle version / commit
+      placeholder: e.g. v1.8.1 or commit SHA
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / screenshots
+      description: Remove API keys or sensitive document contents before posting.
