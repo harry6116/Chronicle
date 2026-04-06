@@ -48,8 +48,8 @@ You can upload the `docs/public/` folder directly after replacing the temporary 
 
 1. Open `docs/public/index.html`.
 2. Confirm the GitHub release is published with:
-   `Chronicle 1.0 mac.zip`
+   `Chronicle.1.0.mac.zip`
 3. Confirm the GitHub release is published with:
-   `Chronicle 1.0 windows.zip`
+   `Chronicle.1.0.windows.zip`
 4. Keep the support and press email addresses as they are unless you introduce domain mail.
 5. Test the page with keyboard-only navigation and browser zoom before final publish.
