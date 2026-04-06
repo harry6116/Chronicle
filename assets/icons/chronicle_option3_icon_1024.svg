@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">Chronicle Option 3 Icon</title>
+  <desc id="desc">Square app icon showing fragmented document detail transitioning into clean structured blocks with a C-shaped bridge.</desc>
+  <rect width="1024" height="1024" rx="180" fill="#0e1a2b"/>
+
+  <rect x="172" y="260" width="132" height="22" rx="11" fill="#f4b000"/>
+  <rect x="172" y="312" width="108" height="22" rx="11" fill="#f4b000"/>
+  <rect x="172" y="364" width="166" height="22" rx="11" fill="#f4b000"/>
+  <rect x="172" y="416" width="120" height="22" rx="11" fill="#f4b000"/>
+  <rect x="172" y="468" width="154" height="22" rx="11" fill="#f4b000"/>
+  <rect x="172" y="520" width="98" height="22" rx="11" fill="#f4b000"/>
+
+  <rect x="564" y="260" width="278" height="56" rx="16" fill="#6fe3ff"/>
+  <rect x="564" y="350" width="240" height="28" rx="14" fill="#6fe3ff"/>
+  <rect x="564" y="398" width="262" height="28" rx="14" fill="#6fe3ff"/>
+  <rect x="564" y="446" width="224" height="28" rx="14" fill="#6fe3ff"/>
+  <rect x="564" y="494" width="262" height="28" rx="14" fill="#6fe3ff"/>
+
+  <path d="M 486 252 C 432 252 392 292 392 346 V 678 C 392 732 432 772 486 772" fill="none" stroke="#ffffff" stroke-width="64" stroke-linecap="round"/>
+  <path d="M 498 252 C 450 252 416 286 416 332 V 692 C 416 738 450 772 498 772" fill="none" stroke="#0e1a2b" stroke-width="30" stroke-linecap="round"/>
+</svg>
