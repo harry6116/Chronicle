@@ -24,8 +24,8 @@ This release replaces the outdated legacy public repository snapshot with the re
 
 ### Release Assets
 
-- `Chronicle 1.0 mac.zip`
-- `Chronicle 1.0 windows.zip`
+- `Chronicle.1.0.mac.zip`
+- `Chronicle.1.0.windows.zip`
 
 ### Important Notes
 

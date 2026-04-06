@@ -52,11 +52,11 @@ The important files are:
 
 ## Download Link Swap
 
-The current Mac and Windows buttons are now prepared for GitHub Releases.
+The current Mac and Windows buttons now point at the live GitHub Releases asset names.
 
 When the real files are published:
 
-1. publish the GitHub release with the exact asset names
+1. publish the GitHub release assets
 2. confirm the downloads work from the `releases/latest/download/...` links
 3. redeploy the static folder if you changed any copy around those links
 
