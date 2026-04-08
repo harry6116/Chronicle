@@ -11,17 +11,23 @@ CODE_OF_CONDUCT.md
 CONTRIBUTING.md
 Chronicle.spec
 DISCLAIMER.md
+Docs_Only_Public_Update.command
 LICENSE
+Mac/Docs_Only_Public_Update.command
 Mac/Prepare_Public_Repo.command
+Mac/Publish_GitHub_Release.command
 Mac/Push_Public_Repo.command
 Mac/README.md
+Mac/Update_GitHub_Release_Notes_Only.command
 Mac/build.command
 Mac/build_mac.py
 PLATFORM_LAYOUT.md
 Prepare_Public_Repo.command
+Publish_GitHub_Release.command
 Push_Public_Repo.command
 README.md
 SECURITY.md
+Update_GitHub_Release_Notes_Only.command
 api_keys.template.json
 assets/README.md
 assets/icons/chronicle.iconset/icon_128x128.png
@@ -54,7 +60,6 @@ build_stamp.txt
 build_windows.bat
 build_windows.ps1
 capture_windows_build_diagnostics.bat
-chronicle.py
 chronicle_app/__init__.py
 chronicle_app/config.py
 chronicle_app/services/__init__.py
@@ -63,6 +68,7 @@ chronicle_app/services/app_files.py
 chronicle_app/services/document_processors.py
 chronicle_app/services/exporters.py
 chronicle_app/services/file_cleanup.py
+chronicle_app/services/legacy_pdf_runtime.py
 chronicle_app/services/licensing.py
 chronicle_app/services/ordering_runtime.py
 chronicle_app/services/pdf_processor.py
@@ -90,6 +96,7 @@ chronicle_app/ui/queue_panel.py
 chronicle_app/ui/queue_support.py
 chronicle_core.py
 chronicle_gui.py
+chronicle_runtime.py
 docs/README.md
 docs/github_rollout/CONTRIBUTING_GITHUB.md
 docs/github_rollout/LAUNCH_RUNBOOK.md
@@ -131,7 +138,6 @@ docs/user/README.md
 docs/user/SYSTEM_REQUIREMENTS.md
 docs/user/chronicle_help.html
 hooks/hook-pydantic.py
-legacy_extract_core.py
 requirements.txt
 stage_windows_bundle.command
 sync_and_build_only.bat

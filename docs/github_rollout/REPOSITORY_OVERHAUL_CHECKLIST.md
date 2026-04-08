@@ -11,8 +11,8 @@ Target first public app release: `1.0.0`
 - [ ] Confirm the source-of-truth working tree is clean and tested.
 - [ ] Build a local staged public snapshot with `python3 tools/prepare_public_repo_snapshot.py --clean` and review its manifest before touching the live GitHub repo.
 - [ ] Confirm packaged release assets exist and are the intended public files:
-  - [ ] `/Users/michaelsmac/Documents/Convert/Chronicle 1.0 mac.zip`
-  - [ ] `/Users/michaelsmac/Documents/Convert/Chronicle 1.0 windows.zip`
+  - [ ] `/Users/michaelsmac/Documents/Chronicle Release Apps/Chronicle 1.0 mac.zip`
+  - [ ] `/Users/michaelsmac/Documents/Chronicle Release Apps/Chronicle 1.0 windows.zip`
 - [ ] Confirm build outputs are reproducible for:
   - [ ] macOS
   - [ ] Windows

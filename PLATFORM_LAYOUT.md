@@ -25,11 +25,11 @@ macOS-specific helper scripts live under:
 
 ### Shared runtime and app code
 
-Shared cross-platform code lives at the repo root and under `chronicle_app/`.
+Shared cross-platform code for the GUI app lives at the repo root and under `chronicle_app/`.
 
 Important paths:
 
-- `chronicle.py`
+- `chronicle_runtime.py`
 - `chronicle_core.py`
 - `chronicle_gui.py`
 - `chronicle_app/config.py`
@@ -54,7 +54,7 @@ Windows build and staging flows now expect the following to exist together:
 - `build_windows.bat`
 - `build_windows.ps1`
 - `chronicle_gui.py`
-- `chronicle.py`
+- `chronicle_runtime.py`
 - `chronicle_core.py`
 - `chronicle_app/`
 - `assets/`

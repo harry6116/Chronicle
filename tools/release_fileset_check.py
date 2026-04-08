@@ -8,7 +8,7 @@ from pathlib import Path
 
 REQUIRED_PATHS = [
     "chronicle_gui.py",
-    "chronicle.py",
+    "chronicle_runtime.py",
     "chronicle_core.py",
     "chronicle_app/__init__.py",
     "chronicle_app/config.py",
@@ -17,6 +17,7 @@ REQUIRED_PATHS = [
     "chronicle_app/services/worker_execute_runtime.py",
     "chronicle_app/services/worker_finalize_runtime.py",
     "chronicle_app/services/file_cleanup.py",
+    "chronicle_app/services/legacy_pdf_runtime.py",
     "chronicle_app/ui/__init__.py",
     "chronicle_app/ui/bindings.py",
     "chronicle_app/ui/dialogs.py",
@@ -51,12 +52,13 @@ REQUIRED_PATHS = [
 
 SOURCE_ARCHIVE_REQUIRED = [
     "chronicle_gui.py",
-    "chronicle.py",
+    "chronicle_runtime.py",
     "chronicle_core.py",
     "chronicle_app/services/worker_runtime.py",
     "chronicle_app/services/worker_execute_runtime.py",
     "chronicle_app/services/worker_finalize_runtime.py",
     "chronicle_app/services/file_cleanup.py",
+    "chronicle_app/services/legacy_pdf_runtime.py",
     "chronicle_app/services/pdf_processor.py",
     "chronicle_app/services/document_processors.py",
     "chronicle_app/services/scan_runtime.py",

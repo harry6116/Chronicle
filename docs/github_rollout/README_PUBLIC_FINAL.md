@@ -8,6 +8,8 @@ It is especially strong on degraded scans, long-form books, archival records, le
 
 Chronicle provides a screen-reader-friendly GUI, queue/task controls, scan-ingestion workflows, and structured output generation across multiple AI providers.
 
+Chronicle is a desktop GUI application. This repository publishes the current app source code, build scripts, and documentation for the same release line. There is no separate supported Chronicle CLI product.
+
 **Built for hard documents.**
 
 Chronicle is for the files people usually describe as:
@@ -65,7 +67,7 @@ Chronicle is especially useful when you need:
 
 Chronicle `1.0.0` is the first public release of the current standalone app line.
 
-It should be presented as a fresh release track, separate from the older terminal-first public repository history.
+It should be presented as a fresh release track, separate from the older public repository state.
 
 Planned public release assets:
 
@@ -78,15 +80,34 @@ Planned public release assets:
 - Product support: `chronicle.app+support@gmail.com`
 - Press and media: `chronicle.app+press@gmail.com`
 
+## Free for Non-Commercial Use
+
+The packaged Chronicle desktop app is intended to be free to use for non-commercial work.
+
+That includes personal use, study, home archiving, family history, volunteer/community work, nonprofit use, and other genuinely non-commercial use.
+
+Commercial use of the packaged desktop app requires a paid Chronicle license.
+
+If you want to use Chronicle for paid professional work, client services, business operations, or commercial organizational workflows, contact `hello.chronicle.app@gmail.com`.
+
+## Support Chronicle
+
+If Chronicle helps your work and you want to support ongoing development, you can donate here:
+
+- Buy Me a Coffee: `https://buymeacoffee.com/thevoiceguy`
+- PayPal: `https://paypal.me/MarshallVoiceovers`
+
 ## Build and Run
 
-### Run from source
+### Build or run the app from source
 
 1. Install Python 3.11.
 2. Install dependencies:
    - `pip install -r requirements.txt`
 3. Run GUI:
    - `python chronicle_gui.py`
+
+Source mode is for building, testing, and developing the Chronicle GUI app from the published source tree.
 
 ### Build standalone apps
 
@@ -129,4 +150,13 @@ Detailed guidance:
 
 Current source-repository license: GNU AGPLv3.
 
-Chronicle's commercial/offline desktop licensing direction is being prepared separately and should be described explicitly as a separate licensing path if published. Do not present the current AGPL repository snapshot as simple donationware if the intended public model is paid desktop licensing.
+That means the source code published in this repository is available under AGPLv3 terms.
+
+Chronicle's packaged desktop-app licensing position is intended to be:
+
+- free for non-commercial use
+- paid commercial licensing for business and paid professional use
+
+These desktop-app terms should be presented as a separate distribution/licensing path. They do not retroactively replace the AGPL terms attached to copies of the source code distributed from this repository.
+
+If you need commercial desktop-app licensing, use `hello.chronicle.app@gmail.com`.

@@ -33,14 +33,14 @@ Current target release: `Chronicle 1.0.0`
 - Verify repository permissions and release access.
 - Confirm Windows staged bundle docs mention `build_windows.ps1`.
 - Confirm the public release files are final:
-  - `/Users/michaelsmac/Documents/Convert/Chronicle 1.0 mac.zip`
-  - `/Users/michaelsmac/Documents/Convert/Chronicle 1.0 windows.zip`
+  - `/Users/michaelsmac/Documents/Chronicle Release Apps/Chronicle 1.0 mac.zip`
+  - `/Users/michaelsmac/Documents/Chronicle Release Apps/Chronicle 1.0 windows.zip`
 - Rebuild the curated public repo snapshot with `Prepare_Public_Repo.command`.
 
 ## T-0 (Launch)
 
 1. Push repository overhaul to public repo from the staged public snapshot only, not from the full private working tree.
-2. Tag release `v1.0.0` and publish release notes.
+2. Publish the GitHub release `v1.0.0` and upload large ZIP assets with `Publish_GitHub_Release.command` instead of the browser uploader if GitHub web upload size limits get in the way.
 3. Publish or attach `Chronicle 1.0 mac.zip` and `Chronicle 1.0 windows.zip`.
 4. Announce release.
 

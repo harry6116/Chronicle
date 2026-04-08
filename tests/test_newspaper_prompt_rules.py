@@ -28,7 +28,7 @@ ebooklib_module = _stub_module("ebooklib")
 ebooklib_epub_module = _stub_module("ebooklib.epub")
 ebooklib_module.epub = ebooklib_epub_module
 
-import chronicle
+import chronicle_runtime as chronicle
 
 
 class NewspaperPromptRulesTest(unittest.TestCase):

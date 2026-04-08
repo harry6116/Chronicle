@@ -72,6 +72,7 @@ EXCLUDED_DIR_NAMES = {
     "__pycache__",
     "build",
     "dist",
+    "reaper_tools",
     "review_archives_2026-03-18",
     "venv311",
 }
@@ -88,12 +89,15 @@ EXCLUDED_PATH_GLOBS = [
 ]
 
 EXCLUDED_FILE_NAMES = {
+    "Check_GitHub_Download_Counts.command",
     ".DS_Store",
     "CONTINUITY.md",
     "Download_Latest_Windows_Artifact.command",
     "api_key.txt",
     "api_keys.json",
+    "chronicle.py",
     "chronicle_active_session.json",
+    "legacy_extract_core.py",
     "Push_to_GitHub.command",
     "Resume_Chronicle.command",
     "Run_Safe_Batch.command",
@@ -105,6 +109,7 @@ EXCLUDED_FILE_NAMES = {
 }
 
 EXCLUDED_MAC_RELATIVE_PATHS = {
+    "Mac/Check_GitHub_Download_Counts.command",
     "Mac/Download_Latest_Windows_Artifact.command",
     "Mac/Push_to_GitHub.command",
     "Mac/Run_Safe_Batch.command",

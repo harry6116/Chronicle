@@ -2,6 +2,8 @@
 
 Chronicle is an accessibility-first document recovery tool for archival, academic, legal, newspaper, military, book, and other difficult mixed-format material. It provides a screen-reader-friendly GUI, queue controls, scan-ingestion workflows, and structured output generation across multiple AI providers.
 
+Chronicle is a desktop GUI application. The public repository is intended to publish the current app source code, build scripts, and documentation for that GUI app. There is no separate supported Chronicle CLI product.
+
 Current public release target: **Chronicle 1.0.0**.
 
 **Built for hard documents.**
@@ -71,7 +73,7 @@ Public contact addresses:
 - `chronicle.app+support@gmail.com`
 - `chronicle.app+press@gmail.com`
 
-## Quick Start (Source)
+## Quick Start (Source Build / Dev)
 
 1. Install Python 3.11.
 2. Install dependencies:
@@ -99,4 +101,4 @@ If Chronicle is offered under separate commercial or proprietary terms later, th
 
 ## Status
 
-This project is the active standalone Chronicle app line and should replace the outdated legacy public repo state before the `1.0.0` launch.
+This project is the active standalone Chronicle GUI app line and should replace the outdated legacy public repo state before the `1.0.0` launch.

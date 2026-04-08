@@ -90,7 +90,7 @@ from chronicle_core import (
     write_header as core_write_header,
     write_footer as core_write_footer,
 )
-from legacy_extract_core import (
+from chronicle_app.services.legacy_pdf_runtime import (
     process_pdf_gemini as legacy_process_pdf_gemini,
 )
 

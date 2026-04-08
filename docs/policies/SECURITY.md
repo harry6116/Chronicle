@@ -7,7 +7,7 @@ This document describes Chronicle's current public security posture and reportin
 Security reports are accepted for:
 
 - `chronicle_gui.py`
-- `chronicle.py`
+- `chronicle_runtime.py`
 - `chronicle_core.py`
 - `chronicle_app/`
 - build and packaging scripts
