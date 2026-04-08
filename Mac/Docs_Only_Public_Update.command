@@ -67,7 +67,7 @@ echo "Remote: $(git remote get-url "$REMOTE_NAME" 2>/dev/null || echo "$REMOTE_N
 echo "Snapshot source: $SNAPSHOT_DIR"
 echo ""
 echo "This will replace the public repo working tree with the newly staged public snapshot."
-echo "Use this only for docs, README, website, policy, and other minor public rollout changes."
+echo "Use this only for docs, README, policy, and other minor public rollout changes."
 echo "To continue, type DOCS in ALL CAPITALS."
 read -r -p "Type DOCS to continue: " confirm
 
