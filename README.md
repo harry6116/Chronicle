@@ -18,6 +18,14 @@ Chronicle is a desktop GUI application. This repository publishes the current ap
 
 These ZIP links point to the current `v1.0.0` release assets and should be updated when a newer packaged release goes live.
 
+## Most People Should Use The Packaged App
+
+If you just want to use Chronicle, download the Mac or Windows app above.
+
+The packaged app is the normal path for everyday users.
+
+This repository also contains the source code for developers, testers, and anyone who wants to inspect or work on the app itself.
+
 **Built for hard documents.**
 
 Chronicle is for the files people usually describe as:
@@ -43,6 +51,20 @@ Chronicle is especially useful when you need:
 - Gives operators control through presets, queue workflow, merge behavior, and runtime toggles
 - Produces outputs that are easier to review in HTML or Word
 - Prioritizes fidelity, continuity, and accessibility over blind OCR dumping
+
+## Why I Built Chronicle
+
+Chronicle began with family history.
+
+I wanted to read and understand difficult historical material, especially the First World War diaries of the Manchester Regiment, where my great-grandfather Albert Henry Wharton served after lying about his age to join the British Army at just 15 years old.
+
+Ordinary OCR kept returning text that was jumbled, broken, and too unreliable to trust. The same thing happened with old newspapers and other difficult source material. What looked readable in theory was often unusable in practice.
+
+That is why I built Chronicle: to recover documents that other tools flatten, scramble, or abandon.
+
+The fuller founder story is here:
+
+- `docs/public/WHY_CHRONICLE.md`
 
 ## Key Features
 
@@ -105,9 +127,11 @@ If Chronicle helps your work and you want to support ongoing development, you ca
 - Buy Me a Coffee: `https://buymeacoffee.com/thevoiceguy`
 - PayPal: `https://paypal.me/MarshallVoiceovers`
 
-## Build and Run
+## Build From Source
 
-### Build or run the app from source
+Most users do not need this section. It is for developers, testers, and source builds.
+
+### Run the app from source
 
 1. Install Python 3.11.
 2. Install dependencies:
@@ -117,14 +141,14 @@ If Chronicle helps your work and you want to support ongoing development, you ca
 
 Source mode is for building, testing, and developing the Chronicle GUI app from the published source tree.
 
-### Build standalone apps
+### Build standalone apps from source
 
 - macOS:
   - `./build.command`
 - Windows:
   - `build_windows.bat` (calls `build_windows.ps1`)
 
-### Portable Windows build staging
+### Portable Windows build staging for source builders
 
 - Run `./stage_windows_bundle.command`
 - Copy `dist_windows_bundle/Chronicle_Windows_Bundle` to the Windows machine
