@@ -10,6 +10,14 @@ Chronicle provides a screen-reader-friendly GUI, queue/task controls, scan-inges
 
 Chronicle is a desktop GUI application. This repository publishes the current app source code, build scripts, and documentation for the same release line. There is no separate supported Chronicle CLI product.
 
+## Download Chronicle
+
+- Mac: [Download Chronicle for macOS](https://github.com/harry6116/Chronicle/releases/download/v1.0.0/Chronicle.1.0.mac.zip)
+- Windows: [Download Chronicle for Windows](https://github.com/harry6116/Chronicle/releases/download/v1.0.0/Chronicle.1.0.windows.zip)
+- Release page: [Chronicle 1.0.0 release](https://github.com/harry6116/Chronicle/releases/tag/v1.0.0)
+
+These ZIP links point to the current `v1.0.0` release assets and should be updated when a newer packaged release goes live.
+
 **Built for hard documents.**
 
 Chronicle is for the files people usually describe as:
@@ -69,10 +77,10 @@ Chronicle `1.0.0` is the first public release of the current standalone app line
 
 It should be presented as a fresh release track, separate from the older public repository state.
 
-Planned public release assets:
+Current release downloads:
 
-- macOS: `Chronicle 1.0 mac.zip`
-- Windows: `Chronicle 1.0 windows.zip`
+- macOS ZIP: [Chronicle.1.0.mac.zip](https://github.com/harry6116/Chronicle/releases/download/v1.0.0/Chronicle.1.0.mac.zip)
+- Windows ZIP: [Chronicle.1.0.windows.zip](https://github.com/harry6116/Chronicle/releases/download/v1.0.0/Chronicle.1.0.windows.zip)
 
 ## Contact
 
