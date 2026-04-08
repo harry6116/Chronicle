@@ -44,14 +44,8 @@ ALLOWED_DOC_PATHS = {
     "docs/policies/SECURITY.md",
     "docs/public/CHRONICLE_BLURBS.md",
     "docs/public/CHRONICLE_ONE_PAGE.md",
-    "docs/public/CLOUDFLARE_PAGES_SETUP.md",
-    "docs/public/DEPLOY_STATIC_SITE.md",
     "docs/public/README.md",
-    "docs/public/WEBSITE_LAUNCH_PLAN.md",
     "docs/public/WHY_CHRONICLE.md",
-    "docs/public/.nojekyll",
-    "docs/public/_headers",
-    "docs/public/index.html",
     "docs/reference/CHANGELOG.md",
     "docs/reference/Chronicle_Accessibility_Compliance_Statement.md",
     "docs/reference/Chronicle_Technical_Architecture_Deep_Dive.md",
@@ -160,8 +154,6 @@ def should_exclude(rel_path: str) -> bool:
             return True
     if rel_path.startswith("docs/branding/"):
         return True
-    if rel_path.startswith("docs/public/showcase_assets/"):
-        return False
     if rel_path.startswith("docs/") and rel_path not in ALLOWED_DOC_PATHS and rel_path not in ALLOWED_GITHUB_ROLLOUT_DOCS:
         return True
     if rel_path.startswith("tools/") and rel_path not in ALLOWED_TOOL_PATHS:

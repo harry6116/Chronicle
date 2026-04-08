@@ -1,12 +1,12 @@
 # Chronicle Blurbs
 
-Reusable short-form copy for websites, release notes, emails, and demo materials.
+Reusable short-form copy for release notes, repo copy, emails, and demo materials.
 
 ## One Sentence
 
 Chronicle is an accessibility-first document recovery tool for hard real-world material, especially degraded scans, books, archives, complex layouts, and review-heavy workflows.
 
-## Short Homepage Blurb
+## Short Product Blurb
 
 Chronicle is built for difficult documents. It helps recover accessible, review-ready outputs from degraded scans, long-form books, archival material, newspapers, forms, reports, and mixed-format batches. Instead of treating every file as the same problem, Chronicle gives users specialist presets, automatic engine routing with manual override when needed, queue controls, clear progress, and fidelity-first recovery for hard real-world material.
 

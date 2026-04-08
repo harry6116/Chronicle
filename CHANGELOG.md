@@ -29,7 +29,6 @@ All notable changes to Chronicle will be documented in this file.
 ## [1.0.0] - 2026-04-06
 ### Added
 - **First Standalone Public App Release:** Chronicle now has a clear first public app release line separate from the older terminal-first public repository history.
-- **Launch-Ready Static Website Bundle:** `docs/public/` now contains a deployable static launch page entrypoint (`index.html`), deployment notes, and hosting helpers for Cloudflare Pages or GitHub Pages.
 - **Packaged Release Assets Prepared:** The current first public release assets are `Chronicle 1.0 mac.zip` and `Chronicle 1.0 windows.zip`, prepared for attachment to the public GitHub release.
 
 ### Changed

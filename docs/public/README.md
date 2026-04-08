@@ -1,14 +1,6 @@
 # Public Docs
 
-This folder contains short public-safe product summaries and reusable messaging for Chronicle.
-
-It now also contains the first deployable static launch-page bundle for free hosting:
-
-- `index.html`
-- `showcase_assets/`
-- `DEPLOY_STATIC_SITE.md`
-- `.nojekyll`
-- `_headers`
+This folder contains Chronicle's public-facing summaries and reusable messaging.
 
 Current contents:
 
@@ -20,10 +12,9 @@ Current contents:
 These files are intended for:
 
 - public-facing product explanation
-- blog references
 - demo/support material
 - public repo positioning drafts
-- static website launch hosting
+- short-form copy reuse
 
 Internal operational notes, machine-specific workflows, and competitive-analysis material belong in `docs/internal/` instead.
 
