@@ -41,7 +41,7 @@ for %%F in (
     "build_windows.bat"
     "build_windows.ps1"
     "chronicle_gui.py"
-    "chronicle.py"
+    "chronicle_runtime.py"
     "chronicle_core.py"
     "requirements.txt"
     "assets"

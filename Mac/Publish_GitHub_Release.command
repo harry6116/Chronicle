@@ -4,7 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 DEFAULT_PUBLIC_REPO_DIR="/Users/michaelsmac/Documents/Chronicle Public Repo"
-DEFAULT_ASSET_DIR="/Users/michaelsmac/Documents/Convert"
+DEFAULT_ASSET_DIR="/Users/michaelsmac/Documents/Chronicle Release Apps"
 DEFAULT_TAG="v1.0.0"
 DEFAULT_TITLE="Chronicle 1.0.0"
 DEFAULT_MAC_ASSET="$DEFAULT_ASSET_DIR/Chronicle 1.0 mac.zip"
@@ -15,6 +15,9 @@ clear
 echo "--- CHRONICLE GITHUB RELEASE PUBLISHER ---"
 echo "This creates or updates a GitHub release using the GitHub CLI."
 echo "It is intended for large ZIP assets that the web uploader may reject."
+echo "It is NOT the right script for docs-only public repo updates."
+echo "This script does NOT create a git commit and will NOT ask for a commit message."
+echo "It reads the release body from a notes file."
 echo ""
 
 if ! command -v gh >/dev/null 2>&1; then
@@ -79,6 +82,20 @@ if [[ ! -f "$NOTES_FILE" ]]; then
   exit 1
 fi
 
+echo ""
+echo "Release notes will be read from:"
+echo "  $NOTES_FILE"
+echo "If you want to edit that file now, type OPEN in ALL CAPITALS."
+echo "Otherwise, just press Enter to keep going."
+read -r -p "Type OPEN to edit the notes file now: " OPEN_NOTES
+
+if [[ "$OPEN_NOTES" == "OPEN" ]]; then
+  open -e "$NOTES_FILE"
+  echo ""
+  echo "The notes file has been opened in TextEdit."
+  read -r -p "After you finish editing and saving it, press Enter to continue..."
+fi
+
 REPO_SLUG="$(git -C "$DEFAULT_PUBLIC_REPO_DIR" remote get-url origin | sed -E 's#(git@github.com:|https://github.com/)##; s#\.git$##')"
 
 echo ""
@@ -89,6 +106,7 @@ echo "Mac asset: $MAC_ASSET"
 echo "Windows asset: $WINDOWS_ASSET"
 echo "Notes file: $NOTES_FILE"
 echo ""
+echo "To continue, type RELEASE in ALL CAPITALS."
 read -r -p "Type RELEASE to continue: " CONFIRM
 
 if [[ "$CONFIRM" != "RELEASE" ]]; then

@@ -40,4 +40,4 @@ Current instruction: do **not** publish yet. This pack is prepared for the first
 3. copy the rollout files into the public repo
 4. ensure Windows docs mention `build_windows.ps1` and staged-bundle completeness
 5. execute launch-day steps from `LAUNCH_RUNBOOK.md`
-6. attach the prepared release ZIPs from `/Users/michaelsmac/Documents/Convert/`
+6. attach the prepared release ZIPs from `/Users/michaelsmac/Documents/Chronicle Release Apps/`

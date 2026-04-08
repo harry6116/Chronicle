@@ -33,7 +33,7 @@ def _install_gui_import_stubs():
     ebooklib_module = _stub_module("ebooklib")
     ebooklib_epub_module = _stub_module("ebooklib.epub")
     ebooklib_module.epub = ebooklib_epub_module
-    _stub_module("legacy_extract_core", process_pdf_gemini=lambda *args, **kwargs: None)
+    _stub_module("chronicle_app.services.legacy_pdf_runtime", process_pdf_gemini=lambda *args, **kwargs: None)
     wx_module = _stub_module(
         "wx",
         Dialog=type("Dialog", (object,), {}),
@@ -57,7 +57,7 @@ def _install_gui_import_stubs():
 
 _install_gui_import_stubs()
 
-import chronicle
+import chronicle_runtime as chronicle
 import chronicle_gui
 
 

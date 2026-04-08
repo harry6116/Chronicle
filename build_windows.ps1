@@ -85,7 +85,7 @@ try {
 
 $requiredPaths = @(
     @{ Label = "chronicle_gui.py"; Path = (Join-Path $rootDir "chronicle_gui.py"); Required = $true },
-    @{ Label = "chronicle.py"; Path = (Join-Path $rootDir "chronicle.py"); Required = $true },
+    @{ Label = "chronicle_runtime.py"; Path = (Join-Path $rootDir "chronicle_runtime.py"); Required = $true },
     @{ Label = "chronicle_core.py"; Path = (Join-Path $rootDir "chronicle_core.py"); Required = $true },
     @{ Label = "chronicle_app"; Path = (Join-Path $rootDir "chronicle_app"); Required = $true },
     @{ Label = "chronicle_app\services"; Path = (Join-Path $rootDir "chronicle_app\services"); Required = $true },

@@ -2,6 +2,38 @@
 
 Chronicle is built for hard documents.
 
+## Why I Built It
+
+Chronicle began with family history.
+
+I wanted to read and understand the First World War diaries of the Manchester Regiment, where my great-grandfather, Albert Henry Wharton, served after lying about his age to join the British Army at just 15 years old.
+
+I was not trying to run a generic OCR experiment. I was trying to follow a real boy into a real war and understand, as faithfully as I could, what he may have seen and endured.
+
+Conventional OCR was hopeless on those diaries. The text came back jumbled, out of order, and so badly broken that I could not trust it enough to track movements or reconstruct events with any confidence. I tried different tools, different passes, and the same disappointment kept coming back.
+
+Even when I asked other people to help read some of the war material to me, the problem did not go away. Certain pages were so faded and difficult that even sighted readers struggled to make them out clearly. That mattered to me. It meant this was not just a matter of software performing badly; it was an access problem as well.
+
+The same thing happened with old newspapers, especially material from the Australian Trove archive. I found an article mentioning my great-grandmother on my father's side and wanted simply to read it properly. Once again, standard OCR returned something fragmented, confused, and unreliable.
+
+Then I started seeing the same pattern everywhere else: product manuals, historical records, mixed layouts, specialist documents, difficult scans, things that were technically readable in theory but not genuinely usable in practice.
+
+That is why I built Chronicle.
+
+Late one night, with modern AI tools finally becoming practical enough to experiment with, I decided to try to build the system I wished I had when I started. I did not want a tool that merely "got text out." I wanted something that could recover reading order, structure, meaning, and source fidelity well enough that a difficult document could become readable again.
+
+That turned into a much larger piece of work than I first imagined.
+
+Large language models hallucinate. Historical material is often damaged, irregular, and chaotic. Newspapers, war diaries, legal files, medical pages, intelligence records, manuals with diagrams, handwritten letters, flyers, legislation, and mixed-format scans all break in different ways. A prompt rule that helps one category can damage another.
+
+So Chronicle became a long exercise in patient iteration: running thousands upon thousands of pages of public-domain material through AI models, spending what little money I could spare on testing, tuning prompts in exacting detail, and fixing one problem after another as it revealed itself.
+
+One of the central goals was teaching the system not to overconfidently "improve" the source. Older documents often contain unusual spelling, degraded print, offensive historical language, uncertain wording, or damaged passages. I wanted Chronicle to stay as verbatim as possible, not silently correct, modernize, sanitize, or smooth over what was actually on the page.
+
+Every major document family needed its own careful handling. Accessibility also mattered from the beginning, not as an afterthought. The aim was not only extraction, but output that could be reviewed, navigated, and used more easily under modern accessibility expectations.
+
+Chronicle is still a work in progress, and I expect it always will be. I do not think this kind of work is ever truly finished. The goal is not perfection in one dramatic leap. The goal is to keep improving, keep testing, and keep building a tool that can do justice to difficult documents that other systems tend to flatten, scramble, or abandon.
+
 It is designed for the files people usually describe with phrases like:
 
 - "the scan is awful"

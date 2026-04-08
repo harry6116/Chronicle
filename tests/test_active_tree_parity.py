@@ -11,7 +11,7 @@ ACTIVE_TREE_ROOTS = [
 ]
 
 CRITICAL_PARITY_FILES = [
-    "chronicle.py",
+    "chronicle_runtime.py",
     "chronicle_gui.py",
     "build_windows.bat",
     "build_windows.ps1",

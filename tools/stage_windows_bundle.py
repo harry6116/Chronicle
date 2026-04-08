@@ -9,7 +9,7 @@ from pathlib import Path
 BUNDLE_NAME = "Chronicle_Windows_Bundle"
 REQUIRED_PATHS = [
     "chronicle_gui.py",
-    "chronicle.py",
+    "chronicle_runtime.py",
     "chronicle_core.py",
     "chronicle_app",
     "capture_windows_build_diagnostics.bat",

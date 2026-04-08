@@ -8,7 +8,9 @@ Last Updated: March 21, 2026
 
 Chronicle is maintained as the main release track with special attention to Windows runtime behavior, screen-reader usability, portability, and frozen-build reliability.
 
-The current codebase includes a modularized GUI layout under `chronicle_app/` while keeping the familiar root entrypoints (`chronicle_gui.py`, `build.command`, `build_windows.bat`) intact.
+The current codebase includes a modularized GUI layout under `chronicle_app/` while keeping the familiar root app entrypoints (`chronicle_gui.py`, `build.command`, `build_windows.bat`) intact.
+
+Chronicle does not have a separate supported CLI product. When this guide refers to source mode, it means building, testing, or running the GUI app from the published source tree.
 
 ## What Chronicle Does
 
@@ -321,7 +323,7 @@ Chronicle now uses a modularized application package while preserving root launc
 Key paths:
 
 - `chronicle_gui.py`: primary GUI entrypoint
-- `chronicle.py`: shared prompt and processing logic
+- `chronicle_runtime.py`: shared prompt and processing logic
 - `chronicle_core.py`: shared cleanup and output-normalization helpers
 - `chronicle_app/config.py`: profile and model configuration maps
 - `chronicle_app/services/`: shared prompting, runtime policy, and scanner-discovery services
@@ -439,7 +441,7 @@ Minimum staged bundle contents now include:
 - `build_windows.ps1`
 - `run_a11y_harness.bat`
 - `chronicle_gui.py`
-- `chronicle.py`
+- `chronicle_runtime.py`
 - `chronicle_core.py`
 - `chronicle_app/`
 - `requirements.txt`
@@ -583,7 +585,11 @@ Always verify important outputs against the original source documents.
 
 ## Support the Project
 
-If Chronicle helps your work, community support is appreciated. This donation language should not be treated as a substitute for a formal pricing/licensing page if Chronicle is sold commercially.
+The packaged Chronicle desktop app is intended to be free for non-commercial use. If you are using Chronicle for paid professional or business work, commercial desktop-app licensing should be handled separately.
+
+This does not replace the AGPL terms attached to the source distribution in this repository.
+
+If Chronicle helps your work and you want to support ongoing development, community support is appreciated.
 
 - [Buy Me a Coffee](https://buymeacoffee.com/thevoiceguy)
 - [Donate via PayPal](https://paypal.me/MarshallVoiceovers)

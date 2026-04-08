@@ -41,7 +41,7 @@ Use:
 
 - `docs/github_rollout/RELEASE_MESSAGES.md`
 - `docs/github_rollout/LAUNCH_RUNBOOK.md`
-- release assets from `/Users/michaelsmac/Documents/Convert/`
+- release assets from `/Users/michaelsmac/Documents/Chronicle Release Apps/`
   - `Chronicle 1.0 mac.zip`
   - `Chronicle 1.0 windows.zip`
 

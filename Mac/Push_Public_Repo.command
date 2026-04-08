@@ -54,6 +54,7 @@ echo ""
 echo "This will replace the full working tree contents with the staged public snapshot."
 echo "Your .git folder will be preserved."
 echo ""
+echo "To continue, type PUBLIC in ALL CAPITALS."
 read -r -p "Type PUBLIC to continue: " confirm
 
 if [[ "$confirm" != "PUBLIC" ]]; then

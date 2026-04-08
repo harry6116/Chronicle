@@ -27,6 +27,12 @@ API keys are stored locally by Chronicle.
 - keys should never be committed to source control
 - exposed keys should be rotated immediately
 
+## Licensing Boundary
+
+The public source-code repository and any separately packaged desktop-app distributions may be offered under different licensing arrangements.
+
+If Chronicle is distributed as a packaged desktop app under separate non-commercial and commercial terms, those terms should be described as a separate distribution path and should not be presented as retroactively replacing the AGPL terms attached to repository source-code copies.
+
 ## Free vs Paid Provider Tiers
 
 Free tiers may provide lower limits and weaker privacy posture depending on provider policy. Paid plans generally offer stronger operational reliability and clearer commercial/privacy terms, but users must verify provider terms directly.
