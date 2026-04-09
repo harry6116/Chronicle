@@ -67,11 +67,13 @@ Planned first public release assets:
 - `Chronicle 1.0 mac.zip`
 - `Chronicle 1.0 windows.zip`
 
-Public contact addresses:
+Public feedback and contact path:
 
-- `hello.chronicle.app@gmail.com`
-- `chronicle.app+support@gmail.com`
-- `chronicle.app+press@gmail.com`
+- GitHub Issues: `https://github.com/harry6116/Chronicle/issues`
+- Repository: `https://github.com/harry6116/Chronicle`
+- Releases: `https://github.com/harry6116/Chronicle/releases`
+
+Public email addresses are intentionally not listed in the repository until the dedicated Chronicle account setup is stable.
 
 ## Quick Start (Source Build / Dev)
 
