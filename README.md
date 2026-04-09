@@ -4,7 +4,7 @@ Chronicle is an accessibility-first document recovery tool for difficult real-wo
 
 Current public launch line: **Chronicle 1.0.0**.
 
-It is especially strong on degraded scans, long-form books, archival records, legal and policy material, tables, handwriting, multi-column layouts, and mixed-format batches where preserving reading order, usable structure, and review workflow matters more than raw one-click speed.
+It is especially strong on degraded scans, long-form books, archival records, tables, handwriting, multi-column layouts, and mixed-format batches where reading order and reviewability matter more than one-click speed.
 
 Chronicle provides a screen-reader-friendly GUI, queue/task controls, scan-ingestion workflows, and structured output generation across multiple AI providers.
 
@@ -15,16 +15,6 @@ Chronicle is a desktop GUI application. This repository publishes the current ap
 - Mac: [Download Chronicle for macOS](https://github.com/harry6116/Chronicle/releases/download/v1.0.0/Chronicle.1.0.mac.zip)
 - Windows: [Download Chronicle for Windows](https://github.com/harry6116/Chronicle/releases/download/v1.0.0/Chronicle.1.0.windows.zip)
 - Release page: [Chronicle 1.0.0 release](https://github.com/harry6116/Chronicle/releases/tag/v1.0.0)
-
-These ZIP links point to the current `v1.0.0` release assets and should be updated when a newer packaged release goes live.
-
-## Most People Should Use The Packaged App
-
-If you just want to use Chronicle, download the Mac or Windows app above.
-
-The packaged app is the normal path for everyday users.
-
-This repository also contains the source code for developers, testers, and anyone who wants to inspect or work on the app itself.
 
 **Built for hard documents.**
 
@@ -46,21 +36,16 @@ Chronicle is especially useful when you need:
 
 ## Why Use Chronicle
 
-- Built for hard documents, not just clean born-digital files
-- Strong on books, archives, newspapers, forms, and mixed-format recovery work
-- Gives operators control through presets, queue workflow, merge behavior, and runtime toggles
-- Produces outputs that are easier to review in HTML or Word
-- Prioritizes fidelity, continuity, and accessibility over blind OCR dumping
+- It is built for hard documents, not just clean born-digital files.
+- It is strongest when preserving reading order, structure, and review workflow matters.
+- It gives operators visible control instead of treating every document as the same problem.
+- It is designed to reduce cleanup time, not replace human verification.
 
-## Why I Built Chronicle
+## Why I Built It
 
 Chronicle began with family history.
 
-I wanted to read and understand difficult historical material, especially the First World War diaries of the Manchester Regiment, where my great-grandfather Albert Henry Wharton served after lying about his age to join the British Army at just 15 years old.
-
-Ordinary OCR kept returning text that was jumbled, broken, and too unreliable to trust. The same thing happened with old newspapers and other difficult source material. What looked readable in theory was often unusable in practice.
-
-That is why I built Chronicle: to recover documents that other tools flatten, scramble, or abandon.
+I wanted to read the First World War diaries of the Manchester Regiment and other difficult historical material that ordinary OCR kept mangling. That work turned into a broader effort to recover readable, reviewable output from documents that are technically legible but practically unusable.
 
 The fuller founder story is here:
 
@@ -93,6 +78,16 @@ The fuller founder story is here:
 - Chronicle deliberately spends more time on hard cases when that improves paragraph continuity, structural recovery, and accessibility-friendly output.
 - Chronicle is designed to reduce manual cleanup and help users reach review-ready output more quickly, but human review is still required.
 
+## Transparency
+
+Chronicle was built using AI-assisted ("vibe-coded") workflows, with final integration, review, and testing directed by the author.
+
+Important public references:
+
+- Founder story: `docs/public/WHY_CHRONICLE.md`
+- Root disclaimer: `DISCLAIMER.md`
+- Public repo disclaimer source: `docs/github_rollout/LEGAL_DISCLAIMER_GITHUB.md`
+
 ## First Public Release
 
 Chronicle `1.0.0` is the first public release of the current standalone app line.
@@ -106,9 +101,11 @@ Current release downloads:
 
 ## Contact
 
-- General enquiries and evaluation requests: `hello.chronicle.app@gmail.com`
-- Product support: `chronicle.app+support@gmail.com`
-- Press and media: `chronicle.app+press@gmail.com`
+- Feedback is welcome through GitHub Issues: `https://github.com/harry6116/Chronicle/issues`
+- Repository home: `https://github.com/harry6116/Chronicle`
+- Release page: `https://github.com/harry6116/Chronicle/releases`
+
+Public email contact addresses have been temporarily removed from the repository while the dedicated Chronicle account setup and authentication are being stabilized.
 
 ## Free for Non-Commercial Use
 
@@ -118,7 +115,7 @@ That includes personal use, study, home archiving, family history, volunteer/com
 
 Commercial use of the packaged desktop app requires a paid Chronicle license.
 
-If you want to use Chronicle for paid professional work, client services, business operations, or commercial organizational workflows, contact `hello.chronicle.app@gmail.com`.
+If you want to use Chronicle for paid professional work, client services, business operations, or commercial organizational workflows, open a GitHub issue requesting the current contact path.
 
 ## Support Chronicle
 
@@ -127,11 +124,9 @@ If Chronicle helps your work and you want to support ongoing development, you ca
 - Buy Me a Coffee: `https://buymeacoffee.com/thevoiceguy`
 - PayPal: `https://paypal.me/MarshallVoiceovers`
 
-## Build From Source
+## Build and Run
 
-Most users do not need this section. It is for developers, testers, and source builds.
-
-### Run the app from source
+### Build or run the app from source
 
 1. Install Python 3.11.
 2. Install dependencies:
@@ -141,14 +136,14 @@ Most users do not need this section. It is for developers, testers, and source b
 
 Source mode is for building, testing, and developing the Chronicle GUI app from the published source tree.
 
-### Build standalone apps from source
+### Build standalone apps
 
 - macOS:
   - `./build.command`
 - Windows:
   - `build_windows.bat` (calls `build_windows.ps1`)
 
-### Portable Windows build staging for source builders
+### Portable Windows build staging
 
 - Run `./stage_windows_bundle.command`
 - Copy `dist_windows_bundle/Chronicle_Windows_Bundle` to the Windows machine
@@ -191,4 +186,4 @@ Chronicle's packaged desktop-app licensing position is intended to be:
 
 These desktop-app terms should be presented as a separate distribution/licensing path. They do not retroactively replace the AGPL terms attached to copies of the source code distributed from this repository.
 
-If you need commercial desktop-app licensing, use `hello.chronicle.app@gmail.com`.
+If you need commercial desktop-app licensing, use the repository issue tracker to request the current contact path.

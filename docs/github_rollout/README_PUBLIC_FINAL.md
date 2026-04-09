@@ -10,6 +10,12 @@ Chronicle provides a screen-reader-friendly GUI, queue/task controls, scan-inges
 
 Chronicle is a desktop GUI application. This repository publishes the current app source code, build scripts, and documentation for the same release line. There is no separate supported Chronicle CLI product.
 
+## Download Chronicle
+
+- Mac: [Download Chronicle for macOS](https://github.com/harry6116/Chronicle/releases/download/v1.0.0/Chronicle.1.0.mac.zip)
+- Windows: [Download Chronicle for Windows](https://github.com/harry6116/Chronicle/releases/download/v1.0.0/Chronicle.1.0.windows.zip)
+- Release page: [Chronicle 1.0.0 release](https://github.com/harry6116/Chronicle/releases/tag/v1.0.0)
+
 **Built for hard documents.**
 
 Chronicle is for the files people usually describe as:
@@ -69,16 +75,18 @@ Chronicle `1.0.0` is the first public release of the current standalone app line
 
 It should be presented as a fresh release track, separate from the older public repository state.
 
-Planned public release assets:
+Current release downloads:
 
-- macOS: `Chronicle 1.0 mac.zip`
-- Windows: `Chronicle 1.0 windows.zip`
+- macOS ZIP: [Chronicle.1.0.mac.zip](https://github.com/harry6116/Chronicle/releases/download/v1.0.0/Chronicle.1.0.mac.zip)
+- Windows ZIP: [Chronicle.1.0.windows.zip](https://github.com/harry6116/Chronicle/releases/download/v1.0.0/Chronicle.1.0.windows.zip)
 
 ## Contact
 
-- General enquiries and evaluation requests: `hello.chronicle.app@gmail.com`
-- Product support: `chronicle.app+support@gmail.com`
-- Press and media: `chronicle.app+press@gmail.com`
+- Feedback is welcome through GitHub Issues: `https://github.com/harry6116/Chronicle/issues`
+- Repository home: `https://github.com/harry6116/Chronicle`
+- Release page: `https://github.com/harry6116/Chronicle/releases`
+
+Public email contact addresses have been temporarily removed from the repository while the dedicated Chronicle account setup and authentication are being stabilized.
 
 ## Free for Non-Commercial Use
 
@@ -88,7 +96,7 @@ That includes personal use, study, home archiving, family history, volunteer/com
 
 Commercial use of the packaged desktop app requires a paid Chronicle license.
 
-If you want to use Chronicle for paid professional work, client services, business operations, or commercial organizational workflows, contact `hello.chronicle.app@gmail.com`.
+If you want to use Chronicle for paid professional work, client services, business operations, or commercial organizational workflows, open a GitHub issue requesting the current contact path.
 
 ## Support Chronicle
 
@@ -159,4 +167,4 @@ Chronicle's packaged desktop-app licensing position is intended to be:
 
 These desktop-app terms should be presented as a separate distribution/licensing path. They do not retroactively replace the AGPL terms attached to copies of the source code distributed from this repository.
 
-If you need commercial desktop-app licensing, use `hello.chronicle.app@gmail.com`.
+If you need commercial desktop-app licensing, use the repository issue tracker to request the current contact path.
