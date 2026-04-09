@@ -12,7 +12,7 @@ I was not trying to run a generic OCR experiment. I was trying to follow a real 
 
 Conventional OCR was hopeless on those diaries. The text came back jumbled, out of order, and so badly broken that I could not trust it enough to track movements or reconstruct events with any confidence. I tried different tools, different passes, and the same disappointment kept coming back.
 
-Even when I asked other people to help read some of the war material to me, the problem did not go away. Certain pages were so faded and difficult that even sighted readers struggled to make them out clearly. That mattered to me. It meant this was not just a matter of software performing badly; it was an access problem as well.
+Even when I asked other people to help read some of the war material to me, the problem did not go away. Certain pages were so faded and difficult that even sighted people I asked to help could not read them with confidence. That mattered to me. It meant this was not just a matter of software performing badly; it was an access problem as well.
 
 The same thing happened with old newspapers, especially material from the Australian Trove archive. I found an article mentioning my great-grandmother on my father's side and wanted simply to read it properly. Once again, standard OCR returned something fragmented, confused, and unreliable.
 
@@ -22,7 +22,7 @@ That is why I built Chronicle.
 
 Late one night, with modern AI tools finally becoming practical enough to experiment with, I decided to try to build the system I wished I had when I started. I did not want a tool that merely "got text out." I wanted something that could recover reading order, structure, meaning, and source fidelity well enough that a difficult document could become readable again.
 
-That turned into a much larger piece of work than I first imagined.
+That became a much larger piece of work than I first imagined.
 
 Large language models hallucinate. Historical material is often damaged, irregular, and chaotic. Newspapers, war diaries, legal files, medical pages, intelligence records, manuals with diagrams, handwritten letters, flyers, legislation, and mixed-format scans all break in different ways. A prompt rule that helps one category can damage another.
 
@@ -32,7 +32,7 @@ One of the central goals was teaching the system not to overconfidently "improve
 
 Every major document family needed its own careful handling. Accessibility also mattered from the beginning, not as an afterthought. The aim was not only extraction, but output that could be reviewed, navigated, and used more easily under modern accessibility expectations.
 
-Chronicle is still a work in progress, and I expect it always will be. I do not think this kind of work is ever truly finished. The goal is not perfection in one dramatic leap. The goal is to keep improving, keep testing, and keep building a tool that can do justice to difficult documents that other systems tend to flatten, scramble, or abandon.
+Chronicle is still a work in progress, and I expect it always will be. This kind of work is never really finished. The goal is not one dramatic leap to perfection. The goal is to keep improving, keep testing, and keep building a tool that can do justice to difficult documents that other systems flatten, scramble, or abandon.
 
 It is designed for the files people usually describe with phrases like:
 
@@ -54,6 +54,40 @@ Chronicle is strongest when the source is difficult, messy, or inconsistent:
 
 Chronicle is designed to reduce manual cleanup and help users reach review-ready output faster, while still assuming human review before anything is treated as final.
 
+## Preset Overview
+
+Chronicle does not treat every document as the same problem. Different source classes break in different ways, so the app includes document presets that steer recovery behavior toward the needs of that material.
+
+Some of the main preset families include:
+
+- `Miscellaneous / Mixed Files` for general-purpose starting points when the document type is unclear
+- `Letters / Correspondence` for typed or scanned letters, notices, and other communication-heavy pages
+- `Government Reports / Records` for public-sector reports, appendices, numbered sections, and record-style documents
+- `Legal / Contracts / Laws` for legal hierarchy, clause fidelity, and more cautious handling of structured legal text
+- `Books / Novels` for long-form prose, page-to-page paragraph continuity, and chapter structure
+- `Newspapers` for multi-column layouts, publication metadata, and dense press-style reading order recovery
+- `Handwritten Letters / Notes / Diaries` for more conservative reading of handwritten material with stronger uncertainty handling
+
+The point of these presets is not to make the app feel complicated. It is to avoid forcing newspapers, books, handwriting, legal texts, reports, and mixed files through one blunt generic workflow when they clearly need different treatment.
+
+## Feature Overview
+
+Chronicle also includes practical workflow features built around difficult document recovery rather than one-click OCR:
+
+- queue-first processing with pause, resume, and stop controls
+- seamless merge mode for combining many pages, scans, or source files into one continuous output
+- row-level page or slide scope controls for PDF and PPTX files
+- automatic engine routing, with manual engine override when you want to force a specific provider or model
+- scanner and page-import workflow support, including NAPS2 import
+- session recovery support after interrupted runs
+- collision controls so users can skip, overwrite, or auto-number outputs instead of losing work blindly
+- original page-number preservation when source tracking matters, or suppression when reading flow matters more
+- run-time controls for punctuation, abbreviations, units and currency, and image descriptions
+- visible in-progress temp files so long runs have a readable work-in-progress artifact
+- structured export support across HTML, TXT, DOCX, Markdown, PDF, JSON, CSV, and EPUB
+
+For advanced users, Chronicle also exposes more detailed controls in Preferences, including custom prompt additions, engine override, and other fidelity-oriented settings for people who want to push or fine-tune the reading behavior more deliberately.
+
 ## Why People Use Chronicle
 
 ### 1. It is built for difficult recovery work
@@ -70,7 +104,7 @@ That includes:
 
 ### 2. It gives the operator control
 
-Chronicle is designed for users who need to inspect, adjust, and rerun difficult material instead of hoping a single blind pass gets everything right.
+Chronicle is designed for users who need to inspect, adjust, and rerun difficult material instead of trusting a single blind pass.
 
 Key strengths include:
 
@@ -102,7 +136,7 @@ Chronicle is especially useful when the job is:
 3. adjust the preset or settings
 4. rerun with better expectations
 
-Chronicle's default behavior is not "always use the biggest model." Clean born-digital PDFs in easier profiles can start on the faster engine first, while hard pages and structurally risky PDFs still stay on, or escalate to, the deeper engine.
+Chronicle's default behavior is not "always use the biggest model." Cleaner PDFs in easier profiles can start on the faster engine first, while hard pages and structurally risky PDFs stay on, or escalate to, the deeper engine.
 
 This makes it a strong fit for:
 
