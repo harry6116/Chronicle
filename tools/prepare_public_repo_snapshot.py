@@ -42,10 +42,13 @@ ALLOWED_DOC_PATHS = {
     "docs/policies/DISCLAIMER.md",
     "docs/policies/README.md",
     "docs/policies/SECURITY.md",
+    "docs/public/.nojekyll",
     "docs/public/CHRONICLE_BLURBS.md",
     "docs/public/CHRONICLE_ONE_PAGE.md",
     "docs/public/README.md",
     "docs/public/WHY_CHRONICLE.md",
+    "docs/public/_headers",
+    "docs/public/index.html",
     "docs/reference/CHANGELOG.md",
     "docs/reference/Chronicle_Accessibility_Compliance_Statement.md",
     "docs/reference/Chronicle_Technical_Architecture_Deep_Dive.md",
@@ -56,6 +59,11 @@ ALLOWED_DOC_PATHS = {
     "docs/user/SYSTEM_REQUIREMENTS.md",
     "docs/user/chronicle_help.html",
 }
+
+ALLOWED_DOC_PREFIXES = (
+    "docs/public/showcase_assets/",
+    "docs/public/showcase_samples/",
+)
 
 EXCLUDED_DIR_NAMES = {
     ".git",
@@ -140,6 +148,8 @@ ALLOWED_TOOL_PATHS = {
 def should_exclude(rel_path: str) -> bool:
     path_obj = Path(rel_path)
     if rel_path.startswith("docs/github_rollout/") and rel_path in ALLOWED_GITHUB_ROLLOUT_DOCS:
+        return False
+    if any(rel_path.startswith(prefix) for prefix in ALLOWED_DOC_PREFIXES):
         return False
     if any(part in EXCLUDED_DIR_NAMES for part in path_obj.parts):
         return True
