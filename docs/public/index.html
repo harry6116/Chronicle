@@ -1,0 +1,900 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chronicle | Recover Difficult Documents for Real Review</title>
+  <meta name="theme-color" content="#0f5b68">
+  <meta
+    name="description"
+    content="Chronicle is a desktop document recovery tool for difficult scans, archival records, newspapers, handwriting, and review-heavy workflows."
+  >
+  <style>
+    :root {
+      --bg: #f3ede3;
+      --paper: rgba(255, 251, 244, 0.95);
+      --paper-strong: #fffdfa;
+      --ink: #1c1815;
+      --muted: #5e554a;
+      --line: #d9cab8;
+      --accent: #0f5b68;
+      --accent-strong: #08424c;
+      --accent-soft: rgba(15, 91, 104, 0.10);
+      --warm: #8a5530;
+      --warm-soft: rgba(138, 85, 48, 0.10);
+      --good: #1f5e32;
+      --shadow: rgba(58, 42, 27, 0.12);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      font-family: Georgia, "Iowan Old Style", "Palatino Linotype", serif;
+      color: var(--ink);
+      line-height: 1.6;
+      background:
+        radial-gradient(circle at top left, rgba(15, 91, 104, 0.14), transparent 30%),
+        linear-gradient(180deg, #f8f3ea 0%, var(--bg) 100%);
+    }
+
+    a {
+      color: inherit;
+    }
+
+    a:focus-visible,
+    button:focus-visible {
+      outline: 3px solid var(--warm);
+      outline-offset: 3px;
+    }
+
+    .skip-link {
+      position: absolute;
+      left: 16px;
+      top: -48px;
+      padding: 10px 14px;
+      border-radius: 12px;
+      background: var(--accent-strong);
+      color: #fff9f2;
+      text-decoration: none;
+      z-index: 10;
+    }
+
+    .skip-link:focus {
+      top: 12px;
+    }
+
+    .wrap {
+      max-width: 1160px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    .site-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 18px;
+      padding: 14px 0 8px;
+    }
+
+    .brand {
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    .nav {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+    }
+
+    .nav a {
+      text-decoration: none;
+      color: var(--muted);
+      font-size: 0.98rem;
+    }
+
+    section {
+      padding: 26px 0 34px;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin: 0 0 14px;
+      line-height: 1.08;
+    }
+
+    h1 {
+      font-size: clamp(2.7rem, 6vw, 5rem);
+      max-width: 11ch;
+    }
+
+    h2 {
+      font-size: clamp(1.6rem, 3vw, 2.45rem);
+    }
+
+    h3 {
+      font-size: 1.18rem;
+    }
+
+    p {
+      margin: 0 0 14px;
+    }
+
+    .eyebrow {
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      font-size: 0.8rem;
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+
+    .lead {
+      font-size: 1.13rem;
+      color: var(--muted);
+      max-width: 58rem;
+    }
+
+    .hero {
+      padding-top: 44px;
+    }
+
+    .hero-grid,
+    .grid-3,
+    .download-grid,
+    .proof-grid,
+    .contact-grid,
+    .pricing-grid,
+    .faq-grid {
+      display: grid;
+      gap: 18px;
+    }
+
+    .hero-grid {
+      grid-template-columns: 1.35fr 0.95fr;
+      align-items: start;
+    }
+
+    .grid-3,
+    .download-grid,
+    .contact-grid,
+    .pricing-grid,
+    .faq-grid {
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    }
+
+    .proof-grid {
+      grid-template-columns: 280px 1fr;
+      align-items: start;
+    }
+
+    .card {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      padding: 22px;
+      box-shadow: 0 14px 36px var(--shadow);
+    }
+
+    .stat-card {
+      background:
+        linear-gradient(180deg, rgba(255, 253, 250, 0.96), rgba(249, 241, 229, 0.92));
+    }
+
+    .kicker {
+      display: inline-block;
+      padding: 5px 11px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-size: 0.82rem;
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+
+    .proof {
+      display: inline-block;
+      padding: 5px 11px;
+      border-radius: 999px;
+      background: rgba(31, 94, 50, 0.12);
+      color: var(--good);
+      font-size: 0.82rem;
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+
+    .cta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 24px;
+    }
+
+    .cta {
+      display: inline-block;
+      border-radius: 999px;
+      padding: 12px 18px;
+      font-weight: 700;
+      text-decoration: none;
+      border: 1px solid var(--accent);
+      transition: transform 160ms ease, background-color 160ms ease, color 160ms ease;
+    }
+
+    .cta:hover,
+    .cta:focus-visible {
+      transform: translateY(-1px);
+    }
+
+    .cta.primary {
+      background: var(--accent);
+      color: #fff9f2;
+    }
+
+    .cta.primary:hover,
+    .cta.primary:focus-visible {
+      background: var(--accent-strong);
+    }
+
+    .cta.secondary {
+      background: transparent;
+      color: var(--accent);
+    }
+
+    .cta.secondary:hover,
+    .cta.secondary:focus-visible {
+      background: var(--accent-soft);
+    }
+
+    .cta.warm {
+      background: transparent;
+      color: var(--warm);
+      border-color: var(--warm);
+    }
+
+    .cta.warm:hover,
+    .cta.warm:focus-visible {
+      background: var(--warm-soft);
+    }
+
+    .list-tight {
+      margin: 0;
+      padding-left: 18px;
+    }
+
+    .list-tight li {
+      margin-bottom: 8px;
+    }
+
+    .small {
+      font-size: 0.96rem;
+      color: var(--muted);
+    }
+
+    .banner {
+      border-left: 5px solid var(--warm);
+      padding-left: 14px;
+      color: var(--muted);
+    }
+
+    .release-note {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 12px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: rgba(255, 253, 250, 0.9);
+      border: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+
+    .download-card {
+      position: relative;
+      overflow: hidden;
+    }
+
+    .download-card::after {
+      content: "";
+      position: absolute;
+      inset: auto -20% -80px auto;
+      width: 180px;
+      height: 180px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(15, 91, 104, 0.10), transparent 70%);
+      pointer-events: none;
+    }
+
+    .download-note {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid var(--line);
+    }
+
+    .showcase-nav {
+      display: grid;
+      gap: 10px;
+    }
+
+    .showcase-tab {
+      width: 100%;
+      text-align: left;
+      border: 1px solid var(--line);
+      background: rgba(255, 251, 244, 0.94);
+      color: var(--ink);
+      border-radius: 16px;
+      padding: 16px;
+      cursor: pointer;
+      font: inherit;
+    }
+
+    .showcase-tab strong {
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    .showcase-tab span {
+      display: block;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    .showcase-tab[aria-selected="true"] {
+      border-color: var(--accent);
+      background: var(--paper-strong);
+      box-shadow: 0 10px 28px rgba(15, 91, 104, 0.11);
+    }
+
+    .showcase-panel[hidden] {
+      display: none;
+    }
+
+    figure {
+      margin: 0;
+    }
+
+    figure img {
+      display: block;
+      width: 100%;
+      height: auto;
+      border-radius: 22px;
+      border: 1px solid var(--line);
+      box-shadow: 0 14px 36px var(--shadow);
+      background: #f8f3eb;
+    }
+
+    figcaption {
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 0.98rem;
+    }
+
+    .footer {
+      border-top: 1px solid var(--line);
+      padding: 26px 0 42px;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.92em;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html {
+        scroll-behavior: auto;
+      }
+
+      .cta {
+        transition: none;
+      }
+    }
+
+    @media (max-width: 860px) {
+      .site-header,
+      .hero-grid,
+      .proof-grid {
+        grid-template-columns: 1fr;
+        display: grid;
+      }
+
+      .site-header {
+        justify-content: unset;
+      }
+
+      .hero {
+        padding-top: 22px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Skip to main content</a>
+  <div class="wrap">
+    <header class="site-header" aria-label="Site header">
+      <a class="brand" href="#top">Chronicle</a>
+      <nav class="nav" aria-label="Primary">
+        <a href="#downloads">Downloads</a>
+        <a href="#how-it-works">How It Works</a>
+        <a href="#story">Why Chronicle</a>
+        <a href="#proof">Proof</a>
+        <a href="#faq">FAQ</a>
+        <a href="#transparency">Transparency</a>
+        <a href="#support">Support</a>
+        <a href="#pricing">Pricing</a>
+        <a href="#contact">Contact</a>
+      </nav>
+    </header>
+
+    <main id="main-content">
+      <section class="hero" aria-labelledby="page-title">
+        <div class="hero-grid">
+          <div>
+            <div class="eyebrow">Hard Documents, Explained Clearly</div>
+            <h1 id="page-title">Chronicle helps people recover difficult documents for real review.</h1>
+            <p class="lead">
+              Chronicle is a desktop tool for scans and source files that are degraded, crowded, historical,
+              handwritten, or simply painful to read in ordinary OCR workflows.
+            </p>
+            <p class="lead">
+              It is built for people who need faithful, review-ready output with better structure, reading order,
+              and accessibility, not just a quick text dump.
+            </p>
+            <div class="cta-row">
+              <a class="cta primary" href="#downloads">View Downloads</a>
+              <a class="cta secondary" href="#story">Why Chronicle Exists</a>
+              <a class="cta secondary" href="#support">Support Chronicle</a>
+              <a class="cta secondary" href="https://github.com/harry6116/Chronicle/issues">Give Feedback</a>
+              <a class="cta warm" href="https://github.com/harry6116/Chronicle">Browse the Repository</a>
+            </div>
+            <p class="small">
+              Feedback is welcome through the GitHub issue tracker while dedicated public email channels are being stabilized.
+            </p>
+            <p class="small">
+              Built using AI-assisted ("vibe-coded") workflows, with final integration, review, and testing directed by the author.
+            </p>
+            <div class="release-note" aria-label="Launch version">
+              <strong>Launch version:</strong> Chronicle 1.0
+            </div>
+          </div>
+
+          <aside class="card stat-card" aria-label="Chronicle summary">
+            <div class="kicker">In Plain Language</div>
+            <p><strong>What it is:</strong> a desktop document recovery tool for hard real-world source material.</p>
+            <p><strong>What it helps with:</strong> newspapers, archives, reports, books, forms, and difficult handwriting.</p>
+            <p><strong>What makes it different:</strong> Chronicle prioritizes structure, reviewability, and accessible output.</p>
+            <p><strong>What it does not claim:</strong> important documents should still be checked by a human.</p>
+            <p><strong>Public links:</strong> founder story, source code, and disclaimer are linked below.</p>
+          </aside>
+        </div>
+      </section>
+
+      <section id="downloads" aria-labelledby="downloads-title">
+        <h2 id="downloads-title">Downloads and First Access</h2>
+        <p class="lead">
+          This page is ready to hold your public Mac and Windows links. Until the hosted files are final, the same buttons can route people to the launch inbox.
+        </p>
+        <div class="download-grid">
+          <article class="card download-card">
+            <div class="kicker">macOS</div>
+            <h3>Download for Mac</h3>
+            <p>This button is set up for the GitHub Releases asset path for the first public Mac build.</p>
+            <div class="cta-row">
+              <a class="cta primary" href="https://github.com/harry6116/Chronicle/releases/latest/download/Chronicle.1.0.mac.zip">Get the Mac Build</a>
+            </div>
+            <p class="small download-note">
+              This link now points to the live GitHub Releases asset <code>Chronicle.1.0.mac.zip</code>.
+            </p>
+          </article>
+
+          <article class="card download-card">
+            <div class="kicker">Windows</div>
+            <h3>Download for Windows</h3>
+            <p>This button is set up for the GitHub Releases asset path for the first public Windows build.</p>
+            <div class="cta-row">
+              <a class="cta primary" href="https://github.com/harry6116/Chronicle/releases/latest/download/Chronicle.1.0.windows.zip">Get the Windows Build</a>
+            </div>
+            <p class="small download-note">
+              This link now points to the live GitHub Releases asset <code>Chronicle.1.0.windows.zip</code>.
+            </p>
+          </article>
+
+          <article class="card download-card">
+            <div class="kicker">Support</div>
+            <h3>Need Help Choosing a Build?</h3>
+            <p>If someone is unsure which version they need, or a link fails, use the repository issue tracker for the current support path.</p>
+            <div class="cta-row">
+              <a class="cta secondary" href="https://github.com/harry6116/Chronicle/issues">Get Help via GitHub</a>
+            </div>
+            <p class="small download-note">
+              Temporary support path: <code>GitHub Issues</code>
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section id="how-it-works" aria-labelledby="how-it-works-title">
+        <h2 id="how-it-works-title">How It Works</h2>
+        <div class="grid-3">
+          <article class="card">
+            <div class="kicker">Step 1</div>
+            <h3>Choose the right build</h3>
+            <p>Download the Mac or Windows version, then add your own API key inside Chronicle so processing stays tied to your account and usage.</p>
+          </article>
+          <article class="card">
+            <div class="kicker">Step 2</div>
+            <h3>Queue the difficult files</h3>
+            <p>Add messy PDFs, scans, reports, images, books, or archival pages. Chronicle is designed for the cases where ordinary OCR becomes tiring to clean up.</p>
+          </article>
+          <article class="card">
+            <div class="kicker">Step 3</div>
+            <h3>Review the result properly</h3>
+            <p>Chronicle aims to produce cleaner, more structured output for real checking. It helps with review. It does not replace review.</p>
+          </article>
+        </div>
+      </section>
+
+      <section id="story" aria-labelledby="story-title">
+        <h2 id="story-title">Why Chronicle Exists</h2>
+        <div class="card">
+          <p>Chronicle began with family history. It was built to read difficult war diaries, newspapers, and archival material that ordinary OCR kept scrambling.</p>
+          <p>That work expanded into a broader document-recovery tool for people dealing with hard scans, broken reading order, and outputs that still need serious review.</p>
+          <div class="cta-row">
+            <a class="cta secondary" href="https://github.com/harry6116/Chronicle/blob/main/docs/public/WHY_CHRONICLE.md">Read the founder story</a>
+            <a class="cta secondary" href="https://github.com/harry6116/Chronicle">Browse the public repo</a>
+          </div>
+        </div>
+      </section>
+
+      <section aria-labelledby="who-title">
+        <h2 id="who-title">Who Chronicle Is For</h2>
+        <div class="grid-3">
+          <article class="card">
+            <h3>Researchers and Archivists</h3>
+            <p>For war diaries, manuscripts, newspapers, accession files, memoirs, and rough scans that ordinary OCR handles badly.</p>
+          </article>
+          <article class="card">
+            <h3>Accessibility and Review Work</h3>
+            <p>For people who need screen-reader-friendly HTML, clearer document structure, and output that is easier to review line by line.</p>
+          </article>
+          <article class="card">
+            <h3>Professional Cleanup Work</h3>
+            <p>For consultants, records staff, legal review work, family historians, and transcription-heavy workflows where caution matters.</p>
+          </article>
+        </div>
+      </section>
+
+      <section aria-labelledby="what-title">
+        <h2 id="what-title">What Chronicle Handles</h2>
+        <div class="grid-3">
+          <article class="card">
+            <h3>Structured documents</h3>
+            <ul class="list-tight">
+              <li>Reports, appendices, public records, legal material, forms, manuals, and slides.</li>
+              <li>Tables, headings, lists, captions, and document metadata.</li>
+            </ul>
+          </article>
+          <article class="card">
+            <h3>Difficult scan material</h3>
+            <ul class="list-tight">
+              <li>Faded scans, skewed pages, repeated headers, damaged OCR, and mixed layouts.</li>
+              <li>Multi-column newspapers, archival records, books, diaries, and rough handwriting.</li>
+            </ul>
+          </article>
+          <article class="card">
+            <h3>Transcription-heavy work</h3>
+            <ul class="list-tight">
+              <li>Handwritten notes, correspondence, field notes, and draft pages.</li>
+              <li>Clinical notes and difficult handwriting where uncertainty should be marked, not guessed.</li>
+            </ul>
+          </article>
+        </div>
+      </section>
+
+      <section aria-labelledby="why-title">
+        <h2 id="why-title">Why People Use It</h2>
+        <div class="card">
+          <p>Chronicle is strongest when the source is ugly and the stakes are practical: reading order, continuity, usable structure, and time saved in review.</p>
+          <p>It does not treat every document the same way. A newspaper page, a legal clause page, a military record, and a handwritten note do not behave alike, so Chronicle uses document-specific recovery logic rather than a one-size-fits-all pass.</p>
+          <p class="banner">Chronicle reduces cleanup and makes review easier. It does not ask people to stop verifying important documents.</p>
+        </div>
+      </section>
+
+      <section aria-labelledby="accessibility-title">
+        <h2 id="accessibility-title">Accessibility and Privacy</h2>
+        <div class="grid-3">
+          <article class="card">
+            <h3>Accessible website design</h3>
+            <p>This launch page uses semantic headings, keyboard-friendly controls, visible focus states, descriptive links, and public-safe image alt text.</p>
+          </article>
+          <article class="card">
+            <h3>Accessible output focus</h3>
+            <p>Chronicle is designed to help produce cleaner reading order and more review-friendly output for screen reader and keyboard-based workflows.</p>
+          </article>
+          <article class="card">
+            <h3>Provider boundary stays visible</h3>
+            <p>Your API key stays local to your own machine, but document content is still processed by the provider you choose. Chronicle helps with workflow; it does not erase provider-side considerations.</p>
+          </article>
+        </div>
+      </section>
+
+      <section id="transparency" aria-labelledby="transparency-title">
+        <h2 id="transparency-title">Transparency</h2>
+        <div class="grid-3">
+          <article class="card">
+            <h3>How Chronicle was built</h3>
+            <p>Chronicle was built using AI-assisted ("vibe-coded") workflows, with final integration, review, and testing directed by the author.</p>
+          </article>
+          <article class="card">
+            <h3>What users still need to do</h3>
+            <p>Chronicle is a review tool, not a substitute for review. Important outputs still need to be checked against the source.</p>
+          </article>
+          <article class="card">
+            <h3>Public references</h3>
+            <p><a href="https://github.com/harry6116/Chronicle/blob/main/docs/public/WHY_CHRONICLE.md">Founder story</a></p>
+            <p><a href="https://github.com/harry6116/Chronicle/blob/main/DISCLAIMER.md">Disclaimer</a></p>
+            <p><a href="https://github.com/harry6116/Chronicle">Source repository</a></p>
+          </article>
+        </div>
+      </section>
+
+      <section id="proof" aria-labelledby="proof-title">
+        <h2 id="proof-title">Proof on Real Pages</h2>
+        <p class="lead">
+          These are public-safe benchmark-based comparisons from actual Chronicle test pages. The images use descriptive alt text so the examples are meaningful for screen-reader users too.
+        </p>
+        <div class="card proof-grid">
+          <div>
+            <div class="kicker">Interactive Showcase</div>
+            <div class="showcase-nav" role="tablist" aria-label="Document showcase cases">
+              <button class="showcase-tab" id="tab-war-diary" role="tab" aria-selected="true" aria-controls="panel-war-diary" tabindex="0">
+                <strong>War diary order</strong>
+                <span>Typed military order page with handwritten marks, strike-through recovery, and a distribution table.</span>
+              </button>
+              <button class="showcase-tab" id="tab-newspaper" role="tab" aria-selected="false" aria-controls="panel-newspaper" tabindex="-1">
+                <strong>Historical newspaper</strong>
+                <span>Dense front page with columns, notices, advertisement blocks, and publication metadata.</span>
+              </button>
+              <button class="showcase-tab" id="tab-varus" role="tab" aria-selected="false" aria-controls="panel-varus" tabindex="-1">
+                <strong>Roman disaster text</strong>
+                <span>Early printed classical history covering the loss of Varus and the three legions in Germany.</span>
+              </button>
+              <button class="showcase-tab" id="tab-cromwell" role="tab" aria-selected="false" aria-controls="panel-cromwell" tabindex="-1">
+                <strong>Cromwell letters</strong>
+                <span>Early modern correspondence recovered into readable, review-ready structure.</span>
+              </button>
+            </div>
+            <p class="small" style="margin-top: 16px;">This public set now includes Roman-source and Cromwell correspondence examples alongside the earlier military and newspaper cases.</p>
+          </div>
+
+          <div>
+            <section class="showcase-panel" id="panel-war-diary" role="tabpanel" aria-labelledby="tab-war-diary">
+              <figure>
+                <img
+                  src="showcase_assets/chronicle-showcase-war-diary.png"
+                  alt="Before and after comparison for a World War II war diary page. On the left is a faded scanned military order with typed lines, handwritten marks, and a distribution list at the bottom. On the right is Chronicle's structured output with a clear heading, readable order points, and the recovered distribution table."
+                >
+                <figcaption>
+                  <span class="proof">Military Records / War Diaries / Orders</span><br>
+                  One benchmark page from WO 95/1668/3/2 showing Chronicle turning a difficult archival scan into structured, review-ready HTML.
+                </figcaption>
+              </figure>
+            </section>
+
+            <section class="showcase-panel" id="panel-newspaper" role="tabpanel" aria-labelledby="tab-newspaper" hidden>
+              <figure>
+                <img
+                  src="showcase_assets/chronicle-showcase-newspaper.png"
+                  alt="Before and after comparison for a historical newspaper page. On the left is a crowded front page of The Age from April 30, 1930, with narrow columns and dense text. On the right is Chronicle's structured output showing restored publication details and recovered article sections such as births, marriages, and deaths."
+                >
+                <figcaption>
+                  <span class="proof">Historical Newspapers / Press Layouts</span><br>
+                  A real front-page newspaper sample showing Chronicle recovering reading order, section headings, and publication attribution from a dense multi-column layout.
+                </figcaption>
+              </figure>
+            </section>
+
+            <section class="showcase-panel" id="panel-varus" role="tabpanel" aria-labelledby="tab-varus" hidden>
+              <figure>
+                <img
+                  src="showcase_assets/chronicle-showcase-varus.png"
+                  alt="Before and after comparison for an early printed Roman-history page about the Varus disaster. On the left is a difficult old-style printed source page with long-s forms and dense historical prose. On the right is Chronicle's structured output restoring readable paragraphs and chapter flow."
+                >
+                <figcaption>
+                  <span class="proof">Ancient Sources / Early Print / Historical Recovery</span><br>
+                  A Chronicle demo built from a public-domain Velleius Paterculus scan covering the loss of Varus and the three legions, with a companion Tacitus battlefield-aftermath sample.
+                  <br><a href="showcase_samples/varus-velleius-sample.html">Open the Chronicle Velleius sample</a>
+                  <br><a href="showcase_samples/varus-tacitus-sample.html">Open the Chronicle Tacitus sample</a>
+                  <br><a href="https://archive.org/details/bim_eighteenth-century_the-roman-history-of-c-_velleius-paterculus_1724">View the Velleius source edition</a>
+                  <br><a href="https://archive.org/details/historicalannals01taci">View the Tacitus source edition</a>
+                </figcaption>
+              </figure>
+            </section>
+
+            <section class="showcase-panel" id="panel-cromwell" role="tabpanel" aria-labelledby="tab-cromwell" hidden>
+              <figure>
+                <img
+                  src="showcase_assets/chronicle-showcase-cromwell.png"
+                  alt="Before and after comparison for an Oliver Cromwell letters page. On the left is an older printed collected-letters source page with dense prose and period typography. On the right is Chronicle's output reorganized into readable, review-friendly letter text."
+                >
+                <figcaption>
+                  <span class="proof">Letters / Correspondence / Early Modern Print</span><br>
+                  A public-domain Cromwell letters example showing Chronicle keeping the reading flow of correspondence intact instead of flattening it into generic OCR text.
+                  <br><a href="showcase_samples/cromwell-letters-sample.html">Open the Chronicle Cromwell sample</a>
+                  <br><a href="https://archive.org/details/olivercromwells01cromiala">View the source edition</a>
+                </figcaption>
+              </figure>
+            </section>
+          </div>
+        </div>
+      </section>
+
+      <section id="support" aria-labelledby="support-title">
+        <h2 id="support-title">Support Chronicle</h2>
+        <div class="pricing-grid">
+          <article class="card">
+            <div class="kicker">Community Support</div>
+            <h3>Optional donations</h3>
+            <p>If Chronicle helps your work, donations help fund ongoing development, testing, documentation, and future releases.</p>
+            <div class="cta-row">
+              <a class="cta primary" href="https://buymeacoffee.com/thevoiceguy">Buy Me a Coffee</a>
+              <a class="cta secondary" href="https://paypal.me/MarshallVoiceovers">Donate via PayPal</a>
+            </div>
+          </article>
+          <article class="card">
+            <div class="kicker">Commercial</div>
+            <h3>Need a commercial license?</h3>
+            <p>Non-commercial use is free. Paid licensing only applies to commercial, business, client-service, or paid professional use.</p>
+            <div class="cta-row">
+              <a class="cta warm" href="https://github.com/harry6116/Chronicle/issues">Request Commercial Licensing Contact</a>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section id="pricing" aria-labelledby="pricing-title">
+        <h2 id="pricing-title">Pricing and Evaluation</h2>
+        <div class="pricing-grid">
+          <article class="card">
+            <div class="kicker">Personal</div>
+            <h3>Non-Commercial / Personal Use</h3>
+            <p><strong>Free</strong></p>
+            <p>For home use, students, educators, nonprofits, family historians, volunteer/community work, and other non-commercial use.</p>
+          </article>
+          <article class="card">
+            <div class="kicker">Professional</div>
+            <h3>Commercial</h3>
+            <p><strong>Paid license required</strong></p>
+            <p>For paid professional work, consulting, client services, business operations, and commercial organizational use.</p>
+          </article>
+          <article class="card">
+            <div class="kicker">Evaluation</div>
+            <h3>Commercial evaluation</h3>
+            <p><strong>On request</strong></p>
+            <p>If a business or organization needs Chronicle assessed before purchase, evaluation access and licensing questions can be routed through the repository issue tracker until a stable public contact channel is restored.</p>
+          </article>
+        </div>
+      </section>
+
+      <section id="faq" aria-labelledby="faq-title">
+        <h2 id="faq-title">Frequently Asked Questions</h2>
+        <div class="faq-grid">
+          <article class="card">
+            <h3>Does the website host the app itself?</h3>
+            <p>No. The website is the public front door. For the first release, the Mac and Windows buttons are prepared to point at GitHub Releases assets.</p>
+          </article>
+          <article class="card">
+            <h3>Do people need their own API key?</h3>
+            <p>Yes. Chronicle is designed so each user can use their own provider key on their own machine.</p>
+          </article>
+          <article class="card">
+            <h3>Is Cloudflare Pages a problem for accessibility?</h3>
+            <p>No. Cloudflare Pages can host a static accessible site well. The important part is the page we publish, which is why this site bundle uses semantic structure and keyboard support.</p>
+          </article>
+          <article class="card">
+            <h3>Can GitHub host the downloads before the website is live?</h3>
+            <p>Yes. GitHub Releases is a practical first place to host the Mac and Windows ZIP files. The website can then link to those files when you are ready to publish it.</p>
+          </article>
+          <article class="card">
+            <h3>Can people rely on Chronicle without checking the result?</h3>
+            <p>No. Chronicle is made to reduce cleanup and improve reviewability on difficult material. Human review still matters, especially for legal, medical, financial, or compliance-sensitive documents.</p>
+          </article>
+          <article class="card">
+            <h3>Was Chronicle built with AI assistance?</h3>
+            <p>Yes. Chronicle was built using AI-assisted ("vibe-coded") workflows, with final integration, review, and testing directed by the author.</p>
+          </article>
+        </div>
+      </section>
+
+      <section aria-labelledby="limits-title">
+        <h2 id="limits-title">What Chronicle Does Not Claim</h2>
+        <div class="card">
+          <p>Chronicle can still make mistakes. Difficult documents can contain omissions, wrong joins, uncertain readings, or layout decisions that need human review.</p>
+          <p>That matters most for legal, medical, financial, safety-critical, and compliance-sensitive material. Chronicle can help prepare and structure these documents, but it should not be the sole basis for a final decision.</p>
+        </div>
+      </section>
+
+      <section id="contact" aria-labelledby="contact-title">
+        <h2 id="contact-title">Contact</h2>
+        <div class="contact-grid">
+          <article class="card">
+            <div class="kicker">Feedback</div>
+            <h3>General feedback and questions</h3>
+            <p><a href="https://github.com/harry6116/Chronicle/issues">GitHub Issues</a></p>
+            <p class="small">Feedback is welcome. Use this for general questions, evaluation requests, and public discussion.</p>
+          </article>
+          <article class="card">
+            <div class="kicker">Downloads</div>
+            <h3>Builds and release updates</h3>
+            <p><a href="https://github.com/harry6116/Chronicle/releases">GitHub Releases</a></p>
+            <p class="small">Use this for download links, release assets, and current packaged builds.</p>
+          </article>
+          <article class="card">
+            <div class="kicker">Status</div>
+            <h3>Public contact channel</h3>
+            <p><a href="https://github.com/harry6116/Chronicle">Chronicle repository</a></p>
+            <p class="small">Dedicated public email addresses are temporarily withheld until account setup and authentication are working reliably.</p>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      Chronicle is for people who need better results on ugly documents, not just faster results on easy ones.
+    </footer>
+  </div>
+
+  <script>
+    (function () {
+      const tabs = Array.from(document.querySelectorAll(".showcase-tab"));
+      const panels = Array.from(document.querySelectorAll(".showcase-panel"));
+
+      function activateTab(nextTab) {
+        tabs.forEach((tab) => {
+          const selected = tab === nextTab;
+          tab.setAttribute("aria-selected", selected ? "true" : "false");
+          tab.tabIndex = selected ? 0 : -1;
+        });
+
+        panels.forEach((panel) => {
+          panel.hidden = panel.getAttribute("aria-labelledby") !== nextTab.id;
+        });
+      }
+
+      tabs.forEach((tab, index) => {
+        tab.addEventListener("click", () => activateTab(tab));
+        tab.addEventListener("keydown", (event) => {
+          if (!["ArrowDown", "ArrowUp", "ArrowRight", "ArrowLeft", "Home", "End"].includes(event.key)) {
+            return;
+          }
+
+          event.preventDefault();
+          let nextIndex = index;
+
+          if (event.key === "Home") nextIndex = 0;
+          else if (event.key === "End") nextIndex = tabs.length - 1;
+          else if (event.key === "ArrowDown" || event.key === "ArrowRight") nextIndex = (index + 1) % tabs.length;
+          else if (event.key === "ArrowUp" || event.key === "ArrowLeft") nextIndex = (index - 1 + tabs.length) % tabs.length;
+
+          tabs[nextIndex].focus();
+          activateTab(tabs[nextIndex]);
+        });
+      });
+    }());
+  </script>
+</body>
+</html>
