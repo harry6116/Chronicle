@@ -37,6 +37,10 @@ Always verify current provider terms at time of use.
 
 Google AI Studio Gemini API keys can work on Google's free tier, subject to current model availability, region support, quotas, and rate limits. Free-tier throughput can be acceptable for experimentation but is usually volatile for production runs.
 
+Treat free Gemini access as a test path, not as dependable operating capacity. In practice, difficult PDFs, long queue runs, and dense magazine/newspaper jobs can still stop with quota or rate-limit errors before the document is finished, even when the app is otherwise working correctly.
+
+The safest public guidance is simple: use paid Gemini API billing for sustained work and treat free-tier Gemini as best-effort only.
+
 Practical planning examples (rough only, can change):
 
 - Gemini 2.5 Pro: around 500 pages/day in light workloads.
