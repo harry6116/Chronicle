@@ -92,6 +92,7 @@ Public email addresses are intentionally not listed in the repository until the 
 - Document content is sent to the selected AI provider for processing.
 - Provider retention/training behavior depends on provider account/plan settings.
 - Google Gemini API keys from Google AI Studio can work on Google's free tier, subject to current quotas, rate limits, model availability, and region support.
+- Practical reliability note: free Gemini API keys are best treated as testing access, not guaranteed production capacity. Hard PDFs and long magazine/newspaper runs can still fail with provider quota errors even when Chronicle itself is healthy.
 - Anthropic Claude API access is separate from Claude.ai chat plans and should be treated as requiring Claude Console/API billing or prepaid credits.
 - Users are responsible for validating privacy/compliance requirements for their workload.
 

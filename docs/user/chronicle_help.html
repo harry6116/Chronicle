@@ -237,6 +237,7 @@
             <li>If a provider key is missing, Chronicle's automatic engine selection now avoids routing work to that provider.</li>
             <li>If you force a model whose provider key is missing or invalid, extraction will fail with an authentication error.</li>
             <li>Google Gemini API keys from Google AI Studio can work on Google's free tier, subject to current model availability, region support, quotas, and rate limits.</li>
+            <li>Important practical warning: free Gemini keys may be enough to test Chronicle, but they can still fail on difficult PDFs, long batches, magazines, newspapers, or repeated reruns with quota or rate-limit errors.</li>
             <li>Even with valid keys, live providers can occasionally return temporary high-demand or unavailable responses during busy periods. A later rerun may succeed without any Chronicle code change.</li>
             <li>Anthropic Claude API access is separate from the consumer Claude.ai chat plans. A free Claude account does not include API access, and even paid Claude chat plans still require separate Claude Console/API billing setup.</li>
             <li>Provider retention/training behavior depends on your provider account tier and settings.</li>
@@ -274,7 +275,7 @@
             <p>User responsibility: you are solely responsible for reviewing extracted/scanned material and confirming that your provider tier/settings satisfy your confidentiality and compliance requirements.</p>
           </div>
           <div class="note">
-            <p><strong>Practical summary:</strong> a free Gemini API key may be enough to test Chronicle. A Claude.ai free account or paid chat subscription is not the same thing as Claude API access for Chronicle.</p>
+            <p><strong>Practical summary:</strong> a free Gemini API key may be enough to test Chronicle, but it should be treated as best-effort only. For dependable real-world extraction, especially on hard PDFs or modern magazine/newspaper files, paid Gemini API billing is strongly recommended. A Claude.ai free account or paid chat subscription is not the same thing as Claude API access for Chronicle.</p>
           </div>
           <div class="note">
             <p><strong>Free-tier planning example (rough only):</strong> Gemini 2.5 Pro may handle around 500 pages/day, while Gemini 2.5 Flash may handle around 1,000 pages/day. Actual throughput varies by document complexity, retries/rate limits, file types, and provider-side limits.</p>

@@ -159,6 +159,7 @@ Chronicle stores API keys locally, but extracted content is sent to the selected
 - Chronicle cannot enforce provider retention/training policy.
 - Provider privacy/confidentiality behavior depends on account tier and provider settings.
 - Google Gemini API keys from Google AI Studio can work on Google's free tier, subject to current quotas, rate limits, model availability, and region support.
+- Important practical warning: free Gemini API keys may be enough to test Chronicle, but they can hit quota or rate-limit failures quickly on hard PDFs, long batches, magazines, newspapers, or repeated reruns. If you need dependable extraction rather than casual testing, a paid Gemini API setup is strongly recommended.
 - Anthropic Claude API access is separate from Claude.ai chat plans and should be treated as requiring Claude Console/API billing or prepaid credits.
 
 Detailed guidance:
