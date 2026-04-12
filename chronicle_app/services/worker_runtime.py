@@ -103,6 +103,28 @@ def build_output_base_name(base, ext, job_cfg, *, normalize_pdf_page_scope_text_
     return f"{output_base}_pages_{safe_scope}"
 
 
+def build_progress_temp_path(output_path):
+    if not output_path:
+        return None
+    directory = os.path.dirname(output_path)
+    basename = os.path.basename(output_path)
+    return os.path.join(directory, f".chronicle_progress_{basename}.txt.tmp")
+
+
+def build_legacy_progress_temp_path(output_path):
+    return f"{output_path}.progress.txt.tmp" if output_path else None
+
+
+def resolve_progress_temp_path(output_path, *, path_exists_fn=os.path.exists):
+    current_path = build_progress_temp_path(output_path)
+    legacy_path = build_legacy_progress_temp_path(output_path)
+    if current_path and path_exists_fn(current_path):
+        return current_path
+    if legacy_path and path_exists_fn(legacy_path):
+        return legacy_path
+    return current_path
+
+
 def _build_progress_state_path(progress_temp_path):
     return progress_temp_path or None
 
@@ -157,17 +179,24 @@ def split_progress_file_content(text):
 
 
 def read_progress_state(progress_temp_path, *, path_exists_fn=os.path.exists, open_fn=open):
-    if not progress_temp_path or not path_exists_fn(progress_temp_path):
+    if not progress_temp_path:
         return None
+    active_path = progress_temp_path if path_exists_fn(progress_temp_path) else None
+    if active_path is None:
+        legacy_path = _build_legacy_progress_state_path(progress_temp_path)
+        if legacy_path and path_exists_fn(legacy_path):
+            active_path = legacy_path
+        else:
+            return None
     try:
-        with open_fn(progress_temp_path, "r", encoding="utf-8", errors="ignore") as fh:
+        with open_fn(active_path, "r", encoding="utf-8", errors="ignore") as fh:
             line = fh.readline(PROGRESS_STATE_HEADER_SIZE + 8)
     except Exception:
         line = ""
     parsed = parse_progress_state_header(line)
     if parsed is not None:
         return parsed
-    legacy_path = _build_legacy_progress_state_path(progress_temp_path)
+    legacy_path = _build_legacy_progress_state_path(active_path)
     if legacy_path and path_exists_fn(legacy_path):
         try:
             with open_fn(legacy_path, "r", encoding="utf-8") as fh:
@@ -210,9 +239,16 @@ def write_progress_state(progress_temp_path, payload, *, open_fn=open, path_exis
 
 
 def read_progress_text(progress_temp_path, *, path_exists_fn=os.path.exists, open_fn=open):
-    if not progress_temp_path or not path_exists_fn(progress_temp_path):
+    if not progress_temp_path:
         return ""
-    with open_fn(progress_temp_path, "r", encoding="utf-8", errors="ignore") as fh:
+    active_path = progress_temp_path if path_exists_fn(progress_temp_path) else None
+    if active_path is None:
+        legacy_path = _build_legacy_progress_state_path(progress_temp_path)
+        if legacy_path and path_exists_fn(legacy_path):
+            active_path = legacy_path
+        else:
+            return ""
+    with open_fn(active_path, "r", encoding="utf-8", errors="ignore") as fh:
         _, content = split_progress_file_content(fh.read())
         return content
 
@@ -647,7 +683,7 @@ def prepare_job_execution_context(
             }
 
         temp_path = output_path + '.tmp'
-        progress_temp_path = output_path + ".progress.txt.tmp"
+        progress_temp_path = resolve_progress_temp_path(output_path, path_exists_fn=path_exists_fn)
         resume_info = {"recovered_units": 0, "original_total_units": None, "resume_state_path": _build_progress_state_path(progress_temp_path), "resume_from_unit": 0}
         if (
             resume_mode
@@ -728,7 +764,7 @@ def prepare_job_execution_context(
                 progress_file_obj.flush()
         raw_file_obj = open_fn(temp_path, 'a' if preserve_progress else 'w', encoding='utf-8') if fmt in streamable_formats else None
         file_obj = MirroredTextWriter(raw_file_obj, progress_file_obj) if raw_file_obj else None
-        log_cb(f"[Progress] In-progress temp output: {progress_temp_path}")
+        log_cb(f"[Progress] In-progress recovery sidecar: {progress_temp_path}")
         if file_obj and not preserve_progress:
             write_header_fn(file_obj, base, fmt, get_output_lang_code_fn(job_cfg), get_output_text_direction_fn(job_cfg))
         if fmt in streamable_formats:

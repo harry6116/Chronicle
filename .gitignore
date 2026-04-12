@@ -7,6 +7,7 @@ venv311/
 env/
 .env
 .venv/
+.venv-grizzly/
 
 # Runtime secrets and local state
 api_keys.json
@@ -22,11 +23,13 @@ chronicle_license_public_key.pem
 # Build artifacts
 build/
 dist/
+Chronicle.app/
 windows_builds/
 .pyinstaller-cache/
 *.spec
 *.tmp
 *.merge_journal.jsonl
+artifacts/
 artifacts/benchmarks/
 artifacts/*.zip
 artifacts/public_repo_stage/

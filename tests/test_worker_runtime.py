@@ -4,6 +4,8 @@ from pathlib import Path
 from chronicle_app.services.worker_runtime import (
     BufferedOutputMemory,
     MirroredProgressMemory,
+    build_legacy_progress_temp_path,
+    build_progress_temp_path,
     build_progress_state_header,
     build_output_base_name,
     build_worker_run_plan,
@@ -24,7 +26,7 @@ class WorkerRuntimeTest(unittest.TestCase):
         import tempfile
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            progress_path = str(Path(tmpdir) / "alpha.html.progress.txt.tmp")
+            progress_path = str(Path(tmpdir) / ".chronicle_progress_alpha.html.txt.tmp")
             Path(progress_path).write_text(
                 build_progress_state_header({"completed_units": 2, "total_units": 5}) + "<p>body</p>",
                 encoding="utf-8",
@@ -37,12 +39,24 @@ class WorkerRuntimeTest(unittest.TestCase):
         import tempfile
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            progress_path = str(Path(tmpdir) / "alpha.html.progress.txt.tmp")
+            progress_path = str(Path(tmpdir) / ".chronicle_progress_alpha.html.txt.tmp")
             legacy_state = progress_path + ".state.json"
             Path(progress_path).write_text("partial body", encoding="utf-8")
             Path(legacy_state).write_text('{"completed_units": 3, "total_units": 7}', encoding="utf-8")
 
             self.assertEqual(read_progress_state(progress_path)["completed_units"], 3)
+
+    def test_build_progress_temp_path_uses_hidden_chronicle_sidecar(self):
+        output_path = "/tmp/Oyungezer 190 - Standart Kalite.pdf"
+
+        self.assertEqual(
+            build_progress_temp_path(output_path),
+            "/tmp/.chronicle_progress_Oyungezer 190 - Standart Kalite.pdf.txt.tmp",
+        )
+        self.assertEqual(
+            build_legacy_progress_temp_path(output_path),
+            "/tmp/Oyungezer 190 - Standart Kalite.pdf.progress.txt.tmp",
+        )
 
     def test_recover_completed_output_artifacts_promotes_temp_and_cleans_sidecar(self):
         import tempfile
@@ -50,7 +64,7 @@ class WorkerRuntimeTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             output_path = Path(tmpdir) / "alpha.html"
             temp_path = Path(tmpdir) / "alpha.html.tmp"
-            progress_path = Path(tmpdir) / "alpha.html.progress.txt.tmp"
+            progress_path = Path(tmpdir) / ".chronicle_progress_alpha.html.txt.tmp"
             temp_path.write_text("<html>done</html>", encoding="utf-8")
             progress_path.write_text(
                 build_progress_state_header({"completed_units": 4, "total_units": 4}) + "<html>done</html>",
@@ -215,10 +229,10 @@ class WorkerRuntimeTest(unittest.TestCase):
         self.assertEqual(result['client'], 'client:model:Fast')
         self.assertEqual(result['output_path'], '/out/sub/a.html')
         self.assertEqual(result['temp_path'], '/out/sub/a.html.tmp')
-        self.assertEqual(result['progress_temp_path'], '/out/sub/a.html.progress.txt.tmp')
+        self.assertEqual(result['progress_temp_path'], '/out/sub/.chronicle_progress_a.html.txt.tmp')
         self.assertIsInstance(result['memory'], BufferedOutputMemory)
         self.assertEqual(result['memory'].clear_every_pages, 2)
-        self.assertEqual(result['memory'].progress_temp_path, '/out/sub/a.html.progress.txt.tmp')
+        self.assertEqual(result['memory'].progress_temp_path, '/out/sub/.chronicle_progress_a.html.txt.tmp')
         self.assertEqual(makedirs_calls, [('/out/sub', True)])
         self.assertEqual(removed, ['/out/sub/a.html.tmp'])
         self.assertEqual(headers[0], ('a', 'html', 'en', 'ltr'))
@@ -300,7 +314,7 @@ class WorkerRuntimeTest(unittest.TestCase):
         )
 
         self.assertIsInstance(result['memory'], MirroredProgressMemory)
-        self.assertEqual(result['progress_temp_path'], '/out/sub/a.docx.progress.txt.tmp')
+        self.assertEqual(result['progress_temp_path'], '/out/sub/.chronicle_progress_a.docx.txt.tmp')
 
     def test_mirrored_progress_memory_reads_written_text_since_checkpoint(self):
         import tempfile
@@ -406,7 +420,7 @@ class WorkerRuntimeTest(unittest.TestCase):
             import tempfile
 
             with tempfile.TemporaryDirectory() as tmpdir:
-                progress_path = str(Path(tmpdir) / "a.docx.progress.txt.tmp")
+                progress_path = str(Path(tmpdir) / ".chronicle_progress_a.docx.txt.tmp")
                 Path(progress_path).write_text(
                     build_progress_state_header({"completed_pages": 2, "total_pages": 6, "current_source_page": 2}) + "partial",
                     encoding="utf-8",
@@ -444,7 +458,7 @@ class WorkerRuntimeTest(unittest.TestCase):
                     set_queue_status_fn=lambda idx, status: statuses.append((idx, status)),
                     log_cb=logs.append,
                     makedirs_fn=lambda path, exist_ok=False: None,
-                    path_exists_fn=lambda path: path in {"/source/a.pdf", str(Path(tmpdir) / 'a.docx.progress.txt.tmp')},
+                    path_exists_fn=lambda path: path in {"/source/a.pdf", progress_path},
                     remove_fn=lambda path: removed.append(path),
                     open_fn=fake_open,
                 )
@@ -467,7 +481,7 @@ class WorkerRuntimeTest(unittest.TestCase):
         import tempfile
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            progress_path = str(Path(tmpdir) / "a.html.progress.txt.tmp")
+            progress_path = str(Path(tmpdir) / ".chronicle_progress_a.html.txt.tmp")
             temp_path = str(Path(tmpdir) / "a.html.tmp")
             Path(progress_path).write_text(
                 build_progress_state_header({"completed_units": 3, "total_units": 7}) + "partial progress",
@@ -524,7 +538,7 @@ class WorkerRuntimeTest(unittest.TestCase):
         import tempfile
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            progress_path = str(Path(tmpdir) / "merged.docx.progress.txt.tmp")
+            progress_path = str(Path(tmpdir) / ".chronicle_progress_merged.docx.txt.tmp")
             Path(progress_path).write_text(
                 build_progress_state_header(
                     {"completed_job_paths": ["/tmp/a.pdf", "/tmp/b.pdf", "/tmp/a.pdf"], "total_units": 4}
@@ -556,7 +570,7 @@ class WorkerRuntimeTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             output_path = Path(tmpdir) / "a.html"
             temp_path = Path(tmpdir) / "a.html.tmp"
-            progress_path = Path(tmpdir) / "a.html.progress.txt.tmp"
+            progress_path = Path(tmpdir) / ".chronicle_progress_a.html.txt.tmp"
             temp_path.write_text("<html>rescued</html>", encoding="utf-8")
             progress_path.write_text(
                 build_progress_state_header(

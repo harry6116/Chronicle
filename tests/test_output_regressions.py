@@ -91,6 +91,64 @@ class OutputRegressionTest(unittest.TestCase):
 
         self.assertEqual(cleaned, '<p><img src="about:blank"></p>')
 
+    def test_html_sanitizer_strips_page_wrapper_comments_and_markdown_page_markers(self):
+        raw = """<!-- START OF PAGE 1 -->
+## Page 1
+<section><p>Real text.</p></section>
+<!-- END OF PAGE 1 -->"""
+
+        cleaned = sanitize_model_output(raw, "html")
+
+        self.assertNotIn("START OF PAGE", cleaned)
+        self.assertNotIn("END OF PAGE", cleaned)
+        self.assertNotIn("## Page 1", cleaned)
+        self.assertIn("<p>Real text.</p>", cleaned)
+
+    def test_html_sanitizer_converts_markdown_headings_to_real_html_headings(self):
+        raw = "## Section Title\n### Byline\n<p>Body.</p>"
+
+        cleaned = sanitize_model_output(raw, "html")
+
+        self.assertIn("<h2>Section Title</h2>", cleaned)
+        self.assertIn("<h3>Byline</h3>", cleaned)
+        self.assertIn("<p>Body.</p>", cleaned)
+
+    def test_html_sanitizer_dedupes_adjacent_repeated_paragraph_blocks(self):
+        raw = (
+            "<section>"
+            "<p>First paragraph.</p>"
+            "<p>Second paragraph.</p>"
+            "<p>First paragraph.</p>"
+            "<p>Second paragraph.</p>"
+            "</section>"
+        )
+
+        cleaned = sanitize_model_output(raw, "html")
+
+        self.assertEqual(cleaned.count("<p>First paragraph.</p>"), 1)
+        self.assertEqual(cleaned.count("<p>Second paragraph.</p>"), 1)
+
+    def test_html_sanitizer_strips_placeholder_and_empty_source_images(self):
+        raw = (
+            "<figure>"
+            '<img alt="Broken image" src="IMAGE_PLACEHOLDER"/>'
+            '<img alt="Broken image suffixed" src="IMAGE_PLACEHOLDER_1"/>'
+            '<img alt="Broken image 2" src="IMAGE_URL"/>'
+            '<img alt="Broken image 3" src="IMAGE_URL_2"/>'
+            '<img alt="Empty image" src=""/>'
+            "<figcaption>[Image Description: Still useful.]</figcaption>"
+            "</figure>"
+        )
+
+        cleaned = sanitize_model_output(raw, "html")
+
+        self.assertNotIn("IMAGE_PLACEHOLDER", cleaned)
+        self.assertNotIn("IMAGE_PLACEHOLDER_1", cleaned)
+        self.assertNotIn("IMAGE_URL", cleaned)
+        self.assertNotIn("IMAGE_URL_2", cleaned)
+        self.assertNotIn('src=""', cleaned)
+        self.assertIn("Still useful.", cleaned)
+
     def test_html_normalizer_generates_toc_and_heading_ids_inside_main(self):
         raw = """<main id="content" role="main">
 <h1>Document Title</h1>
@@ -140,6 +198,32 @@ class OutputRegressionTest(unittest.TestCase):
         self.assertIn('<a href="#heading-1">Chapter 1</a>', cleaned)
         self.assertEqual(cleaned.count('>Definitions</a>'), 1)
         self.assertNotIn('>Section 1</a>', cleaned)
+
+    def test_html_normalizer_strips_repeated_periodical_running_head_h1s(self):
+        raw = """<!DOCTYPE html>
+<html lang="und" dir="auto">
+<head><meta charset="utf-8"><title>Oyungezer 190 - Standart Kalite</title></head>
+<body>
+<main id="content" role="main">
+<footer>Oyungezer EYLUL 2023 105</footer>
+<header><h1>Meddya</h1></header>
+<section><h2>GRAN TURISMO</h2><p>Body.</p></section>
+<footer>Oyungezer EYLUL 2023 107</footer>
+<header><h1>Meddya</h1></header>
+<section><h2>BLUE BEETLE</h2><p>Body.</p></section>
+<footer>Oyungezer EYLUL 2023 109</footer>
+<header><h1>Meddya</h1></header>
+<section><h2>AHSOKA</h2><p>Body.</p></section>
+</main>
+</body>
+</html>"""
+
+        cleaned = normalize_streamed_html_document(raw)
+
+        self.assertNotIn(">Meddya</h1>", cleaned)
+        self.assertIn(">GRAN TURISMO</a>", cleaned)
+        self.assertIn(">BLUE BEETLE</a>", cleaned)
+        self.assertIn(">AHSOKA</a>", cleaned)
 
     def test_html_normalizer_strips_probable_page_furniture_triplets(self):
         raw = """<!DOCTYPE html>

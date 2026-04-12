@@ -134,6 +134,76 @@ class BenchmarkScorecardTest(unittest.TestCase):
         self.assertEqual(scorecard["grade"], "A+")
         self.assertTrue(scorecard["perfect_score"])
 
+    def test_comic_scorecard_requires_panel_specific_structure(self):
+        checks = {
+            "has_lang_dir_root": True,
+            "has_main_landmark": True,
+            "has_h1": True,
+            "has_h2": True,
+            "has_panel_heading": True,
+            "has_image_description": True,
+            "no_empty_panel_sections": True,
+            "no_bare_image_description_lines": True,
+            "has_nested_doctype": False,
+            "has_nested_html_tag": False,
+            "has_fence_wrappers": False,
+            "has_synthetic_page_filename_heading": False,
+            "has_leading_content_before_doctype": False,
+        }
+
+        scorecard = score_html_checks("comic", checks)
+
+        self.assertEqual(scorecard["score"], 100.0)
+        self.assertEqual(scorecard["grade"], "A+")
+        self.assertTrue(scorecard["perfect_score"])
+
+    def test_comic_scorecard_drops_when_panel_sections_are_empty(self):
+        checks = {
+            "has_lang_dir_root": True,
+            "has_main_landmark": True,
+            "has_h1": True,
+            "has_h2": True,
+            "has_panel_heading": True,
+            "has_image_description": True,
+            "no_empty_panel_sections": False,
+            "no_bare_image_description_lines": True,
+            "has_nested_doctype": False,
+            "has_nested_html_tag": False,
+            "has_fence_wrappers": False,
+            "has_synthetic_page_filename_heading": False,
+            "has_leading_content_before_doctype": False,
+        }
+
+        scorecard = score_html_checks("comic", checks)
+
+        self.assertEqual(scorecard["score"], 85.0)
+        self.assertEqual(scorecard["grade"], "B")
+        self.assertFalse(scorecard["perfect_score"])
+
+    def test_comic_scorecard_requires_image_description_even_without_output_visual_markers(self):
+        checks = {
+            "has_lang_dir_root": True,
+            "has_main_landmark": True,
+            "has_h1": True,
+            "has_h2": True,
+            "has_panel_heading": True,
+            "has_image_description": False,
+            "has_visual_elements": False,
+            "no_empty_panel_sections": True,
+            "no_bare_image_description_lines": True,
+            "has_nested_doctype": False,
+            "has_nested_html_tag": False,
+            "has_fence_wrappers": False,
+            "has_synthetic_page_filename_heading": False,
+            "has_leading_content_before_doctype": False,
+        }
+
+        scorecard = score_html_checks("comic", checks)
+
+        self.assertEqual(scorecard["score"], 85.0)
+        self.assertEqual(scorecard["grade"], "B")
+        self.assertFalse(scorecard["perfect_score"])
+
     def test_manual_scorecard_does_not_require_form_semantics_when_absent(self):
         checks = {
             "has_lang_dir_root": True,
@@ -261,11 +331,11 @@ class BenchmarkScorecardTest(unittest.TestCase):
                 if path_obj == tmp_out:
                     size_calls["count"] += 1
                     class Result:
-                        st_size = 10 if size_calls["count"] == 1 else 11
+                        st_size = 10 if size_calls["count"] <= 2 else 11
                     return Result()
                 return original_stat(path_obj)
 
-            ticks = iter([0.0, 0.0, 2.0, 6.5])
+            ticks = iter([0.0, 0.0, 2.0, 6.5] + [6.6] * 20)
             case = Case(key="sample", relative_path="sample.pdf", profile="legal", model="gemini-2.5-pro")
             try:
                 Path.stat = fake_stat

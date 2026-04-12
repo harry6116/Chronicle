@@ -16,11 +16,12 @@ Report privately with:
 - impact assessment
 - proof-of-concept (if safe)
 
-Current private reporting path:
+Current temporary reporting path:
 
-- `chronicle.app+support@gmail.com`
+- Do not post full vulnerability details publicly.
+- Open a minimal GitHub issue requesting a private reporting path: `https://github.com/harry6116/Chronicle/issues`
 
-If a dedicated security mailbox is introduced later, update this policy to point security reports there instead of the general support inbox.
+If a dedicated security mailbox is introduced later, update this policy to point security reports there.
 
 ## What to Report
 

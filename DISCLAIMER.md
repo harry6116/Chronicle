@@ -4,7 +4,7 @@ This project is provided "as is" without warranty of any kind.
 
 ## Accuracy and Verification
 
-Chronicle uses AI-assisted extraction workflows and outputs can contain errors, omissions, or structural mistakes. Users are responsible for validating outputs against source documents before relying on them.
+Chronicle uses AI-assisted extraction workflows. Outputs can contain errors, omissions, or structural mistakes. Users are responsible for validating outputs against source documents before relying on them.
 
 Do not rely on Chronicle output as the sole basis for medical, legal, financial, compliance, or safety-critical decisions.
 

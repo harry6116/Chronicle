@@ -128,7 +128,7 @@ def build_prompt(
     )
     execution_protocol = (
         "EXECUTION PROTOCOL:\n"
-        "- STEP 1: Detect page type first (letter, ledger/table, form, telegram/cable, newspaper layout, book/novel page, diagram/image, mixed).\n"
+        "- STEP 1: Detect page type first (letter, ledger/table, form, telegram/cable, newspaper layout, comic/manga page, book/novel page, diagram/image, mixed).\n"
         "- STEP 2: Apply global CRITICAL RULES and TOGGLES before any profile-specific transformations.\n"
         "- STEP 3: Apply the selected profile rules only where they match visible evidence on the page.\n"
         "- STEP 4: If a page is mixed-content, keep each region in source order and tag transitions clearly.\n"
@@ -404,6 +404,22 @@ GENERAL THROUGHPUT RULES:
             "- Do not flatten a brochure into generic prose if the visible structure is a sequence of short sections, product tiles, or panels.\n"
             "- Use image descriptions when photographs or product shots carry essential meaning beyond decorative atmosphere."
         )
+    elif profile == "comic":
+        base += (
+            "COMICS / MANGA / GRAPHIC NOVELS RULES:\n"
+            "- Treat each page as sequential visual storytelling, not ordinary prose, a newspaper, or a brochure. Preserve story reading order before decorative layout fidelity.\n"
+            "- PANEL ORDER: Identify panels, caption boxes, speech balloons, thought balloons, signs, labels, and sound effects. Output them in the most likely human reading order for the source.\n"
+            "- READING DIRECTION: If the page visibly follows manga/right-to-left flow, use right-to-left panel order and note the page flow once near the start. Otherwise default to left-to-right, top-to-bottom order.\n"
+            "- PANEL STRUCTURE: For HTML output, you MUST begin with one `<h1>` page/comic title, then use `<h2>Panel 1</h2>`, `<h2>Panel 2</h2>`, and so on for each panel or story beat. Even a single-panel page must have `<h1>...</h1>` followed by `<h2>Panel 1</h2>`. Never leave a comic HTML page as loose paragraphs without headings. For DOCX/TXT output, use plain labels such as `Page 3`, `Panel 1`, `Caption`, `Speech`, `Thought`, `SFX`, and `Image Description`.\n"
+            "- NO EMPTY PANELS: Never emit an empty panel heading. Every `Panel N` section must contain at least one concrete item: an image description, visible dialogue, caption/narration, sign/label, or SFX line.\n"
+            "- SPEECH BALLOONS: Preserve balloon text verbatim. Attribute speakers only when the visual evidence is clear from balloon tails, repeated character labels, or visible context. If uncertain, use `Speaker uncertain` rather than guessing a character name.\n"
+            "- CAPTIONS AND NARRATION: Keep narrator boxes, location cards, dates, and editorial captions distinct from spoken dialogue.\n"
+            "- SOUND EFFECTS: Preserve visible sound effects and stylized lettering as a separate `SFX: ...` line when legible. Do not bury visible SFX only inside an image description. Do not invent sound words from the art alone.\n"
+            "- ART DESCRIPTIONS: Every panel/story-beat section must include a concise `[Image Description: ...]` for meaningful action, setting, expressions, and scene changes, even when the panel also contains dialogue or captions. Do not describe every decorative stroke or reproduce artwork as visual layout code.\n"
+            "- PAGE SPREADS: If a two-page spread is visible, keep spread-level reading order explicit and avoid mixing unrelated pages into one panel sequence.\n"
+            "- TEXTLESS PANELS: Do not omit silent panels that carry story action. Emit a panel label with an image description when the panel has no readable text.\n"
+            "- ACCESSIBILITY GOAL: Produce a reviewable accessible reading script for the comic page. Do not claim to recreate the visual comic, and do not summarize or replace panels with broad plot commentary."
+        )
     elif profile == "slides":
         base += (
             "SLIDES / DECKS / HANDOUTS RULES:\n"
@@ -556,12 +572,59 @@ def strip_synthetic_page_filename_headings(content, fmt):
 
 
 def enforce_archival_heading_structure(content, fmt, doc_profile):
-    if not content or fmt != "html" or doc_profile not in {"archival", "medical", "handwritten"}:
+    if not content or fmt != "html" or doc_profile not in {"archival", "medical", "handwritten", "comic"}:
         return content
 
     lower = content.lower()
     has_h1 = "<h1" in lower
     has_h2 = "<h2" in lower
+    if doc_profile == "comic":
+        content = re.sub(
+            r"(?im)^([ \t]*)(\[(?:Image Description|Panel Description):[^\n<]*\])\s*$",
+            r"\1<p>\2</p>",
+            content,
+        )
+        has_panel_h2 = bool(re.search(r"<h2\b[^>]*>\s*panel\b", content, flags=re.IGNORECASE))
+        if has_h1 and has_panel_h2:
+            return content
+
+        main_match = re.search(r"(<main\b[^>]*>)", content, flags=re.IGNORECASE)
+        if not main_match:
+            return content
+
+        def _clean_text(raw):
+            return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", "", raw or "")).strip()
+
+        title_match = re.search(r"<h1\b[^>]*>(.*?)</h1>", content, flags=re.IGNORECASE | re.DOTALL)
+        if title_match:
+            title_text = _clean_text(title_match.group(1)) or "Comic Page"
+        else:
+            title_text = "Comic Page"
+            for p_match in re.finditer(r"<p\b[^>]*>(.*?)</p>", content, flags=re.IGNORECASE | re.DOTALL):
+                candidate = _clean_text(p_match.group(1))
+                if not candidate:
+                    continue
+                if candidate.lower().startswith("[image description:"):
+                    continue
+                if len(candidate) <= 90:
+                    title_text = candidate
+                    break
+
+        if not has_h1:
+            insert_pos = main_match.end()
+            content = content[:insert_pos] + f"<h1>{title_text}</h1>" + content[insert_pos:]
+
+        if not has_panel_h2:
+            h1_match = re.search(r"</h1>", content, flags=re.IGNORECASE)
+            if h1_match:
+                insert_pos = h1_match.end()
+            else:
+                refreshed_main = re.search(r"(<main\b[^>]*>)", content, flags=re.IGNORECASE)
+                insert_pos = refreshed_main.end() if refreshed_main else 0
+            content = content[:insert_pos] + "<h2>Panel 1</h2>" + content[insert_pos:]
+
+        return content
+
     if doc_profile in {"medical", "handwritten"}:
         page_marker = None
         page_match = re.search(

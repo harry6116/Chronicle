@@ -2,6 +2,18 @@
 
 All notable changes to Chronicle will be documented in this file.
 
+## [1.0.2] - 2026-04-11
+### Added
+- **Comics / Manga / Graphic Novels Preset:** Added a built-in visual-storytelling profile with panel-order, speech/thought balloon, caption, SFX, textless-panel, image-description, and right-to-left manga-flow guidance, plus one-page PDF slicing and default merge/page-reference settings for page-image sequences.
+- **Comic Profile Live Validation:** Ran live single-page validation on `Bound by Law?`, Pepper & Carrot, and Little Nemo samples, then tightened comic HTML cleanup and the benchmark scorecard so comic A+ requires panel headings, non-empty panel sections, image descriptions, and semantic image-description wrapping.
+- **Public-Domain Comics Showcase:** Added a public-domain Little Nemo before/after showcase sample for public repo/demo use.
+
+### Changed
+- **Magazine HTML Cleanup Hardening:** Chronicle's HTML finalization for dense periodicals now strips leaked markdown headings inside HTML, removes page-wrapper comment noise, drops broken placeholder-image tags more aggressively, dedupes adjacent repeated paragraph blocks, and suppresses repeated short running-head section labels that were polluting magazine tables of contents and article starts.
+
+### Fixed
+- **Magazine Validation Regressions:** The dense magazine validation run now completes cleanly on the rebuilt app without the earlier Gemini quota dead-end, and the saved HTML no longer carries the worst magazine regressions from the first pass such as raw markdown heading leakage, visible page wrapper markers, `IMAGE_URL` / `IMAGE_PLACEHOLDER` image junk, empty image sources, or footer-to-section HTML splices.
+
 ## [Unreleased]
 ### Added
 - **Adaptive Fast-First PDF Routing:** Automatic engine routing can now start supported easy PDFs on `Gemini 2.5 Flash` first, keep `Gemini 2.5 Pro` in reserve for hard pages, and stay on the deeper path for hard/specialist cases.
@@ -25,7 +37,6 @@ All notable changes to Chronicle will be documented in this file.
 - **Public Repo Snapshot Tooling:** Added `tools/prepare_public_repo_snapshot.py` to assemble a clean GitHub-facing Chronicle repo snapshot locally, with modern root docs swapped in and private/generated clutter excluded.
 - **Claude Model Alias Upgrade:** Chronicle now transparently upgrades the retired Anthropic model id `claude-3-5-sonnet-20241022` to `claude-sonnet-4-20250514` so older saved settings keep working.
 - **Provider Billing Guidance Refresh:** Core docs now explicitly distinguish Google Gemini free-tier API access from Anthropic Claude Console billing, so users are told that Gemini keys can work on Google's free tier while Claude API usage still requires separate Console/API billing or prepaid credits.
-
 ## [1.0.0] - 2026-04-06
 ### Added
 - **First Standalone Public App Release:** Chronicle now has a clear first public app release line separate from the older terminal-first public repository history.

@@ -4,16 +4,17 @@
 
 Chronicle is an accessibility-first document recovery tool for difficult real-world material.
 
-It is designed to help recover readable, reviewable, and structurally useful output from:
+It is designed to recover readable, reviewable, structurally useful output from:
 
 - degraded scans
 - long-form books and memoirs
 - archival and historical records
 - newspapers and multi-column layouts
+- comics, manga, graphic novels, and comic strips
 - legal and policy documents
 - forms, reports, and mixed-format batches
 
-Chronicle is built to help users get to review-ready output faster on hard documents, while still assuming that a human should review the result before final use.
+Chronicle is built to help users reach review-ready output faster on hard documents, while still assuming human review before final use.
 
 ## What Makes Chronicle Useful
 
@@ -24,6 +25,8 @@ Its strength is not simply extracting text. Its strength is recovering a usable 
 That includes:
 
 - better paragraph continuity on wrapped or damaged scans
+- panel-by-panel recovery for comics, manga, and graphic novels
+- accessible reading scripts for speech balloons, captions, visible SFX, and textless action panels
 - suppression of repeated page furniture when it harms reading flow
 - optional preservation of printed page references for transcription and source tracking
 - specialist document presets for different source classes
@@ -71,7 +74,7 @@ That includes:
 Chronicle prioritizes quality, fidelity, and navigable structure over raw speed on difficult material.
 
 - easy files may finish quickly
-- difficult books, newspapers, and degraded PDFs may take much longer
+- difficult books, comics, newspapers, and degraded PDFs may take much longer
 - that extra time is usually spent preserving reading order, usable structure, and better continuity on hard scans
 - Chronicle can now start easier PDFs on the faster Gemini path and escalate only the hard pages or hard documents when automatic routing is enabled
 
@@ -81,6 +84,7 @@ Chronicle is a strong fit for:
 - archivists
 - transcription-heavy projects
 - long difficult book scans
+- comics, manga, graphic novels, and comic strips
 - mixed-format recovery workflows
 
 ## Short Summary
