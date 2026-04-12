@@ -2,9 +2,9 @@
 
 Chronicle is an accessibility-first document recovery tool for difficult real-world material.
 
-Current public launch line: **Chronicle 1.0.0**.
+Current public launch line: **Chronicle 1.0.2**.
 
-It is especially strong on degraded scans, long-form books, archival records, tables, handwriting, multi-column layouts, and mixed-format batches where reading order and reviewability matter more than one-click speed.
+It is especially strong on degraded scans, long-form books, archival records, legal and policy material, tables, handwriting, multi-column layouts, comics, manga, graphic novels, and mixed-format batches where preserving reading order, usable structure, and review workflow matters more than raw one-click speed.
 
 Chronicle provides a screen-reader-friendly GUI, queue/task controls, scan-ingestion workflows, and structured output generation across multiple AI providers.
 
@@ -12,9 +12,9 @@ Chronicle is a desktop GUI application. This repository publishes the current ap
 
 ## Download Chronicle
 
-- Mac: [Download Chronicle for macOS](https://github.com/harry6116/Chronicle/releases/download/v1.0.0/Chronicle.1.0.mac.zip)
-- Windows: [Download Chronicle for Windows](https://github.com/harry6116/Chronicle/releases/download/v1.0.0/Chronicle.1.0.windows.zip)
-- Release page: [Chronicle 1.0.0 release](https://github.com/harry6116/Chronicle/releases/tag/v1.0.0)
+- Mac: [Download Chronicle for macOS](https://github.com/harry6116/Chronicle/releases/latest/download/Chronicle.mac.zip)
+- Windows: [Download Chronicle for Windows](https://github.com/harry6116/Chronicle/releases/latest/download/Chronicle.windows.zip)
+- Release page: [Latest Chronicle release](https://github.com/harry6116/Chronicle/releases/latest)
 
 **Built for hard documents.**
 
@@ -29,6 +29,8 @@ Chronicle is especially useful when you need:
 
 - better recovery on degraded scans
 - stronger paragraph continuity for books and long-form prose
+- panel-by-panel recovery for comics, manga, and graphic novels
+- accessible reading scripts for speech balloons, captions, visible SFX, and textless comic panels
 - clearer review output in HTML or Word
 - operator control over presets, merge behavior, and runtime settings
 - a queue-and-rerun workflow for difficult material
@@ -36,20 +38,11 @@ Chronicle is especially useful when you need:
 
 ## Why Use Chronicle
 
-- It is built for hard documents, not just clean born-digital files.
-- It is strongest when preserving reading order, structure, and review workflow matters.
-- It gives operators visible control instead of treating every document as the same problem.
-- It is designed to reduce cleanup time, not replace human verification.
-
-## Why I Built It
-
-Chronicle began with family history.
-
-I wanted to read the First World War diaries of the Manchester Regiment and other difficult historical material that ordinary OCR kept mangling. That work turned into a broader effort to recover readable, reviewable output from documents that are technically legible but practically unusable.
-
-The fuller founder story is here:
-
-- `docs/public/WHY_CHRONICLE.md`
+- Built for hard documents, not just clean born-digital files
+- Strong on books, archives, newspapers, comics, manga, graphic novels, forms, and mixed-format recovery work
+- Gives operators control through presets, queue workflow, merge behavior, and runtime toggles
+- Produces outputs that are easier to review in HTML or Word
+- Prioritizes fidelity, continuity, and accessibility over blind OCR dumping
 
 ## Key Features
 
@@ -78,26 +71,18 @@ The fuller founder story is here:
 - Chronicle deliberately spends more time on hard cases when that improves paragraph continuity, structural recovery, and accessibility-friendly output.
 - Chronicle is designed to reduce manual cleanup and help users reach review-ready output more quickly, but human review is still required.
 
-## Transparency
+## Current Public Release
 
-Chronicle was built using AI-assisted ("vibe-coded") workflows, with final integration, review, and testing directed by the author.
+Chronicle `1.0.2` adds a dedicated `Comics / Manga / Graphic Novels` preset for accessible panel-by-panel reading output.
 
-Important public references:
+The preset is designed for comics, manga pages, graphic novels, and comic strips where visible panel order, speech balloons, captions, sound effects, and textless action matter. Comic PDFs use one-page slices by default and stay on the deep reading engine so page art and panel sequence are handled together.
 
-- Founder story: `docs/public/WHY_CHRONICLE.md`
-- Root disclaimer: `DISCLAIMER.md`
-- Public repo disclaimer source: `docs/github_rollout/LEGAL_DISCLAIMER_GITHUB.md`
-
-## First Public Release
-
-Chronicle `1.0.0` is the first public release of the current standalone app line.
-
-It should be presented as a fresh release track, separate from the older public repository state.
+Chronicle `1.0.0` remains the first public release of the current standalone app line, separate from the older public repository state.
 
 Current release downloads:
 
-- macOS ZIP: [Chronicle.1.0.mac.zip](https://github.com/harry6116/Chronicle/releases/download/v1.0.0/Chronicle.1.0.mac.zip)
-- Windows ZIP: [Chronicle.1.0.windows.zip](https://github.com/harry6116/Chronicle/releases/download/v1.0.0/Chronicle.1.0.windows.zip)
+- macOS ZIP: [Chronicle.mac.zip](https://github.com/harry6116/Chronicle/releases/latest/download/Chronicle.mac.zip)
+- Windows ZIP: [Chronicle.windows.zip](https://github.com/harry6116/Chronicle/releases/latest/download/Chronicle.windows.zip)
 
 ## Contact
 

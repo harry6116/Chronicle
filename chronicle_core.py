@@ -3,6 +3,7 @@ import html
 import io
 import os
 import re
+from collections import Counter
 from urllib.parse import quote
 
 try:
@@ -371,6 +372,150 @@ def _collapse_inline_image_sources(text: str) -> str:
     return cleaned
 
 
+def _strip_html_page_wrapper_noise(text: str) -> str:
+    if not text:
+        return ""
+    cleaned = text
+    cleaned = re.sub(r"<!--.*?-->\s*", "", cleaned, flags=re.DOTALL)
+    cleaned = re.sub(r"(?im)^\s*#{2,6}\s*Page\s+\d+\s*$", "", cleaned)
+    cleaned = re.sub(r"(?im)^\s*Page\s+\d+\s*$", "", cleaned)
+    cleaned = re.sub(
+        r"(?im)^\s*\d{1,4}\s+[A-ZÇĞİÖŞÜ]+(?:\s+\d{4})?\s+Oyungezer\s*(?=<)",
+        "",
+        cleaned,
+    )
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+    return cleaned
+
+
+def _convert_markdown_headings_inside_html(text: str) -> str:
+    if not text:
+        return ""
+    cleaned = text
+
+    def _replace_heading(match):
+        hashes = match.group(1)
+        inner = re.sub(r"\s+", " ", (match.group(2) or "")).strip()
+        level = min(len(hashes), 6)
+        if not inner:
+            return ""
+        return f"<h{level}>{html.escape(inner)}</h{level}>"
+
+    cleaned = re.sub(
+        r"(?im)^(#{1,6})\s+(.+?)\s*$",
+        _replace_heading,
+        cleaned,
+    )
+    return cleaned
+
+
+def _strip_broken_placeholder_images_html(text: str) -> str:
+    if not text:
+        return ""
+    cleaned = text
+    cleaned = re.sub(
+        r'<img\b([^>]*?)\s+src=(["\'])(?:IMAGE_PLACEHOLDER(?:_\d+)?|IMAGE_URL(?:_\d+)?|)\2([^>]*)/?>',
+        "",
+        cleaned,
+        flags=re.IGNORECASE,
+    )
+    cleaned = re.sub(
+        r'<img\b([^>]*?)\s+src=(["\'])\s*\2([^>]*)/?>',
+        "",
+        cleaned,
+        flags=re.IGNORECASE,
+    )
+    cleaned = re.sub(r"<figure>\s*</figure>", "", cleaned, flags=re.IGNORECASE | re.DOTALL)
+    cleaned = re.sub(r"<figure>\s*<figcaption>\s*</figcaption>\s*</figure>", "", cleaned, flags=re.IGNORECASE | re.DOTALL)
+    return cleaned
+
+
+def _strip_repeated_periodical_running_head_h1s(body: str, document_title: str = "") -> str:
+    if not body:
+        return ""
+
+    wrapped_heading_pattern = re.compile(
+        r"<header>\s*<h1\b[^>]*>(.*?)</h1>\s*</header>",
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    wrapped_titles = []
+    for match in wrapped_heading_pattern.finditer(body):
+        plain = re.sub(r"\s+", " ", _strip_html_tags(match.group(1))).strip(" -|:")
+        if plain:
+            wrapped_titles.append(plain)
+
+    wrapped_counts = Counter(title.casefold() for title in wrapped_titles)
+    doc_title_norm = re.sub(r"\s+", " ", (document_title or "")).strip().casefold()
+    candidate_titles = {
+        title_key
+        for title_key, count in wrapped_counts.items()
+        if count >= 3
+        and 4 <= len(title_key) <= 14
+        and len(title_key.split()) <= 2
+        and not re.search(r"\d", title_key)
+        and (not doc_title_norm or title_key not in doc_title_norm)
+    }
+    if not candidate_titles:
+        return body
+
+    heading_pattern = re.compile(
+        r"(?:<header>\s*)?<h1\b[^>]*>(.*?)</h1>(?:\s*</header>)?",
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    removals = []
+    for match in heading_pattern.finditer(body):
+        plain = re.sub(r"\s+", " ", _strip_html_tags(match.group(1))).strip(" -|:")
+        before = body[max(0, match.start() - 260):match.start()]
+        after = body[match.end():match.end() + 1600]
+        boundary = bool(
+            re.search(
+                r"(?:\[Original Page Number:\s*\d+\]|<footer\b|</footer>|</article>|<hr\b)",
+                before,
+                flags=re.IGNORECASE,
+            )
+        )
+        if plain.casefold() not in candidate_titles:
+            if (
+                not boundary
+                or not (4 <= len(plain) <= 14)
+                or len(plain.split()) > 2
+                or re.search(r"\d", plain)
+                or (doc_title_norm and plain.casefold() in doc_title_norm)
+            ):
+                continue
+        next_heading = re.search(r"<h([1-2])\b[^>]*>(.*?)</h\1>", after, flags=re.IGNORECASE | re.DOTALL)
+        if not next_heading:
+            continue
+        next_plain = re.sub(r"\s+", " ", _strip_html_tags(next_heading.group(2))).strip(" -|:")
+        if not next_plain or next_plain.casefold() == plain.casefold():
+            continue
+        if not boundary and "Image Description: A magazine page layout" not in (before + after):
+            continue
+        removals.append((match.start(), match.end()))
+
+    if not removals:
+        return body
+
+    cleaned = body
+    for start, end in reversed(removals):
+        cleaned = cleaned[:start] + cleaned[end:]
+    return cleaned
+
+
+def _dedupe_adjacent_html_paragraph_blocks(text: str) -> str:
+    if not text:
+        return text
+    cleaned = text
+    paragraph_pattern = r"(?:<p\b[^>]*>.*?</p>\s*)"
+    for window in range(6, 0, -1):
+        pattern = rf"({paragraph_pattern}{{{window}}})\s*\1"
+        previous = None
+        while previous != cleaned:
+            previous = cleaned
+            cleaned = re.sub(pattern, r"\1", cleaned, flags=re.IGNORECASE | re.DOTALL)
+    return cleaned
+
+
 def sanitize_model_output(text_content, format_type, doc_profile=None, preserve_original_page_numbers=False):
     if not text_content:
         return ""
@@ -400,6 +545,8 @@ def sanitize_model_output(text_content, format_type, doc_profile=None, preserve_
             cleaned,
             flags=re.IGNORECASE,
         )
+        cleaned = _strip_html_page_wrapper_noise(cleaned)
+        cleaned = _convert_markdown_headings_inside_html(cleaned)
         cleaned = _collapse_inline_image_sources(cleaned)
         cleaned = re.sub(r"<style\b[^>]*>.*?</style>\s*", "", cleaned, flags=re.IGNORECASE | re.DOTALL)
         cleaned = re.sub(r"<script\b[^>]*>.*?</script>\s*", "", cleaned, flags=re.IGNORECASE | re.DOTALL)
@@ -422,6 +569,8 @@ def sanitize_model_output(text_content, format_type, doc_profile=None, preserve_
             flags=re.IGNORECASE | re.DOTALL,
         )
         cleaned = _apply_html_integrity_contract(cleaned, doc_profile)
+        cleaned = _dedupe_adjacent_html_paragraph_blocks(cleaned)
+        cleaned = _strip_broken_placeholder_images_html(cleaned)
         cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
     if format_type not in ("html", "epub"):
         cleaned = re.sub(
@@ -3934,6 +4083,7 @@ def normalize_streamed_html_document(full_html):
     body = re.sub(r"<style\b[^>]*>.*?</style>\s*", "", body, flags=re.IGNORECASE | re.DOTALL)
     body = re.sub(r'\sstyle=(["\']).*?\1', '', body, flags=re.IGNORECASE | re.DOTALL)
     body = _collapse_inline_image_sources(body)
+    body = _strip_broken_placeholder_images_html(body)
     body = _strip_leaked_document_wrappers_html(body)
     body = re.sub(r"<div\b[^>]*>\s*", "<section>", body, flags=re.IGNORECASE)
     body = re.sub(r"</div\s*>", "</section>", body, flags=re.IGNORECASE)
@@ -4136,7 +4286,9 @@ def normalize_streamed_html_document(full_html):
     body = _repair_specific_split_legal_heading_sequences_regex(body)
     body = _strip_orphan_heading_fragment_paragraphs_regex(body)
     body = _repair_specific_legal_heading_body_splices_regex(body)
+    body = _strip_repeated_periodical_running_head_h1s(body, document_title=document_title)
     body = _inject_html_toc(body)
+    body = _strip_broken_placeholder_images_html(body)
     body = _strip_leaked_document_wrappers_html(body)
     body = body.strip()
     return f"{prefix}\n{body}\n{suffix}"

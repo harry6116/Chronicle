@@ -1,6 +1,6 @@
 # Chronicle
 
-Chronicle is an accessibility-first document recovery tool for difficult real-world material: archival scans, war diaries, laws and regulations, academic journals, tables, handwriting, newspapers, forms, office reports, government records, long-form books, and mixed-format batches.
+Chronicle is an accessibility-first document recovery tool for difficult real-world material: archival scans, war diaries, laws and regulations, academic journals, tables, handwriting, newspapers, forms, office reports, government records, long-form books, comics, manga, graphic novels, and mixed-format batches.
 
 Last Updated: March 21, 2026
 
@@ -50,6 +50,7 @@ It is designed for:
 - military records, war diaries, dispatches, and telegrams
 - intelligence cables and routing-heavy documents
 - newspapers and multi-column print layouts
+- comics, manga, graphic novels, and comic strips
 - technical manuals and structured forms
 - laws, regulations, and contracts
 - academic journals with citations, notes, and mathematical content
@@ -178,6 +179,7 @@ Chronicle includes document presets tuned for different source classes:
 - Cables / Intelligence Briefings / Signals
 - Newspapers / Multi-Column Pages
 - Books / Novels / Long-Form Prose
+- Comics / Manga / Graphic Novels
 - Manuals / Instructions / SOPs
 - Forms / Checklists / Worksheets
 - Flyers / Posters / Event Notices
@@ -191,6 +193,23 @@ Chronicle includes document presets tuned for different source classes:
 - Museum Labels / Captions / Exhibit Text
 
 These presets pre-fill recommended behavior and automatically select the most suitable reading engine behind the scenes. When automatic routing is active, Chronicle can keep easier PDFs moving on the faster engine while still escalating hard pages or hard documents when needed.
+
+### Comics, Manga, and Graphic Novels
+
+The Comics / Manga / Graphic Novels preset is for panel-based visual storytelling: comic books, comic strips, manga pages, and graphic novels.
+
+Use it when the goal is an accessible, reviewable reading script rather than a replacement visual comic. Chronicle attempts to preserve:
+
+- page and panel order
+- speech balloons and thought balloons
+- captions, narrator boxes, signs, and labels
+- visible sound effects as `SFX: ...`
+- meaningful action, expression, setting, and scene-change descriptions
+- right-to-left manga flow when the page visibly follows that order
+
+This profile uses one-page PDF slices by default because panel order, page furniture, and image descriptions are easy to confuse when unrelated pages are processed together. It also enables image descriptions, original page references, and merge mode by default so page-image sequences can become one continuous accessible reading result.
+
+This is a built-in but still young profile. Human review is especially important because speaker attribution, manga flow, and silent/action-only panels can be ambiguous.
 
 ### In-Progress Temp Files
 

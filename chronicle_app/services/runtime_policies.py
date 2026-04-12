@@ -95,6 +95,8 @@ def get_pdf_chunk_pages(model_name, doc_profile, total_pages, *, file_size_mb=No
             return 2
     if profile == "newspaper" and avg_page_mb is not None and avg_page_mb >= 0.9:
         return 1
+    if profile == "comic":
+        return 1
     return 2
 
 
@@ -153,6 +155,7 @@ def get_processing_speed_warning(profile_key, model_name):
         "manual": "Warning: Manuals / Procedures can take longer on long manuals, dense tables, and diagram-heavy pages.",
         "forms": "Warning: Forms / Checklists can take longer on checkbox-heavy pages and dense field grids.",
         "brochure": "Warning: Brochures / Catalogues can take longer when Chronicle reconstructs multi-panel reading order and product grids.",
+        "comic": "Warning: Comics / Manga / Graphic Novels can be slow because Chronicle reads panel order, balloons, captions, sound effects, and image descriptions page by page.",
         "slides": "Warning: Slides / Presentations can take longer when Chronicle separates slide titles, bullets, diagrams, and repeated template furniture.",
         "legal": "Warning: Legal / Contracts / Laws can take longer because Chronicle reads clause hierarchy, cross-references, and dense tables more conservatively.",
     }
@@ -188,6 +191,7 @@ def build_profile_selection_summary(profile_key, current_model_name, *, profile_
         "slides": "Slides / Presentations favor compact presentation structure, bullet order, and chart-aware narration.",
         "flyer": "Flyers / Posters favor strong short-form hierarchy so dates, places, and calls-to-action stay easy to hear.",
         "brochure": "Brochures / Catalogues favor panel reconstruction, feature grouping, and clean product or service summaries.",
+        "comic": "Comics / Manga / Graphic Novels favor panel order, speech balloons, captions, sound effects, and accessible art descriptions.",
         "book": "Books / Novels favor long-form paragraph continuity, chapter structure, and scanned-page reading order.",
         "newspaper": "Newspapers favor the slowest, most careful engine on dense layouts.",
         "academic": "Academic / Research favors careful handling of citations, equations, footnotes, and scholarly structure.",

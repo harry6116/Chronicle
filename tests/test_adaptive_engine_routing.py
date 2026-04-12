@@ -52,6 +52,23 @@ class AdaptiveEngineRoutingTest(unittest.TestCase):
         self.assertEqual(result["auto_escalation_model"], "gemini-2.5-pro")
         self.assertIn("Gemini 2.5 Flash", result["routing_reason"])
 
+    def test_auto_routing_keeps_comics_on_deep_engine_by_default(self):
+        clean_page = "Speech balloon text " * 120
+        result = select_execution_model_for_job(
+            "/tmp/a.pdf",
+            ".pdf",
+            {"doc_profile": "comic", "model_override": ""},
+            "gemini-2.5-pro",
+            pdf_reader_factory=lambda path: _FakeReader([clean_page, clean_page]),
+            normalize_pdf_page_scope_text_fn=lambda scope: "",
+            parse_pdf_page_scope_spec_fn=lambda scope, total: list(range(total)),
+            getsize_fn=lambda path: 1 * 1024 * 1024,
+        )
+
+        self.assertEqual(result["model_name"], "gemini-2.5-pro")
+        self.assertEqual(result["difficulty"], "hard")
+        self.assertIn("comic profile stays on the deep engine", result["routing_reason"])
+
     def test_auto_routing_prefers_flash_for_clean_legal_pdf_with_strong_text_layer(self):
         clean_page = "Aged Care Bill 2024 clause text " * 120
         result = select_execution_model_for_job(

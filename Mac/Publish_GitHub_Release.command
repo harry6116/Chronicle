@@ -6,10 +6,63 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 DEFAULT_PUBLIC_REPO_DIR="/Users/michaelsmac/Documents/Chronicle Public Repo"
 DEFAULT_ASSET_DIR="/Users/michaelsmac/Documents/Chronicle Release Apps"
 DEFAULT_TAG="v1.0.0"
-DEFAULT_TITLE="Chronicle 1.0.0"
-DEFAULT_MAC_ASSET="$DEFAULT_ASSET_DIR/Chronicle 1.0 mac.zip"
-DEFAULT_WINDOWS_ASSET="$DEFAULT_ASSET_DIR/Chronicle 1.0 windows.zip"
-DEFAULT_NOTES_FILE="$ROOT_DIR/docs/github_rollout/RELEASE_v1.0.0_DRAFT.md"
+DEFAULT_NOTES_BASENAME="RELEASE_NOTES_CURRENT.md"
+
+derive_release_title() {
+  local tag="${1#v}"
+  printf 'Chronicle %s' "$tag"
+}
+
+derive_release_version() {
+  printf '%s' "${1#v}"
+}
+
+derive_release_notes_file() {
+  printf '%s/docs/github_rollout/%s' "$ROOT_DIR" "$DEFAULT_NOTES_BASENAME"
+}
+
+derive_mac_asset_path() {
+  printf '%s/Chronicle.mac.zip' "$DEFAULT_ASSET_DIR"
+}
+
+derive_windows_asset_path() {
+  printf '%s/Chronicle.windows.zip' "$DEFAULT_ASSET_DIR"
+}
+
+find_latest_release_notes_file() {
+  local latest
+  latest="$(find "$ROOT_DIR/docs/github_rollout" -maxdepth 1 -type f -name 'RELEASE_v*_DRAFT.md' | sort -V | tail -n 1)"
+  printf '%s' "$latest"
+}
+
+seed_release_notes_file_if_missing() {
+  local target="$1"
+  local tag="$2"
+  local version source source_tag source_version
+  if [[ -f "$target" ]]; then
+    return 0
+  fi
+  mkdir -p "$(dirname "$target")"
+  source="$(find_latest_release_notes_file)"
+  if [[ -z "$source" || ! -f "$source" ]]; then
+    cat >"$target" <<EOF
+# $(derive_release_title "$tag")
+
+Write release notes here.
+EOF
+    return 0
+  fi
+  cp "$source" "$target"
+  source_tag="$(basename "$source" | sed -E 's/^RELEASE_(v[^_]+)_DRAFT\.md$/\1/')"
+  source_version="$(derive_release_version "$source_tag")"
+  version="$(derive_release_version "$tag")"
+  perl -0pi -e "s/\Q$source_tag\E/$tag/g; s/\Q$source_version\E/$version/g" "$target"
+}
+
+DEFAULT_TITLE="$(derive_release_title "$DEFAULT_TAG")"
+DEFAULT_MAC_ASSET="$(derive_mac_asset_path "$DEFAULT_TAG")"
+DEFAULT_WINDOWS_ASSET="$(derive_windows_asset_path "$DEFAULT_TAG")"
+DEFAULT_NOTES_FILE="$(derive_release_notes_file "$DEFAULT_TAG")"
 
 clear
 echo "--- CHRONICLE GITHUB RELEASE PUBLISHER ---"
@@ -42,17 +95,22 @@ echo ""
 read -r -p "Tag [$DEFAULT_TAG]: " TAG
 TAG="${TAG:-$DEFAULT_TAG}"
 
-read -r -p "Release title [$DEFAULT_TITLE]: " TITLE
-TITLE="${TITLE:-$DEFAULT_TITLE}"
+SUGGESTED_TITLE="$(derive_release_title "$TAG")"
+SUGGESTED_MAC_ASSET="$(derive_mac_asset_path "$TAG")"
+SUGGESTED_WINDOWS_ASSET="$(derive_windows_asset_path "$TAG")"
+SUGGESTED_NOTES_FILE="$(derive_release_notes_file "$TAG")"
 
-read -r -p "Mac asset path [$DEFAULT_MAC_ASSET]: " MAC_ASSET
-MAC_ASSET="${MAC_ASSET:-$DEFAULT_MAC_ASSET}"
+read -r -p "Release title [$SUGGESTED_TITLE]: " TITLE
+TITLE="${TITLE:-$SUGGESTED_TITLE}"
 
-read -r -p "Windows asset path [$DEFAULT_WINDOWS_ASSET]: " WINDOWS_ASSET
-WINDOWS_ASSET="${WINDOWS_ASSET:-$DEFAULT_WINDOWS_ASSET}"
+read -r -p "Mac asset path [$SUGGESTED_MAC_ASSET]: " MAC_ASSET
+MAC_ASSET="${MAC_ASSET:-$SUGGESTED_MAC_ASSET}"
 
-read -r -p "Release notes file [$DEFAULT_NOTES_FILE]: " NOTES_FILE
-NOTES_FILE="${NOTES_FILE:-$DEFAULT_NOTES_FILE}"
+read -r -p "Windows asset path [$SUGGESTED_WINDOWS_ASSET]: " WINDOWS_ASSET
+WINDOWS_ASSET="${WINDOWS_ASSET:-$SUGGESTED_WINDOWS_ASSET}"
+
+read -r -p "Release notes file [$SUGGESTED_NOTES_FILE]: " NOTES_FILE
+NOTES_FILE="${NOTES_FILE:-$SUGGESTED_NOTES_FILE}"
 
 if [[ ! -d "$DEFAULT_PUBLIC_REPO_DIR/.git" ]]; then
   echo "ERROR: Public repo clone not found:"
@@ -76,10 +134,9 @@ if [[ ! -f "$WINDOWS_ASSET" ]]; then
 fi
 
 if [[ ! -f "$NOTES_FILE" ]]; then
-  echo "ERROR: Release notes file not found:"
+  seed_release_notes_file_if_missing "$NOTES_FILE" "$TAG"
+  echo "Created release notes draft:"
   echo "  $NOTES_FILE"
-  read -r -p "Press Enter to close..."
-  exit 1
 fi
 
 echo ""
@@ -107,13 +164,18 @@ echo "Windows asset: $WINDOWS_ASSET"
 echo "Notes file: $NOTES_FILE"
 echo ""
 echo "To continue, type RELEASE in ALL CAPITALS."
-read -r -p "Type RELEASE to continue: " CONFIRM
-
-if [[ "$CONFIRM" != "RELEASE" ]]; then
-  echo "Cancelled."
-  read -r -p "Press Enter to close..."
-  exit 0
-fi
+while true; do
+  read -r -p "Type RELEASE to continue (or CANCEL to stop): " CONFIRM
+  if [[ "$CONFIRM" == "RELEASE" ]]; then
+    break
+  fi
+  if [[ "$CONFIRM" == "CANCEL" ]]; then
+    echo "Cancelled."
+    read -r -p "Press Enter to close..."
+    exit 0
+  fi
+  echo "Please type RELEASE to publish or CANCEL to stop."
+done
 
 if gh release view "$TAG" --repo "$REPO_SLUG" >/dev/null 2>&1; then
   echo ""

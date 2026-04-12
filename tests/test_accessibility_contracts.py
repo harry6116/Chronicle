@@ -258,6 +258,7 @@ class AccessibilityContractsTest(unittest.TestCase):
         self.assertIn(("flyer", "Flyers / Posters"), chronicle_gui.PROFILE_CHOICES)
         self.assertIn(("forms", "Forms / Checklists"), chronicle_gui.PROFILE_CHOICES)
         self.assertIn(("slides", "Slides / Presentations"), chronicle_gui.PROFILE_CHOICES)
+        self.assertIn(("comic", "Comics / Manga / Graphic Novels"), chronicle_gui.PROFILE_CHOICES)
 
     def test_every_preset_has_a_distinct_tooltip_summary(self):
         summaries = {}
@@ -301,6 +302,46 @@ class AccessibilityContractsTest(unittest.TestCase):
             self.assertIn("SLIDES / DECKS / HANDOUTS RULES", prompt)
             self.assertIn("agenda slides", prompt)
             self.assertIn("chart, diagram, or dense visual", prompt)
+
+    def test_comic_prompt_keeps_panel_balloon_and_manga_direction_rules(self):
+        cfg = self._base_cfg(doc_profile="comic")
+
+        cli_prompt = chronicle.get_prompt(cfg)
+        gui_prompt = chronicle_gui.build_prompt(cfg)
+
+        for prompt in (cli_prompt, gui_prompt):
+            self.assertIn("COMICS / MANGA / GRAPHIC NOVELS RULES", prompt)
+            self.assertIn("PANEL ORDER", prompt)
+            self.assertIn("speech balloons", prompt)
+            self.assertIn("right-to-left panel order", prompt)
+            self.assertIn("SFX:", prompt)
+            self.assertIn("TEXTLESS PANELS", prompt)
+            self.assertIn("Even a single-panel page must have `<h1>...</h1>` followed by `<h2>Panel 1</h2>`", prompt)
+            self.assertIn("Never emit an empty panel heading", prompt)
+            self.assertIn("Do not bury visible SFX only inside an image description", prompt)
+            self.assertIn("Every panel/story-beat section must include a concise `[Image Description: ...]`", prompt)
+
+    def test_comic_heading_enforcement_adds_page_and_panel_headings(self):
+        raw = '<html><body><main id="content"><p>Pepper and Carrot</p><p>[Image Description: A cat.]</p></main></body></html>'
+
+        cleaned = chronicle_gui.enforce_archival_heading_structure(raw, "html", "comic")
+
+        self.assertIn("<h1>Pepper and Carrot</h1>", cleaned)
+        self.assertIn("<h2>Panel 1</h2>", cleaned)
+
+    def test_comic_heading_enforcement_adds_panel_heading_when_h1_exists(self):
+        raw = '<html><body><main id="content"><h1>Little Nemo</h1><p>[Image Description: Nemo falls.]</p></main></body></html>'
+
+        cleaned = chronicle_gui.enforce_archival_heading_structure(raw, "html", "comic")
+
+        self.assertIn("<h1>Little Nemo</h1><h2>Panel 1</h2>", cleaned)
+
+    def test_comic_heading_enforcement_wraps_bare_image_description_lines(self):
+        raw = '<html><body><main id="content"><h1>Little Nemo</h1><h2>Panel 1</h2>\n[Image Description: Nemo falls.]\n</main></body></html>'
+
+        cleaned = chronicle_gui.enforce_archival_heading_structure(raw, "html", "comic")
+
+        self.assertIn("<p>[Image Description: Nemo falls.]</p>", cleaned)
 
     def test_archival_prompts_keep_handwriting_uncertainty_contract(self):
         cfg = self._base_cfg(doc_profile="archival")
@@ -661,6 +702,7 @@ class AccessibilityContractsTest(unittest.TestCase):
         self.assertEqual(chronicle_gui.get_pdf_chunk_pages("gpt-4o", "newspaper", 36), 1)
         self.assertEqual(chronicle_gui.get_pdf_chunk_pages("gemini-2.5-pro", "newspaper", 36), 2)
         self.assertEqual(chronicle_gui.get_pdf_chunk_pages("gemini-2.5-pro", "newspaper", 8, file_size_mb=8.9), 1)
+        self.assertEqual(chronicle_gui.get_pdf_chunk_pages("gemini-2.5-pro", "comic", 24), 1)
         self.assertEqual(chronicle_gui.get_pdf_chunk_pages("gemini-2.5-pro", "standard", 10), 2)
 
     def test_cli_pdf_chunk_pages_match_gentle_large_document_policy(self):
@@ -893,6 +935,14 @@ class AccessibilityContractsTest(unittest.TestCase):
         self.assertIn("Recommended engine: Deep Engine (Gemini 2.5 Pro).", text)
         self.assertIn("Current override: Fast Engine (Gemini 2.5 Flash).", text)
         self.assertIn("Engine manually overridden.", text)
+
+    def test_profile_selection_summary_describes_comic_profile(self):
+        text = chronicle_gui.build_profile_selection_summary("comic", "gemini-2.5-pro")
+
+        self.assertIn("Comics / Manga / Graphic Novels", text)
+        self.assertIn("panel order", text)
+        self.assertIn("speech balloons", text)
+        self.assertIn("Recommended engine: Deep Engine (Gemini 2.5 Pro).", text)
 
     def test_html_normalizer_promotes_page_metadata_and_source_footer(self):
         raw = """<!DOCTYPE html>

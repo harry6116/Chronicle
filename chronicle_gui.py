@@ -187,6 +187,7 @@ from chronicle_app.services.worker_runtime import (
     estimate_current_file_total_units as shared_estimate_current_file_total_units,
     load_merge_resume_state as shared_load_merge_resume_state,
     prepare_job_execution_context as shared_prepare_job_execution_context,
+    resolve_progress_temp_path as shared_resolve_progress_temp_path,
     resolve_output_path as shared_resolve_output_path,
     write_progress_state,
 )
@@ -522,6 +523,7 @@ def profile_tooltip_text(profile_key):
         "slides": "Use this for slide decks, presentations, lecture slides, and speaker handouts.",
         "flyer": "Use this for flyers, posters, one-page notices, event sheets, and short announcements.",
         "brochure": "Use this for brochures, catalogues, pamphlets, and folded or multi-panel handouts.",
+        "comic": "Use this for comics, manga, graphic novels, comic strips, and panel-based visual storytelling where balloons, captions, sound effects, and art descriptions matter.",
         "book": "Use this for books, novels, memoirs, and other long-form prose.",
         "newspaper": "Use this for newspapers and other dense multi-column pages.",
         "academic": "Use this for research papers, journal articles, citations, equations, and footnotes.",
@@ -3784,7 +3786,7 @@ class MainFrame(wx.Frame):
                 first_job_settings = self.NormalizeRowSettings(queued_jobs[0] if queued_jobs else {})
                 first_job_cfg.update(first_job_settings)
                 master_output_path = self.ResolveMergeOutputPath(jobs, merge_fmt, custom_dest, dest_mode)
-                master_progress_temp_path = master_output_path + ".progress.txt.tmp"
+                master_progress_temp_path = shared_resolve_progress_temp_path(master_output_path)
                 if streamable_fmt:
                     master_temp_path = master_output_path + ".tmp"
                 merge_resume = {"recovered_units": 0, "original_total_units": len(queued_jobs), "completed_job_paths": []}
@@ -3811,7 +3813,7 @@ class MainFrame(wx.Frame):
                 if not preserve_merge_progress:
                     master_progress_file_obj.write(build_progress_state_header({}))
                     master_progress_file_obj.flush()
-                self.Log(f"[Progress] In-progress temp output: {master_progress_temp_path}", engine_event=True)
+                self.Log(f"[Progress] In-progress recovery sidecar: {master_progress_temp_path}", engine_event=True)
                 if streamable_fmt:
                     if os.path.exists(master_temp_path) and not preserve_merge_progress:
                         os.remove(master_temp_path)

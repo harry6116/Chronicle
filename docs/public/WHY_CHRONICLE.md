@@ -47,6 +47,7 @@ Chronicle is strongest when the source is difficult, messy, or inconsistent:
 
 - degraded scans
 - long-form books and memoirs
+- comics, manga, graphic novels, and comic strips
 - archival records and historical documents
 - newspapers and multi-column layouts
 - forms, reports, and mixed-format batches
@@ -65,6 +66,7 @@ Some of the main preset families include:
 - `Government Reports / Records` for public-sector reports, appendices, numbered sections, and record-style documents
 - `Legal / Contracts / Laws` for legal hierarchy, clause fidelity, and more cautious handling of structured legal text
 - `Books / Novels` for long-form prose, page-to-page paragraph continuity, and chapter structure
+- `Comics / Manga / Graphic Novels` for panel order, speech balloons, captions, visible SFX, image descriptions, and right-to-left manga flow when visibly supported
 - `Newspapers` for multi-column layouts, publication metadata, and dense press-style reading order recovery
 - `Handwritten Letters / Notes / Diaries` for more conservative reading of handwritten material with stronger uncertainty handling
 

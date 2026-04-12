@@ -23,6 +23,10 @@ class RuntimePoliciesTest(unittest.TestCase):
         self.assertEqual(get_pdf_chunk_pages("gemini-2.5-pro", "newspaper", 8, file_size_mb=8.9), 1)
         self.assertEqual(get_pdf_chunk_pages("gemini-2.5-pro", "newspaper", 8, file_size_mb=4.0), 2)
 
+    def test_get_pdf_chunk_pages_uses_single_page_slices_for_comics(self):
+        self.assertEqual(get_pdf_chunk_pages("gemini-2.5-pro", "comic", 24), 1)
+        self.assertEqual(get_pdf_chunk_pages(DEFAULT_CLAUDE_MODEL, "comic", 24), 1)
+
     def test_get_pdf_chunk_pages_caps_general_pdfs_at_two_pages(self):
         self.assertEqual(get_pdf_chunk_pages("gemini-2.5-pro", "standard", 10), 2)
         self.assertEqual(get_pdf_chunk_pages("gemini-2.5-flash", "office", 10), 2)
@@ -44,6 +48,14 @@ class RuntimePoliciesTest(unittest.TestCase):
         self.assertTrue(settings["image_descriptions"])
         self.assertFalse(settings["modernize_punctuation"])
         self.assertFalse(settings["abbrev_expansion"])
+
+    def test_comic_profile_defaults_favor_visual_story_recovery(self):
+        settings = PROFILE_PRESETS["comic"]
+        self.assertEqual(settings["model_name"], "gemini-2.5-pro")
+        self.assertTrue(settings["image_descriptions"])
+        self.assertTrue(settings["preserve_original_page_numbers"])
+        self.assertTrue(settings["merge_files"])
+        self.assertFalse(settings["modernize_punctuation"])
 
     def test_build_profile_selection_summary_includes_speed_warning_when_needed(self):
         summary = build_profile_selection_summary(

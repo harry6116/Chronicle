@@ -3,7 +3,7 @@ import os
 from chronicle_app.services.runtime_policies import DEFAULT_CLAUDE_MODEL, normalize_model_name
 
 
-FORCE_DEEP_PROFILES = {"newspaper", "military"}
+FORCE_DEEP_PROFILES = {"newspaper", "military", "comic"}
 SPECIALTY_BASELINE_PROFILES = {"poetry", "transcript", "museum"}
 ADAPTIVE_FLASH_PROFILES = {
     "standard",

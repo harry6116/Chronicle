@@ -1,10 +1,10 @@
 # Chronicle
 
-Chronicle is an accessibility-first document recovery tool for archival, academic, legal, newspaper, military, book, and other difficult mixed-format material. It provides a screen-reader-friendly GUI, queue controls, scan-ingestion workflows, and structured output generation across multiple AI providers.
+Chronicle is an accessibility-first document recovery tool for archival, academic, legal, newspaper, military, book, comics, manga, graphic-novel, and other difficult mixed-format material. It provides a screen-reader-friendly GUI, queue controls, scan-ingestion workflows, and structured output generation across multiple AI providers.
 
 Chronicle is a desktop GUI application. The public repository is intended to publish the current app source code, build scripts, and documentation for that GUI app. There is no separate supported Chronicle CLI product.
 
-Current public release target: **Chronicle 1.0.0**.
+Current public release target: **Chronicle 1.0.2**.
 
 **Built for hard documents.**
 
@@ -12,6 +12,7 @@ Chronicle is aimed at the kinds of files where ordinary extraction tends to stru
 
 - degraded scans
 - long-form books and memoirs
+- comics, manga, graphic novels, and comic strips
 - archival records with repeated page furniture
 - awkward multi-column or mixed-layout pages
 - difficult review-and-rerun workloads
@@ -19,7 +20,7 @@ Chronicle is aimed at the kinds of files where ordinary extraction tends to stru
 ## Why Chronicle
 
 - Built for screen-reader-first operation.
-- Designed for degraded scans, books, handwriting, dense tables, multi-column layouts, and archival edge cases.
+- Designed for degraded scans, books, comics, manga, graphic novels, handwriting, dense tables, multi-column layouts, and archival edge cases.
 - Supports practical workflows: queueing, scheduling, pause/resume, scanner import, log export, and merge modes.
 - Gives users specialist presets and visible control instead of treating every document as the same problem.
 - Strong when preserving reading order, paragraph continuity, and review workflow matters more than raw one-click speed.
@@ -50,6 +51,7 @@ Chronicle aims to help users reach review-ready output faster on difficult mater
   - scheduled extraction start
   - interrupted session recovery
   - merge mode and per-row page/slide scope controls
+- Document presets include a dedicated `Comics / Manga / Graphic Novels` profile that preserves panel order, speech/thought balloons, captions, visible `SFX`, textless panels, image descriptions, and right-to-left manga flow when the page visibly supports it.
 
 ## Build and Distribution
 
@@ -62,10 +64,10 @@ Chronicle aims to help users reach review-ready output faster on difficult mater
 - CI workflow prepared for both platforms:
   - `.github/workflows/build-mac-windows.yml`
 
-Planned first public release assets:
+Current public release assets:
 
-- `Chronicle 1.0 mac.zip`
-- `Chronicle 1.0 windows.zip`
+- `Chronicle.mac.zip`
+- `Chronicle.windows.zip`
 
 Public feedback and contact path:
 
@@ -104,4 +106,4 @@ If Chronicle is offered under separate commercial or proprietary terms later, th
 
 ## Status
 
-This project is the active standalone Chronicle GUI app line and should replace the outdated legacy public repo state before the `1.0.0` launch.
+This project is the active standalone Chronicle GUI app line. Chronicle 1.0.2 adds the first dedicated comics, manga, and graphic-novel preset on top of the current public release line.

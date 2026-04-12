@@ -2,6 +2,30 @@
 
 Use these as templates when moving the new Chronicle codebase into the public repository.
 
+## Current Commit Message
+
+`Add validated comics preset and harden magazine cleanup`
+
+Public-safe summary:
+- Adds the built-in `Comics / Manga / Graphic Novels` preset for accessible
+  panel-by-panel reading output.
+- Keeps comic PDFs on one-page slices and the deep reading engine by default.
+- Adds comic-specific benchmark gates for panel headings, image descriptions,
+  non-empty panel sections, clean semantic wrapping, and structural regressions.
+- Adds a public-domain Little Nemo before/after showcase sample.
+- Hardens dense magazine cleanup for leaked markdown headings, broken image
+  placeholders, wrapper/comment noise, repeated blocks, and short running-head
+  labels.
+- Updates the release draft, changelog, continuity trail, and focused tests for
+  the comics preset and magazine cleanup pass.
+
+Public validation wording:
+- Public/open comics validation reached `9/9 A+` under comic-specific checks.
+- Additional local validation reached `12/12 A+` under the same checks without
+  adding any private source material to public-facing docs.
+
+---
+
 ## 1. Full Release Post (GitHub Release Body)
 
 ## Chronicle 1.0.0

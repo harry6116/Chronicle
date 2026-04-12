@@ -119,7 +119,7 @@ class WorkerFinalizeRuntimeTest(unittest.TestCase):
         logs = []
         with tempfile.TemporaryDirectory() as tmpdir:
             temp_path = Path(tmpdir) / 'out.html.tmp'
-            progress_path = Path(tmpdir) / 'out.html.progress.txt.tmp'
+            progress_path = Path(tmpdir) / '.chronicle_progress_out.html.txt.tmp'
             output_path = Path(tmpdir) / 'out.html'
             temp_path.write_text('raw')
             progress_path.write_text('progress')
@@ -207,7 +207,7 @@ class WorkerFinalizeRuntimeTest(unittest.TestCase):
             set_queue_status_fn=statuses.append,
             log_cb=logs.append,
             get_peak_rss_mb_fn=lambda: 12.5,
-            progress_temp_path='/tmp/out.html.progress.txt.tmp',
+            progress_temp_path='/tmp/.chronicle_progress_out.html.txt.tmp',
         )
 
         self.assertEqual(statuses, ['Done'])
@@ -227,7 +227,7 @@ class WorkerFinalizeRuntimeTest(unittest.TestCase):
             error='boom',
             set_queue_status_fn=actions.append,
             log_cb=actions.append,
-            progress_temp_path='/tmp/out.html.progress.txt.tmp',
+            progress_temp_path='/tmp/.chronicle_progress_out.html.txt.tmp',
             path_exists=lambda path: True,
             remove_fn=lambda path: actions.append(('remove', path)),
         )
@@ -236,14 +236,14 @@ class WorkerFinalizeRuntimeTest(unittest.TestCase):
         self.assertEqual(actions[0], 'Error')
         self.assertIn('Error on broken.pdf: boom', actions[1])
         self.assertEqual(actions[2], ('remove', '/tmp/out.html.tmp'))
-        self.assertEqual(actions[3], 'Preserved in-progress temp file: /tmp/out.html.progress.txt.tmp')
+        self.assertEqual(actions[3], 'Preserved in-progress temp file: /tmp/.chronicle_progress_out.html.txt.tmp')
 
     def test_finalize_merged_output_streamable_path_cleans_and_replaces(self):
         logs = []
         with tempfile.TemporaryDirectory() as tmpdir:
             temp_path = Path(tmpdir) / 'merged.html.tmp'
             out_path = Path(tmpdir) / 'merged.html'
-            progress_path = Path(tmpdir) / 'merged.html.progress.txt.tmp'
+            progress_path = Path(tmpdir) / '.chronicle_progress_merged.html.txt.tmp'
             temp_path.write_text('merged')
             progress_path.write_text('header+progress')
             file_obj = _FakeFile()
