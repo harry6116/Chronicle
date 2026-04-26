@@ -18,8 +18,8 @@ Current instruction: do **not** publish yet. This pack is prepared for the first
   - proposed public security policy
 - `LEGAL_DISCLAIMER_GITHUB.md`
   - proposed public legal disclaimer
-- `RELEASE_MESSAGES.md`
-  - ready-to-use release announcements
+- `RELEASE_NOTES_CURRENT.md`
+  - the only document to update for current GitHub release messaging
 - `REPOSITORY_OVERHAUL_CHECKLIST.md`
   - migration checklist
 - `LAUNCH_RUNBOOK.md`
@@ -40,4 +40,4 @@ Current instruction: do **not** publish yet. This pack is prepared for the first
 3. copy the rollout files into the public repo
 4. ensure Windows docs mention `build_windows.ps1` and staged-bundle completeness
 5. execute launch-day steps from `LAUNCH_RUNBOOK.md`
-6. attach the prepared release ZIPs from `/Users/michaelsmac/Documents/Chronicle Release Apps/`
+6. attach the prepared release ZIPs (`Chronicle.mac.zip` and `Chronicle.windows.zip`)

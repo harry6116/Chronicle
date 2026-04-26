@@ -39,11 +39,11 @@ Then verify green CI runs on push/PR/manual.
 
 Use:
 
-- `docs/github_rollout/RELEASE_MESSAGES.md`
+- `docs/github_rollout/RELEASE_NOTES_CURRENT.md`
 - `docs/github_rollout/LAUNCH_RUNBOOK.md`
-- release assets from `/Users/michaelsmac/Documents/Chronicle Release Apps/`
-  - `Chronicle 1.0 mac.zip`
-  - `Chronicle 1.0 windows.zip`
+- release assets:
+  - `Chronicle.mac.zip`
+  - `Chronicle.windows.zip`
 
 ## Step 5: Provider and Legal Notes
 
