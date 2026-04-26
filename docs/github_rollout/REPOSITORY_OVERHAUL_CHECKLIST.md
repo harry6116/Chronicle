@@ -11,8 +11,8 @@ Target first public app release: `1.0.0`
 - [ ] Confirm the source-of-truth working tree is clean and tested.
 - [ ] Build a local staged public snapshot with `python3 tools/prepare_public_repo_snapshot.py --clean` and review its manifest before touching the live GitHub repo.
 - [ ] Confirm packaged release assets exist and are the intended public files:
-  - [ ] `/Users/michaelsmac/Documents/Chronicle Release Apps/Chronicle 1.0 mac.zip`
-  - [ ] `/Users/michaelsmac/Documents/Chronicle Release Apps/Chronicle 1.0 windows.zip`
+  - [ ] `Chronicle.mac.zip`
+  - [ ] `Chronicle.windows.zip`
 - [ ] Confirm build outputs are reproducible for:
   - [ ] macOS
   - [ ] Windows
@@ -47,7 +47,7 @@ Target first public app release: `1.0.0`
 
 ## Phase 4: Release Preparation
 
-- [ ] Draft release notes from `RELEASE_MESSAGES.md`.
+- [ ] Draft release notes in `RELEASE_NOTES_CURRENT.md`.
 - [ ] Prepare version tag `v1.0.0` and changelog entry.
 - [ ] Confirm API/privacy wording is current and accurate.
 - [ ] Confirm install and quick-start instructions are current.

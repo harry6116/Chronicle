@@ -29,12 +29,12 @@ Current target release: `Chronicle 1.0.0`
 ## T-4h
 
 - Freeze non-launch commits.
-- Prepare release body and short announcement.
+- Prepare the release body only in `docs/github_rollout/RELEASE_NOTES_CURRENT.md`; do not update versioned draft release-note files for current messaging.
 - Verify repository permissions and release access.
 - Confirm Windows staged bundle docs mention `build_windows.ps1`.
 - Confirm the public release files are final:
-  - `/Users/michaelsmac/Documents/Chronicle Release Apps/Chronicle 1.0 mac.zip`
-  - `/Users/michaelsmac/Documents/Chronicle Release Apps/Chronicle 1.0 windows.zip`
+  - `Chronicle.mac.zip`
+  - `Chronicle.windows.zip`
 - Rebuild the curated public repo snapshot with `Prepare_Public_Repo.command`.
 
 ## T-0 (Launch)
