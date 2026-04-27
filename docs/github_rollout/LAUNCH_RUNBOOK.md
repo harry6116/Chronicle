@@ -1,23 +1,23 @@
-# Launch Runbook (Test Phase -> Public Rollout)
+# Launch Runbook
 
 ## Objective
 
-Perform a controlled transition from private testing to public release.
+Perform a controlled public release.
 
-Current target release: `Chronicle 1.0.0`
+Current target release: `Chronicle 1.0.7`
 
 ## T-48h
 
 - Lock feature scope for the launch candidate.
 - Confirm no unresolved high-severity defects.
-- Run full local build verification:
+- Run full build verification:
   - macOS build command
   - Windows build command on a Windows host
 - Final pass on README, help, legal, install, and accessibility docs.
 
 ## T-24h
 
-- Create release candidate tag internally for `v1.0.0`.
+- Create release candidate tag for `v1.0.7`.
 - Run CI dual-platform build and verify artifact integrity.
 - Validate basic smoke test from built binaries:
   - app opens
@@ -35,13 +35,13 @@ Current target release: `Chronicle 1.0.0`
 - Confirm the public release files are final:
   - `Chronicle.mac.zip`
   - `Chronicle.windows.zip`
-- Rebuild the curated public repo snapshot with `Prepare_Public_Repo.command`.
+- Rebuild and review the public repository package.
 
 ## T-0 (Launch)
 
-1. Push repository overhaul to public repo from the staged public snapshot only, not from the full private working tree.
-2. Publish the GitHub release `v1.0.0` and upload large ZIP assets with `Publish_GitHub_Release.command` instead of the browser uploader if GitHub web upload size limits get in the way.
-3. Publish or attach `Chronicle 1.0 mac.zip` and `Chronicle 1.0 windows.zip`.
+1. Push the verified public repository package.
+2. Publish the GitHub release `v1.0.7`.
+3. Publish or attach `Chronicle.mac.zip` and `Chronicle.windows.zip`.
 4. Announce release.
 
 ## T+2h

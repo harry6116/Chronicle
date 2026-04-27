@@ -476,11 +476,12 @@
               <tr><th scope="row">Government Reports / Public Records</th><td>Agency reports, annexes, appendices, public records</td><td>Repeated-header cleanup, appendix structure, and numbered-section fidelity.</td></tr>
               <tr><th scope="row">Letters / Memos / Notices</th><td>Letters, circulars, notices, typed correspondence</td><td>Sender/recipient/sign-off structure preserved without forcing an archival ledger layout.</td></tr>
               <tr><th scope="row">Archives / Ledgers / Manuscripts</th><td>Ledgers, accessioned records, mixed typewritten/manuscript files</td><td>Ledger structure, docket/folio fidelity, and archival uncertainty handling.</td></tr>
-              <tr><th scope="row">Handwritten Notes / Drafts / Diary Pages</th><td>Rough handwritten notes, drafts, diary fragments</td><td>Conservative letter-level reading with strong uncertainty tagging.</td></tr>
+              <tr><th scope="row">Handwritten Notes / Personal Diaries</th><td>Rough handwritten notes, drafts, personal diary pages</td><td>Conservative letter-level reading with strong uncertainty tagging. Use Military Records for war diaries and unit logs.</td></tr>
               <tr><th scope="row">Medical Notes / Clinical Forms / Doctor Handwriting</th><td>Clinical notes, referral letters, handwritten doctor notes, medical paperwork</td><td>Conservative clinical transcription with explicit uncertainty tagging and no silent abbreviation expansion.</td></tr>
               <tr><th scope="row">War Diaries / Military Orders / Service Records</th><td>War diaries, operations logs, telegrams, service records</td><td>STOP decoding, grid refs, acronym fidelity.</td></tr>
               <tr><th scope="row">Cables / Intelligence Briefings / Signals</th><td>Cables, routing-heavy records</td><td>FROM/TO/INFO/REF chains and classification labels preserved.</td></tr>
-              <tr><th scope="row">Newspapers / Multi-Column Pages</th><td>Columns, ads, grids</td><td>Layout flattening, table reconstruction, and smaller slices for very dense short scans.</td></tr>
+              <tr><th scope="row">Historical Newspapers</th><td>Old newsprint scans, OCR-backed newspaper archives, columns, classifieds, ads</td><td>Layout flattening, table reconstruction, historical scan handling, and smaller slices for very dense short scans.</td></tr>
+              <tr><th scope="row">Modern Newspapers / E-Papers</th><td>Contemporary print-edition PDFs, article cards, bylines, captions, ads, jump lines</td><td>Modern news article boundaries, section labels, timestamps, continuations, digital furniture cleanup, and caption-aware reading order.</td></tr>
               <tr><th scope="row">Books / Novels / Long-Form Prose</th><td>Novels, memoirs, long-form scanned prose</td><td>Paragraph continuity across page turns and chapter structure.</td></tr>
               <tr><th scope="row">Comics / Manga / Graphic Novels</th><td>Comic books, comic strips, manga pages, graphic novels</td><td>Panel order, balloons, captions, visible SFX, image descriptions, and right-to-left manga flow when visibly supported.</td></tr>
               <tr><th scope="row">Manuals / Instructions / SOPs</th><td>Manuals, procedures, diagrams, maintenance guides</td><td>Step order, warnings, and specification structure preserved.</td></tr>
@@ -725,13 +726,6 @@
           <h3>Gemini 403 file permission during gearshift</h3>
           <p>This was addressed by delaying file cleanup until stream completion. If seen again, verify key scope and network/proxy behavior.</p>
 
-          <h3>Build errors</h3>
-          <ul>
-            <li><code>--name expected one argument</code>: fixed by preserving argument ordering in build script.</li>
-            <li><code>Directory not empty: dist</code>: fixed with retry-safe removal.</li>
-            <li>PyInstaller cache permission denied under macOS Library path: fixed by local cache dir override.</li>
-          </ul>
-
           <h3>Output path issues</h3>
           <ul>
             <li>If custom destination is enabled, make sure the folder exists and is writable.</li>
@@ -739,7 +733,7 @@
           </ul>
           <h3>Help and external links</h3>
           <ul>
-            <li>If <strong>Open User Guide</strong> reports a missing file, confirm <code>docs/user/chronicle_help.html</code> exists in the app bundle or source tree.</li>
+            <li>If <strong>Open User Guide</strong> reports a missing file, reinstall or rebuild Chronicle so the bundled help files are present.</li>
             <li>If donation links do not open, check the default browser configuration and any OS prompts for opening external links.</li>
           </ul>
           <h3>Confidence and quality signals</h3>
@@ -765,7 +759,7 @@
           <h3>Help, About, and Support entries</h3>
           <ul>
             <li><strong>Help &gt; Open User Guide</strong> opens this documentation in the default browser.</li>
-            <li><strong>Help &gt; About Build...</strong> shows the build stamp, runtime path, Python version, and wx version.</li>
+            <li><strong>Help &gt; About Build...</strong> shows build and runtime details useful for support.</li>
             <li><strong>Help &gt; Support Chronicle...</strong> opens a donation chooser with <strong>Buy Me a Coffee</strong> and <strong>PayPal</strong>.</li>
             <li>On macOS, <strong>File &gt; Check Mac Folder Access...</strong> prompts for folder-access remediation when permission issues block scanning or folder ingestion.</li>
           </ul>
@@ -780,7 +774,7 @@
             <p>Help can be opened directly in the app from <strong>Help &gt; Open User Guide</strong> (shortcut <kbd>F1</kbd>).</p>
           </div>
           <ul>
-            <li><strong>Help &gt; About Build...</strong> shows the current build stamp, runtime path, Python version, and wx version.</li>
+            <li><strong>Help &gt; About Build...</strong> shows the current build and runtime details useful for support.</li>
             <li><strong>Help &gt; Support Chronicle...</strong> opens the in-app donation chooser with <strong>Buy Me a Coffee</strong> and <strong>PayPal</strong>.</li>
           </ul>
           <p class="top-link"><a href="#page-title">Back to top</a></p>

@@ -1,10 +1,8 @@
-# GitHub Rollout Pack (Local Draft)
+# GitHub Rollout Pack
 
 This folder contains publication-ready material for migrating Chronicle to a public repository.
 
-Current target launch: `Chronicle 1.0.0`
-
-Current instruction: do **not** publish yet. This pack is prepared for the first standalone public app release after the repo replacement pass.
+Current target release: `Chronicle 1.0.7`
 
 ## Contents
 
@@ -28,16 +26,14 @@ Current instruction: do **not** publish yet. This pack is prepared for the first
   - copy order for public repo setup
 - `MIGRATION_NOTES_OLD_TO_NEW.md`
   - mapping notes from old repo state to current repo state
-- `GITHUB_SCRIPTS_READINESS.md`
-  - maintainer-helper script notes
 - `PROVIDER_PRIVACY_AND_TIER_GUIDE.md`
   - provider privacy/tier comparison guidance
 
 ## Intended Use
 
-1. finish test phase in this working repository
+1. finish test phase for the release candidate
 2. refresh and verify docs/legal/build instructions
-3. copy the rollout files into the public repo
+3. copy the rollout files into the public repository
 4. ensure Windows docs mention `build_windows.ps1` and staged-bundle completeness
 5. execute launch-day steps from `LAUNCH_RUNBOOK.md`
 6. attach the prepared release ZIPs (`Chronicle.mac.zip` and `Chronicle.windows.zip`)

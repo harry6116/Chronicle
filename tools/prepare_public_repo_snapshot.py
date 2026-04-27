@@ -29,9 +29,7 @@ ALLOWED_GITHUB_ROLLOUT_DOCS = {
     "docs/github_rollout/PUBLIC_REPO_BOOTSTRAP.md",
     "docs/github_rollout/README_GITHUB_ROLLOUT_PACK.md",
     "docs/github_rollout/README_PUBLIC_FINAL.md",
-    "docs/github_rollout/RELEASE_MESSAGES.md",
     "docs/github_rollout/RELEASE_NOTES_CURRENT.md",
-    "docs/github_rollout/RELEASE_v1.0.0_DRAFT.md",
     "docs/github_rollout/REPOSITORY_OVERHAUL_CHECKLIST.md",
     "docs/github_rollout/SECURITY_GITHUB.md",
 }

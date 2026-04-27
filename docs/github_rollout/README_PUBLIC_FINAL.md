@@ -2,7 +2,7 @@
 
 Chronicle is an accessibility-first document recovery tool for difficult real-world material.
 
-Current public launch line: **Chronicle 1.0.2**.
+Current public launch line: **Chronicle 1.0.7**.
 
 It is especially strong on degraded scans, long-form books, archival records, legal and policy material, tables, handwriting, multi-column layouts, comics, manga, graphic novels, and mixed-format batches where preserving reading order, usable structure, and review workflow matters more than raw one-click speed.
 
@@ -73,11 +73,7 @@ Chronicle is especially useful when you need:
 
 ## Current Public Release
 
-Chronicle `1.0.2` adds a dedicated `Comics / Manga / Graphic Novels` preset for accessible panel-by-panel reading output.
-
-The preset is designed for comics, manga pages, graphic novels, and comic strips where visible panel order, speech balloons, captions, sound effects, and textless action matter. Comic PDFs use one-page slices by default and stay on the deep reading engine so page art and panel sequence are handled together.
-
-Chronicle `1.0.0` remains the first public release of the current standalone app line, separate from the older public repository state.
+Chronicle `1.0.7` clarifies document presets, adds `Modern Newspapers / E-Papers`, keeps `Historical Newspapers` for old newsprint and archive OCR, and fixes image-only scanned PDF handling for hard military/archive pages.
 
 Current release downloads:
 
