@@ -67,8 +67,9 @@ Some of the main preset families include:
 - `Legal / Contracts / Laws` for legal hierarchy, clause fidelity, and more cautious handling of structured legal text
 - `Books / Novels` for long-form prose, page-to-page paragraph continuity, and chapter structure
 - `Comics / Manga / Graphic Novels` for panel order, speech balloons, captions, visible SFX, image descriptions, and right-to-left manga flow when visibly supported
-- `Newspapers` for multi-column layouts, publication metadata, and dense press-style reading order recovery
-- `Handwritten Letters / Notes / Diaries` for more conservative reading of handwritten material with stronger uncertainty handling
+- `Historical Newspapers` for old newsprint scans, OCR-backed newspaper archives, publication metadata, and dense press-style reading order recovery
+- `Modern Newspapers / E-Papers` for contemporary print-edition PDFs, article cards, bylines, section labels, captions, ads, and jump lines
+- `Handwritten Notes / Personal Diaries` for more conservative reading of handwritten material with stronger uncertainty handling
 
 The point of these presets is not to make the app feel complicated. It is to avoid forcing newspapers, books, handwriting, legal texts, reports, and mixed files through one blunt generic workflow when they clearly need different treatment.
 

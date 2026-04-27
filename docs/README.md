@@ -8,8 +8,7 @@ This documentation tree is organized by audience and purpose.
 - `docs/user/` contains end-user guidance, methodology notes, examples, system requirements, and the Chronicle user guide.
 - `docs/reference/` contains changelogs, benchmark notes, technical reports, architecture material, and other reference documents.
 - `docs/policies/` contains repository policies such as contributing, code of conduct, security, and disclaimer material.
-- `docs/internal/` contains internal-only workflow notes, machine-specific reports, and non-public analysis.
-- `docs/github_rollout/` contains the curated rollout pack for future public repository work.
+- `docs/github_rollout/` contains release-ready public repository material.
 
 ## Suggested starting points
 
@@ -18,5 +17,3 @@ This documentation tree is organized by audience and purpose.
 - User documentation: `docs/user/README.md`
 - Technical and benchmark material: `docs/reference/`
 - Repository policies: `docs/policies/`
-
-Internal notes should stay in `docs/internal/` and should not be treated as public-facing documentation.

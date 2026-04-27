@@ -1,12 +1,12 @@
-Chronicle 1.0.6
-API-key safety was tightened across GUI logs, status echoes, crash capture, saved processing logs, support bundles, diagnostic JSON, and frozen CLI crash output with shared redaction for provider keys, bearer tokens, URL keys, and private-key blocks.
-- Request caching now skips very large generated chunks and clears at the end of GUI runs, reducing memory retention after hard newspaper pages have already been written to output.
-- The Gemini REST fallback no longer shells out through `curl`, keeping API keys inside the Python process instead of exposing them in process arguments.
-- Dense scanned newspaper PDFs now stay on Gemini 2.5 Pro for the hard newspaper path, can render very heavy pages into ordered page strips, and avoid the Flash path for historical newspaper scans.
-- Malformed NLA newspaper PDFs now avoid unnecessary PDF slice rebuilding whenever Gemini Pro rendered strips are available, including Flash-first runs that escalate to Pro; if strip OCR fails, Chronicle falls back to the local NLA OCR text layer instead of starting a runaway recovery pass.
-- Long Gemini Pro newspaper requests now emit bounded "still waiting" checkpoints during both SDK and REST generation, so a difficult first page no longer looks silent while Chronicle is waiting for provider output.
-- Gemini PDF upload, upload-status polling, streamed generation, and related cleanup calls now use explicit timeouts so Chronicle does not hang indefinitely before its stream heartbeat starts.
-- A macOS background activity guard now runs during extraction so command-tabbing away from Chronicle does not let App Nap pause provider or network work.
-- Queue preflight now opens every queued PDF before launch, even without a custom page range, and reports unreadable PDFs before the worker starts.
-- Per-file setup failures now mark only that document as `Error`, log the traceback, and continue the remaining batch instead of killing the whole worker.
-- Work-unit estimation failures now fall back to a conservative progress estimate instead of aborting the run before extraction starts.
+Chronicle 1.0.7
+
+- The document preset picker is clearer and less ambiguous: `Newspapers` is now `Historical Newspapers`, and `Handwritten Letters / Notes / Diaries` is now `Handwritten Notes / Personal Diaries`.
+- Added a new `Modern Newspapers / E-Papers` preset for contemporary newspaper PDFs, e-paper pages, article cards, bylines, timestamps, section labels, captions, advertisements, sponsored content, jump lines, and digital publication furniture.
+- War diaries and unit logs are now explicitly guided toward `Military Records`; personal handwritten diaries remain under the handwriting preset.
+- Historical newspaper behavior remains attached to the existing historical newspaper path, including dense scan handling, NLA/Trove-style OCR safeguards, old newsprint recovery, and archive-oriented publication metadata recovery.
+- Modern newspaper handling avoids historical OCR/newsprint assumptions and keeps contemporary news structure distinct from `Magazines / Periodicals`, which remains focused on feature-led magazine layouts, reviews, interviews, sidebars, pull quotes, and contents-page furniture.
+- Gemini remains the primary transport path for Gemini processing. Chronicle still uploads PDFs to Gemini by default; rendered image transport is reserved for narrow scanned/image-only cases where direct PDF upload is unreliable or under-reads.
+- Image-only scanned military/archive-style PDFs on Gemini Pro now render a visible `chronicle_temp_...png` beside the source while active, send that rendered page to Gemini as an image, and remove the temp file after completion.
+- The war diary completion bug is fixed: Chronicle no longer accepts a tiny title-only Gemini PDF response as a valid full extraction for image-only scanned pages.
+- OCR-backed dense NLA newspaper PDFs continue to use their embedded local OCR layer immediately, avoiding the previous first-page hang and final-save stalls on dense newspaper runs.
+- Release documentation has been cleaned so public-facing notes do not expose maintainer-only build trees, machine paths, or internal rollout directories.

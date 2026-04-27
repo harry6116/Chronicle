@@ -2,6 +2,20 @@
 
 All notable changes to Chronicle will be documented in this file.
 
+## [1.0.7] - 2026-04-27
+### Added
+- **Modern Newspapers / E-Papers Preset:** Added a dedicated contemporary newspaper preset for clean print-edition PDFs, e-paper pages, article cards, bylines, timestamps, section labels, photos/captions, advertisements, sponsored content, jump lines, and digital publication furniture without invoking historical OCR/newsprint rules.
+- **Preset Naming Clarity:** Renamed the visible newspaper preset to `Historical Newspapers` and renamed `Handwritten Letters / Notes / Diaries` to `Handwritten Notes / Personal Diaries` so war diaries clearly belong under `Military Records` while personal diaries remain under the handwriting preset.
+
+### Changed
+- **Gemini PDF Handling:** Gemini remains Chronicle's preferred path for PDF upload and visual PDF reading when Gemini is selected, with a narrow rendered-page fallback for image-only scanned pages that cannot be read reliably through the embedded text layer.
+- **Document Preset Guidance:** Public and user-facing preset names now separate military records, personal diaries, historical newspapers, modern newspapers, magazines, office reports, government records, books, and specialist layouts more clearly.
+
+### Fixed
+- **Image-Only Scanned PDF Handling:** Low-text scanned archive pages can now be rendered into visible temporary page images beside the source document while active, allowing Gemini to read the page visually and preventing immediate false-complete output.
+- **OCR-Backed Newspaper Hang Guards:** Dense OCR-backed newspaper PDFs now use their reliable text layer immediately and avoid redundant final audits or cleanup passes that could make completed work appear stuck.
+- **Finalization Hang Guards:** Final cleanup, temp promotion, output close, and progress artifact cleanup are timeout-bounded so Chronicle can recover from locked or slow filesystem operations instead of hanging after extraction.
+
 ## [1.0.2] - 2026-04-11
 ### Added
 - **Comics / Manga / Graphic Novels Preset:** Added a built-in visual-storytelling profile with panel-order, speech/thought balloon, caption, SFX, textless-panel, image-description, and right-to-left manga-flow guidance, plus one-page PDF slicing and default merge/page-reference settings for page-image sequences.
@@ -9,18 +23,34 @@ All notable changes to Chronicle will be documented in this file.
 - **Public-Domain Comics Showcase:** Added a public-domain Little Nemo before/after showcase sample for public repo/demo use.
 
 ### Changed
+- **Finalization Recovery Hardening:** Chronicle now auto-recovers already-finished temp output from its hidden progress sidecar on the next launch even outside explicit resume mode, so a file that finished extraction but stalled during final save is promoted to its real output instead of being left stranded as `.tmp`.
+- **Finalize-Stage Diagnostics:** Added explicit `[Finalize]` processing-log checkpoints around cleanup, temp promotion, sidecar removal, log auto-save, and completion sound steps so end-of-run stalls are easier to pinpoint.
 - **Magazine HTML Cleanup Hardening:** Chronicle's HTML finalization for dense periodicals now strips leaked markdown headings inside HTML, removes page-wrapper comment noise, drops broken placeholder-image tags more aggressively, dedupes adjacent repeated paragraph blocks, and suppresses repeated short running-head section labels that were polluting magazine tables of contents and article starts.
 
 ### Fixed
 - **Magazine Validation Regressions:** The dense magazine validation run now completes cleanly on the rebuilt app without the earlier Gemini quota dead-end, and the saved HTML no longer carries the worst magazine regressions from the first pass such as raw markdown heading leakage, visible page wrapper markers, `IMAGE_URL` / `IMAGE_PLACEHOLDER` image junk, empty image sources, or footer-to-section HTML splices.
 
 ## [Unreleased]
+### Fixed
+- **OCR-Backed NLA Newspaper Hang Guard:** Dense NLA newspaper PDFs with strong embedded OCR now use the local text layer immediately instead of waiting on Gemini image-strip calls before the first page checkpoint, preventing OCR-rich Trove/NLA newspaper issues from appearing stuck at page one.
+- **NLA Newspaper Final-Save Stall Guard:** OCR-backed NLA newspaper output now skips the redundant PDF text-layer audit after extraction, so Chronicle does not stall between `14/14` page progress and final `.tmp` promotion.
+- **NLA Newspaper Final Cleanup Bypass:** The same OCR-backed NLA newspaper route now bypasses redundant final HTML normalization, allowing the already-rendered local OCR output to promote directly into the final file.
+- **NLA Newspaper PDF Crash Guard:** Dense malformed NLA newspaper PDFs now bypass unnecessary per-page PDF slice creation whenever Gemini Pro image strips are available, including Flash-first runs with Pro escalation, and strip failures fall back to the local NLA OCR text layer instead of launching thousands of tiny recovery model calls.
+- **Final Cleanup Hang Guard:** Streamed HTML/TXT/MD final cleanup and output/progress stream close are now timeout-bounded, and cleanup writes through a separate `*.cleanup.tmp` file before swapping back, so a stalled cleanup or close cannot corrupt the completed `.tmp` output or leave Chronicle hanging after reading finishes.
+- **Final Temp-Promotion Hang Guard:** Final filesystem operations during `.tmp` promotion, fallback copying, temp cleanup, progress-sidecar cleanup, and completed-output recovery are now timeout-bounded, so a locked or cloud-stalled file operation is logged and recovered instead of hanging after page extraction has finished.
+
 ### Added
+- **Modern Newspapers / E-Papers Preset:** Added a dedicated contemporary newspaper preset for clean print-edition PDFs, e-paper pages, article cards, bylines, timestamps, section labels, photos/captions, advertisements, sponsored content, jump lines, and digital publication furniture without invoking historical OCR/newsprint rules.
+- **Magazines / Periodicals Preset:** Added a dedicated modern-periodical preset for article boundaries, reviews, interviews, sidebars, captions, advertisements, pull quotes, repeated section furniture, and table-of-contents discipline.
+- **First 5 Pages Trial:** Added a main-window trial action that sets selected queued PDFs, or all queued PDFs when nothing is selected, to pages `1-5` so users can test settings before a full run.
+- **Preflight Effort and Readiness Notes:** Document preflight now reports a small/medium/long/very-long effort estimate and highlights missing provider keys, unwritable output folders, and long Gemini quota-risk situations.
+- **Support and Diagnostics Menu Tools:** Added File-menu actions for a provider capability matrix, resume center summary, redacted support bundle export, and text comparison of two Chronicle outputs.
+- **Output QA Foundation:** Added reusable output-quality checks and per-task health logging for common structural artifacts such as empty headings, nested wrappers, placeholder image tokens, empty image sources, non-HTML tag leakage, and legal false-heading shapes.
 - **Adaptive Fast-First PDF Routing:** Automatic engine routing can now start supported easy PDFs on `Gemini 2.5 Flash` first, keep `Gemini 2.5 Pro` in reserve for hard pages, and stay on the deeper path for hard/specialist cases.
 - **Medical / Clinical Preset:** Added a dedicated `Medical / Clinical Notes / Handwriting` preset with conservative prompt rules for clinical notes, doctor handwriting, medication-style shorthand, and explicit uncertainty tagging instead of guessed expansions.
 - **Public Site Rewrite:** Rewrote the single-page public site in clearer, plainer language and added an accessible proof section with real benchmark-based before/after comparison images.
 - **Expanded Short-Form Preset Surface:** Added dedicated presets for `Letters / Memos / Notices`, `Handwritten Pages / Notes / Drafts`, `Forms / Checklists / Worksheets`, `Flyers / Posters / One-Page Notices`, `Brochures / Catalogues / Pamphlets`, and `Slides / Decks / Handouts`.
-- **Official-Safe Benchmark Pack:** Removed the private hospital-letter image from the canonical gold-mix benchmark set so formal benchmark reporting uses only official-safe/public-safe cases, while private local checks can still be run separately when needed.
+- **Official-Safe Benchmark Pack:** Updated the canonical gold-mix benchmark set so formal benchmark reporting uses only public-safe cases.
 - **Sampled Legal Benchmark Pages:** Added representative opening, midpoint, and closing one-page benchmark cases for the `Aged Care Bill 2024` source so Chronicle's live benchmark pack can spot-check long Australian legislative PDFs without running all 574 pages every time.
 - **War Diary Benchmark Samples:** Added representative one-page benchmark cases for `WO-95-1668-1`, `WO-95-1668-2`, `WO-95-1668-3_1`, and `WO-95-1668-3_2` so Chronicle can track military/diary quality on real archival material beyond the original single-image sample.
 - **Gold-Mix Benchmark Corpus:** Added a broader sampled benchmark set spanning manuals, legal texts, intelligence scans, archival letters, military history, newspapers, academic material, and structured tabular files so Chronicle can be judged against a more realistic cross-document mix.
@@ -29,27 +59,24 @@ All notable changes to Chronicle will be documented in this file.
 - **Accessibility Remediation Rules:** Shared prompt rules now explicitly allow faithful repair of malformed HTML, damaged Word exports, duplicate OCR overlays, broken list structure, damaged paragraph wrapping, and weak table structure when Chronicle can reconstruct a more accessible equivalent.
 - **DOCX Page-Break Support:** Word-oriented output can now honor the `[[PAGE BREAK]]` marker so major report sections, appendices, and form boundaries become cleaner DOCX navigation points.
 - **Visible In-Progress Temp Outputs:** Every extraction format now creates a readable `.progress.txt.tmp` sidecar in the destination folder during processing so long scans have a visible work-in-progress artifact even when the final format is DOCX, PDF, EPUB, JSON, or CSV.
-- **Active-Tree Parity Guard:** Added `tests/test_active_tree_parity.py` to catch cross-tree drift in critical runtime/build files before a missing helper or wrapper leaks into someone else's build.
 - **Timestamped Processing Logs:** Engine-event log lines now include wall-clock timestamps and elapsed run time so long extraction runs are easier to judge at a glance.
-- **Repeatable macOS Memory Harness:** Added `tools/mac_packaged_memory_stress.py` plus `Mac/run_packaged_memory_stress.command` to measure packaged-app startup RSS and a calibrated extraction memory pass after macOS builds.
-- **Seven-Day Continuity Refresh:** Updated continuity and handoff notes on 2026-03-20 so launch context, wake-phrase handling, and current high-risk extraction rules stay aligned.
 - **Preferences Engine Override:** Added an `Engine Override` control in Preferences so users can keep automatic preset routing or force Gemini 2.5 Flash, Gemini 2.5 Pro, Claude 3.5 Sonnet, or GPT-4o from one place.
-- **Public Repo Snapshot Tooling:** Added `tools/prepare_public_repo_snapshot.py` to assemble a clean GitHub-facing Chronicle repo snapshot locally, with modern root docs swapped in and private/generated clutter excluded.
 - **Claude Model Alias Upgrade:** Chronicle now transparently upgrades the retired Anthropic model id `claude-3-5-sonnet-20241022` to `claude-sonnet-4-20250514` so older saved settings keep working.
 - **Provider Billing Guidance Refresh:** Core docs now explicitly distinguish Google Gemini free-tier API access from Anthropic Claude Console billing, so users are told that Gemini keys can work on Google's free tier while Claude API usage still requires separate Console/API billing or prepaid credits.
 ## [1.0.0] - 2026-04-06
 ### Added
 - **First Standalone Public App Release:** Chronicle now has a clear first public app release line separate from the older terminal-first public repository history.
-- **Packaged Release Assets Prepared:** The current first public release assets are `Chronicle 1.0 mac.zip` and `Chronicle 1.0 windows.zip`, prepared for attachment to the public GitHub release.
+- **Packaged Release Assets Prepared:** First public release assets were prepared for the macOS and Windows app packages.
 
 ### Changed
-- **Public Repo Messaging Reset:** Public-facing repo rollout docs now frame Chronicle as a `1.0.0` standalone app launch rather than a minor continuation of the older public repo snapshot.
+- **Public Repo Messaging Reset:** Public-facing repo rollout docs were reset for Chronicle's standalone app launch.
 - **GUI API Key Storage Path:** The GUI now uses per-user app-data storage paths in development and packaged runs, so locally remembered API keys live on the user's own machine instead of the working repository tree.
 
 ### Fixed
 - **Release Safety for Local Credentials:** Existing GUI-side local settings and key files are migrated out of the repository root into per-user app-data storage, reducing the risk of local secrets being swept into a public release workflow.
 
 ### Changed
+- **Preset Naming Clarity:** Renamed the visible newspaper preset to `Historical Newspapers` and renamed `Handwritten Letters / Notes / Diaries` to `Handwritten Notes / Personal Diaries` so war diaries clearly belong under `Military Records` while personal diaries remain under the handwriting preset.
 - **Preset Picker Clarity Pass:** Reordered and relabeled the live document preset picker into clearer user-facing families, renamed the fallback to `Miscellaneous / Mixed Files`, sharpened the difference between `Letters / Correspondence`, `Reports / Business Files`, and `Government Reports / Records`, clarified that photographed handwritten pages belong under `Handwritten Letters / Notes / Diaries` unless they are clearly clinical, and removed the stale UI remap that previously restored `forms` as `manual`.
 - **Preset Naming and User Guidance:** Public/user-facing preset names and explanations now reflect the newer separated taxonomy instead of older blended labels such as `Technical Manuals / Forms`.
 - **Automatic Engine Documentation:** Public and user docs now explain that `Automatic` can use the faster engine first on easier PDFs, while a manual engine override disables that adaptive path.
@@ -61,10 +88,9 @@ All notable changes to Chronicle will be documented in this file.
 - **Readable Progress Logging:** File headers now identify each queued file once, page progress lines are shorter, and a quiet-run heartbeat reports that work is still continuing during long pauses.
 - **Throughput Guidance:** General, Manual, and Legal prompt rules now explicitly prioritize high-speed structural accuracy for dense specification tables, control lists, and repetitive grid data.
 - **System Requirements Docs:** Expanded runtime guidance in `docs/user/SYSTEM_REQUIREMENTS.md` and surfaced a concise system requirements summary directly in `docs/user/README.md`.
-- **Seven-Day Build/Packaging Audit:** The March 14-20 cycle also aligned packaging expectations across the primary Mac tree and the current Windows beta shipping tree, including build-path cleanup, artifact verification, and refreshed release notes.
 - **Provider Availability Routing:** Preset-driven engine selection now resolves only to providers with configured API keys, and the Preferences override follows the same provider-availability guardrails instead of silently sticking to an unavailable engine.
 - **Main Window Settings Layout:** The `Apply Current Settings To Selected` action now appears below the source-deletion safety options so it follows the settings it acts on more naturally.
-- **Documentation Sync:** README/help/changelog language now reflects the Preferences engine override, automatic provider-key fallback, the relocated apply-settings control, and the current three-tree lockstep workflow.
+- **Documentation Sync:** README/help/changelog language now reflects the Preferences engine override, automatic provider-key fallback, and the relocated apply-settings control.
 - **PDF Skip/Fallback Visibility:** Chronicle now logs a direct OpenAI-specific reason when PDF processing must fall back to the text layer, and collision-mode skips now state that an output file already exists and `File Collisions` is set to `Skip`.
 - **Claude PDF Transport:** Chronicle now prefers Anthropic's current Files API for Claude PDF slices when the SDK supports it, then falls back to inline PDF mode with an explicit log message if Files API upload is unavailable.
 - **Public Repo Hygiene:** Local ignore rules now also catch `.venv/`, dated source zips, review archives, and staged public-repo output so migration prep does not keep re-dirtying the repo.
@@ -89,12 +115,12 @@ All notable changes to Chronicle will be documented in this file.
 - **Cross-Provider PDF Temp Permission Failures:** Shared PDF processing now keeps normal Gemini, Claude, and OpenAI PDF-slice handling in memory first, so Chronicle no longer depends on creating a local temp PDF just to upload or base64-encode a slice. When a Gemini SDK build still refuses in-memory upload, Chronicle falls back to a system-temp file only for that one upload attempt and cleans it up immediately after.
 - **Windows Packaged PDF Temp Cleanup Failure:** Shared PDF processing now writes temporary PDF slices into the system temp directory instead of the packaged app/runtime folder, prefers in-memory Gemini PDF uploads, waits for Gemini uploads to become `ACTIVE`, and downgrades temp-slice cleanup errors to warnings so a denied delete like `_internal\\temp_0.pdf` no longer aborts the whole extraction run.
 - **Dense Newspaper PDF Stalls:** Short but unusually heavy historical newspaper PDFs now drop to single-page slices based on file weight per page, and the processing log explains that Chronicle is shrinking slices to avoid long upload stalls.
-- **Cross-Tree Script Drift:** Restored missing root wrapper scripts in Beta/Windows Beta, aligned `build_windows.bat` on the safer diagnostic-first entry path, and covered the lockstep surface with parity tests.
+- **Wrapper Script Alignment:** Restored missing root wrapper scripts, aligned `build_windows.bat` on the safer diagnostic-first entry path, and added coverage for the supported launch surface.
 - **Long-Run Memory Pressure:** Added a cross-format performance and memory guard with tighter PDF cleanup, explicit PyMuPDF raster disposal in the legacy path, forced garbage collection checkpoints, and more aggressive non-merge buffer purging.
 - **Mac Quit Guarding:** `Command+Q` now routes through Chronicle's guarded close path so active or unfinished extractions cannot close without the warning/session-save dialog.
 - **Butler Memory Clearing Guard:** Active bounded extraction buffers are explicitly held to a `2`-page clear cadence, with regression coverage to prevent drift back to larger thresholds.
-- **Missing Processing-Speed Helper in Built Apps:** Restored the GUI `get_processing_speed_warning()` wrapper in every active Chronicle tree and added regression coverage so frozen builds cannot ship with that unhandled script exception again.
-- **Cross-Tree Queue Wording Drift:** Re-aligned the empty-queue announcement and related regression expectations so the active program scripting stays identical across the main, Beta, and Windows Beta trees.
+- **Missing Processing-Speed Helper in Built Apps:** Restored the GUI `get_processing_speed_warning()` wrapper and added regression coverage so frozen builds cannot ship with that unhandled script exception again.
+- **Queue Wording Consistency:** Re-aligned the empty-queue announcement and related regression expectations so the program wording stays consistent.
 - **OpenAI PDF Fallback Messaging:** OpenAI PDF attempts no longer disappear behind a generic gearshift error loop; Chronicle now drops directly into text-layer recovery with an explicit log reason and regression coverage.
 - **Stale Claude PDF Beta Path:** Removed Chronicle's old always-on Claude PDF beta-header path and replaced it with current Claude Files API routing plus tested fallback behavior.
 
@@ -105,7 +131,7 @@ All notable changes to Chronicle will be documented in this file.
 - **Three-State Units/Currency Mode:** Added `Keep original`, `Keep + bracketed modern equivalent`, and `Replace with modern equivalent only`.
 - **Three-State Abbreviation Mode:** Added `Keep original`, `Expand in brackets`, and `Replace with expanded form only`.
 - **Release Security Hooks:** Added repository pre-commit secret scanner tooling (`tools/precommit_secret_scan.sh`, `.githooks/pre-commit`, `tools/install_git_hooks.sh`).
-- **Release Gate Tooling:** Added `tools/release_fileset_check.py` and `tools/release_regression_offline.py` for repeatable local release validation.
+- **Release Validation Tooling:** Added `tools/release_fileset_check.py` and `tools/release_regression_offline.py` for repeatable release validation.
 
 ### Changed
 - **Settings Persistence Model:** Added explicit `unit_mode`, `abbrev_mode`, `page_scope_mode`, and `page_spec` settings with backward compatibility for older boolean settings.

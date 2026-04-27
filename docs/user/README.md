@@ -2,7 +2,7 @@
 
 Chronicle is an accessibility-first document recovery tool for difficult real-world material: archival scans, war diaries, laws and regulations, academic journals, tables, handwriting, newspapers, forms, office reports, government records, long-form books, comics, manga, graphic novels, and mixed-format batches.
 
-Last Updated: March 21, 2026
+Last Updated: April 16, 2026
 
 ## Current Release State
 
@@ -135,6 +135,7 @@ Current accessibility-oriented GUI behavior includes:
 - keyboard shortcuts for the most common menu actions
 - reduced-noise engine logging designed to be informative without being excessively chatty
 - semantic HTML output with language and direction metadata for downstream assistive reading
+- provider capability, resume, support-bundle, and output-comparison tools under the File menu
 
 ### Queue and Run Control Features
 
@@ -147,6 +148,8 @@ Chronicle includes:
 - select all / deselect all
 - row-level application of current reading settings
 - start reading now
+- run document preflight before extraction
+- prepare a first 5 pages PDF trial before committing to a full run
 - schedule extraction for a chosen local date/time
 - pause / resume / stop controls
 - session recovery support
@@ -173,11 +176,13 @@ Chronicle includes document presets tuned for different source classes:
 - Government Reports / Public Records
 - Letters / Memos / Notices
 - Archives / Ledgers / Manuscripts
-- Handwritten Notes / Drafts / Diary Pages
+- Handwritten Notes / Personal Diaries
 - Medical Notes / Clinical Forms / Doctor Handwriting
 - War Diaries / Military Orders / Service Records
 - Cables / Intelligence Briefings / Signals
-- Newspapers / Multi-Column Pages
+- Historical Newspapers
+- Modern Newspapers / E-Papers
+- Magazines / Periodicals
 - Books / Novels / Long-Form Prose
 - Comics / Manga / Graphic Novels
 - Manuals / Instructions / SOPs
@@ -193,6 +198,14 @@ Chronicle includes document presets tuned for different source classes:
 - Museum Labels / Captions / Exhibit Text
 
 These presets pre-fill recommended behavior and automatically select the most suitable reading engine behind the scenes. When automatic routing is active, Chronicle can keep easier PDFs moving on the faster engine while still escalating hard pages or hard documents when needed.
+
+### Magazines and Periodicals
+
+The Magazines / Periodicals preset is for modern dense layouts such as magazines, reviews, columns, features, interviews, sidebars, captions, pull quotes, score boxes, and advertisements.
+
+Use it when a source behaves like a designed periodical rather than a classic newspaper. Chronicle attempts to keep article and review boundaries clear, keep captions and callouts near the material they support, preserve useful issue/page metadata, and suppress repeated section furniture that would otherwise pollute the body or table of contents.
+
+This profile uses the deep reading engine by default and preserves original page references, because review workflows often need to trace article text back to the printed page.
 
 ### Comics, Manga, and Graphic Novels
 
@@ -211,17 +224,19 @@ This profile uses one-page PDF slices by default because panel order, page furni
 
 This is a built-in but still young profile. Human review is especially important because speaker attribution, manga flow, and silent/action-only panels can be ambiguous.
 
-### In-Progress Temp Files
+### In-Progress Recovery Files
 
-Chronicle now writes a visible in-progress temp file in the destination folder for every output format.
+Chronicle writes in-progress recovery files while extraction is running, but normal recovery sidecars now use hidden Chronicle-prefixed filenames so output folders do not look as though a broken PDF or DOCX result was created.
 
 - Streamable formats such as HTML, TXT, and Markdown still build their primary `.tmp` output directly.
-- Non-streaming formats such as DOCX, PDF, EPUB, JSON, and CSV now also write a readable sidecar file ending in `.progress.txt.tmp`.
-- Example: if the final target is `Artemis Fowl and the lost colony.docx`, Chronicle may temporarily show `Artemis Fowl and the lost colony.docx.progress.txt.tmp` while extraction is running.
-- The `.txt` suffix is intentional. The sidecar is a human-readable recovery snapshot so you can inspect progress even if the final DOCX/PDF/EPUB has not been finalized yet.
+- Non-streaming formats such as DOCX, PDF, EPUB, JSON, and CSV can write a readable recovery sidecar while the final format is still being assembled.
+- Example: if the final target is `Artemis Fowl and the lost colony.docx`, Chronicle may temporarily maintain a hidden recovery file such as `.chronicle_progress_Artemis Fowl and the lost colony.docx.txt.tmp`.
+- The `.txt` suffix is intentional. The sidecar is a human-readable recovery snapshot so you can inspect progress after an interruption even if the final DOCX/PDF/EPUB has not been finalized yet.
 - Progress wording is format-aware: PDFs report pages, slide decks report slides, and DOCX/text-like inputs report chunks so long Word files no longer misleadingly claim they are a single page.
 - On successful completion, Chronicle removes the sidecar temp file after the final output is saved.
-- If the run fails or is interrupted, Chronicle preserves the sidecar so you can inspect recovered text instead of losing all visible progress.
+- If the run fails or is interrupted, Chronicle preserves the sidecar so you can inspect recovered text instead of losing all progress. Older visible `.progress.txt.tmp` sidecars are still recognized for backward-compatible resume/recovery.
+- If Chronicle finishes extraction but the app is interrupted during the final save/cleanup stage, the next launch now auto-recovers that completed temp output from the hidden sidecar instead of leaving the file stranded as `.tmp`.
+- Chronicle now records explicit `[Finalize]` processing-log lines for cleanup, temp promotion, sidecar removal, log auto-save, and completion sound steps to make end-of-run stalls easier to diagnose.
 
 ### Original Page Number References
 
@@ -254,7 +269,7 @@ Key protections include:
 - reading may take a bit longer when modern punctuation or abbreviation expansion is enabled, because Chronicle has to correct punctuation and expand abbreviations
 - hardcoded archaic-dash spacing repair prevents cleaned `.-` and `,-` sequences from jamming adjacent words together
 - intelligent column splicing and print artifact correction for multi-column and damaged print layouts
-- novel-mode corruption containment keeps local OCR collapse from poisoning otherwise readable paragraphs; damaged spans should be isolated instead of merged into fluent prose
+- novel-mode corruption containment keeps source text corruption from poisoning otherwise readable paragraphs; damaged spans should be isolated instead of merged into fluent prose
 - book-mode paragraph continuity rules now explicitly suppress fake hard returns from wrapped scan lines unless the visible prose clearly supports a true paragraph or dialogue break
 - book-mode quote disambiguation now explicitly distinguishes apostrophes inside words from dialogue quotation marks and can normalize dialogue-style single quotes into double quotation marks when the page evidence clearly supports that reading
 - tabular profile can produce a single semantic HTML5 table with narrated summaries, row headers, filtered empty columns, and marked subtotal rows for screen-reader review
@@ -263,7 +278,9 @@ Key protections include:
 - bounded chunking defaults for stability
 - academic PDF downshift to one-page chunking where needed
 - dense scanned newspaper PDFs can automatically downshift to one-page slices when file weight per page suggests a heavy short scan
+- dense magazine and periodical PDFs can use the same conservative slicing policy when file weight per page suggests a heavy designed layout
 - sequential merge cleanup and synthetic filename heading removal
+- output QA checks can flag empty headings, leaked wrappers, placeholder image tokens, empty image sources, non-HTML tag leakage, and legal heading shapes that deserve review
 - per-file resilience so one bad item does not abort the whole queue
 - temporary-file saving strategy to reduce corrupted partial outputs
 - DOCX structure mapping for headings, bullets, numbered lists, pipe tables, and major section page breaks
@@ -314,11 +331,13 @@ File handling behavior in Preferences:
 Chronicle includes:
 
 - processing log export
+- support bundle export with redacted configuration, queue, session, provider status, and processing-log data
+- provider capability matrix for configured Gemini, Claude, and OpenAI keys
+- resume center summary for saved recoverable sessions
+- output comparison helper for checking two Chronicle outputs from the same source
 - PDF text-layer omission audit
+- output QA warnings after finalization for common structural artifacts
 - optional page confidence scoring
-- benchmark harnesses under `tools/`
-- release validation helpers under `tools/`
-- staged Windows bundle creation for portable Windows builds
 
 Chronicle is particularly well suited to iterative review workflows:
 
@@ -350,7 +369,6 @@ Key paths:
 - `chronicle_app/ui/menus.py`: menu bar wiring
 - `chronicle_app/ui/queue_panel.py`: queue UI panel
 - `Mac/`: macOS helper scripts
-- `tools/`: local validation, release, and benchmark tooling
 
 ## Installation and Runtime Modes
 
@@ -409,25 +427,6 @@ Use:
 ```
 
 The build flow resolves project resources from the current workspace and is intended to remain portable when the repo moves to a new path or machine.
-
-### macOS Packaged Memory Stress Check
-
-After a macOS build, you can run the repeatable packaged-app memory harness:
-
-```bash
-./Mac/run_packaged_memory_stress.command
-```
-
-This checks:
-
-- packaged `Chronicle.app` startup RSS
-- a calibrated save-plus-PDF-audit stress pass using Chronicle's extraction code paths
-
-Optional markdown report output:
-
-```bash
-./Mac/run_packaged_memory_stress.command --report-md docs/github_rollout/MAC_MEMORY_STRESS_REPORT_LATEST.md
-```
 
 ### Windows Build
 

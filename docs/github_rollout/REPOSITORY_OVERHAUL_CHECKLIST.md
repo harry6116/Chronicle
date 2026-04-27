@@ -2,14 +2,14 @@
 
 Use this checklist when replacing the outdated public repository with the current Chronicle codebase.
 
-Target first public app release: `1.0.0`
+Target public app release: `1.0.7`
 
 ## Phase 1: Pre-Migration Controls
 
 - [ ] Freeze public repo updates during migration window.
 - [ ] Create a full backup of current public repo state.
-- [ ] Confirm the source-of-truth working tree is clean and tested.
-- [ ] Build a local staged public snapshot with `python3 tools/prepare_public_repo_snapshot.py --clean` and review its manifest before touching the live GitHub repo.
+- [ ] Confirm the release candidate is clean and tested.
+- [ ] Build and review the public repository package before publishing.
 - [ ] Confirm packaged release assets exist and are the intended public files:
   - [ ] `Chronicle.mac.zip`
   - [ ] `Chronicle.windows.zip`
@@ -33,7 +33,7 @@ Target first public app release: `1.0.0`
 
 ## Phase 3: Build and CI Verification
 
-- [ ] Confirm local build commands succeed:
+- [ ] Confirm build commands succeed:
   - [ ] `./build.command`
   - [ ] `build_windows.bat` (on Windows host)
 - [ ] Confirm staged Windows bundle includes:
@@ -48,7 +48,7 @@ Target first public app release: `1.0.0`
 ## Phase 4: Release Preparation
 
 - [ ] Draft release notes in `RELEASE_NOTES_CURRENT.md`.
-- [ ] Prepare version tag `v1.0.0` and changelog entry.
+- [ ] Prepare version tag `v1.0.7` and changelog entry.
 - [ ] Confirm API/privacy wording is current and accurate.
 - [ ] Confirm install and quick-start instructions are current.
 - [ ] Validate links (donation, docs, issue tracker).
@@ -57,7 +57,7 @@ Target first public app release: `1.0.0`
 ## Phase 5: Public Launch
 
 - [ ] Push updated repository state.
-- [ ] Create release tag `v1.0.0` + publish release notes.
-- [ ] Attach or link `Chronicle 1.0 mac.zip` and `Chronicle 1.0 windows.zip`.
+- [ ] Create release tag `v1.0.7` + publish release notes.
+- [ ] Attach or link `Chronicle.mac.zip` and `Chronicle.windows.zip`.
 - [ ] Post short announcement.
 - [ ] Open post-release tracking issue for early bug reports.

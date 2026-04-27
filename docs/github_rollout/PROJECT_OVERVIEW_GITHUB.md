@@ -4,7 +4,7 @@ Chronicle is an accessibility-first document recovery tool for archival, academi
 
 Chronicle is a desktop GUI application. The public repository is intended to publish the current app source code, build scripts, and documentation for that GUI app. There is no separate supported Chronicle CLI product.
 
-Current public release target: **Chronicle 1.0.2**.
+Current public release target: **Chronicle 1.0.7**.
 
 **Built for hard documents.**
 
@@ -51,7 +51,7 @@ Chronicle aims to help users reach review-ready output faster on difficult mater
   - scheduled extraction start
   - interrupted session recovery
   - merge mode and per-row page/slide scope controls
-- Document presets include a dedicated `Comics / Manga / Graphic Novels` profile that preserves panel order, speech/thought balloons, captions, visible `SFX`, textless panels, image descriptions, and right-to-left manga flow when the page visibly supports it.
+- Document presets include dedicated profiles for historical newspapers, modern newspapers/e-papers, military records, handwriting, comics/manga/graphic novels, magazines, books, legal material, forms, reports, and other difficult source classes.
 
 ## Build and Distribution
 
@@ -106,4 +106,4 @@ If Chronicle is offered under separate commercial or proprietary terms later, th
 
 ## Status
 
-This project is the active standalone Chronicle GUI app line. Chronicle 1.0.2 adds the first dedicated comics, manga, and graphic-novel preset on top of the current public release line.
+This project is the active standalone Chronicle GUI app line. Chronicle 1.0.7 focuses on clearer preset taxonomy, modern newspaper/e-paper handling, historical newspaper safeguards, and more reliable image-only scanned PDF recovery.
