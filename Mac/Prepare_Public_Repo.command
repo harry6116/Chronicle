@@ -19,7 +19,7 @@ echo ""
 
 python3 tools/prepare_public_repo_snapshot.py --clean
 
-SNAPSHOT_DIR="/Users/michaelsmac/Documents/Chronicle/artifacts/public_repo_stage/Chronicle"
+SNAPSHOT_DIR="$ROOT_DIR/artifacts/public_repo_stage/Chronicle"
 MANIFEST_PATH="$SNAPSHOT_DIR/PUBLIC_REPO_MANIFEST.txt"
 
 echo ""

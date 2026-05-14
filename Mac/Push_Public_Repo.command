@@ -3,8 +3,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-SNAPSHOT_DIR="/Users/michaelsmac/Documents/Chronicle/artifacts/public_repo_stage/Chronicle"
-DEFAULT_PUBLIC_REPO_DIR="/Users/michaelsmac/Documents/Chronicle Public Repo"
+SNAPSHOT_DIR="$ROOT_DIR/artifacts/public_repo_stage/Chronicle"
+DEFAULT_PUBLIC_REPO_DIR="${CHRONICLE_PUBLIC_REPO_DIR:-$HOME/Documents/Chronicle Public Repo}"
 
 clear
 echo "--- CHRONICLE PUBLIC REPO PUSH ---"
