@@ -3,11 +3,11 @@ from pathlib import Path
 import unittest
 
 
-PRIMARY_ROOT = Path("/Users/michaelsmac/Documents/Chronicle")
+PRIMARY_ROOT = Path(__file__).resolve().parents[1]
 ACTIVE_TREE_ROOTS = [
     PRIMARY_ROOT,
-    Path("/Users/michaelsmac/Documents/Chronicle Beta"),
-    Path("/Users/michaelsmac/Documents/Chronicle windows Beta"),
+    PRIMARY_ROOT.parent / "Chronicle Beta",
+    PRIMARY_ROOT.parent / "Chronicle windows Beta",
 ]
 
 CRITICAL_PARITY_FILES = [

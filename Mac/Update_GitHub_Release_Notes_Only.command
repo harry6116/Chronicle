@@ -3,8 +3,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-DEFAULT_PUBLIC_REPO_DIR="/Users/michaelsmac/Documents/Chronicle Public Repo"
-DEFAULT_TAG="v1.0.0"
+DEFAULT_PUBLIC_REPO_DIR="${CHRONICLE_PUBLIC_REPO_DIR:-$HOME/Documents/Chronicle Public Repo}"
+DEFAULT_TAG="v1.0.5"
 DEFAULT_NOTES_BASENAME="RELEASE_NOTES_CURRENT.md"
 
 derive_release_title() {
@@ -12,42 +12,22 @@ derive_release_title() {
   printf 'Chronicle %s' "$tag"
 }
 
-derive_release_version() {
-  printf '%s' "${1#v}"
-}
-
 derive_release_notes_file() {
   printf '%s/docs/github_rollout/%s' "$ROOT_DIR" "$DEFAULT_NOTES_BASENAME"
-}
-
-find_latest_release_notes_file() {
-  local latest
-  latest="$(find "$ROOT_DIR/docs/github_rollout" -maxdepth 1 -type f -name 'RELEASE_v*_DRAFT.md' | sort -V | tail -n 1)"
-  printf '%s' "$latest"
 }
 
 seed_release_notes_file_if_missing() {
   local target="$1"
   local tag="$2"
-  local version source source_tag source_version
   if [[ -f "$target" ]]; then
     return 0
   fi
   mkdir -p "$(dirname "$target")"
-  source="$(find_latest_release_notes_file)"
-  if [[ -z "$source" || ! -f "$source" ]]; then
-    cat >"$target" <<EOF
+  cat >"$target" <<EOF
 # $(derive_release_title "$tag")
 
 Write release notes here.
 EOF
-    return 0
-  fi
-  cp "$source" "$target"
-  source_tag="$(basename "$source" | sed -E 's/^RELEASE_(v[^_]+)_DRAFT\.md$/\1/')"
-  source_version="$(derive_release_version "$source_tag")"
-  version="$(derive_release_version "$tag")"
-  perl -0pi -e "s/\Q$source_tag\E/$tag/g; s/\Q$source_version\E/$version/g" "$target"
 }
 
 DEFAULT_TITLE="$(derive_release_title "$DEFAULT_TAG")"
