@@ -91,6 +91,7 @@ def run_build():
         "--collect-all", "ebooklib",
         "--collect-all", "fpdf",
         "--collect-all", "PIL",
+        "--collect-all", "pillow_heif",
         "--collect-all", "httpx",
 
         # Exclude non-runtime test/deprecated internals that trigger noisy missing-module warnings.

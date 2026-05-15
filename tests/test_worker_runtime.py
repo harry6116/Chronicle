@@ -1,4 +1,5 @@
 import unittest
+import time
 from pathlib import Path
 
 from chronicle_app.services.worker_runtime import (
@@ -14,6 +15,8 @@ from chronicle_app.services.worker_runtime import (
     estimate_current_file_total_units,
     load_merge_resume_state,
     prepare_job_execution_context,
+    progress_state_indicates_completed_work,
+    progress_state_indicates_partial_work,
     read_progress_state,
     read_progress_text,
     recover_completed_output_artifacts,
@@ -26,7 +29,7 @@ class WorkerRuntimeTest(unittest.TestCase):
         import tempfile
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            progress_path = str(Path(tmpdir) / ".chronicle_progress_alpha.html.txt.tmp")
+            progress_path = str(Path(tmpdir) / "alpha.html.progress.txt.tmp")
             Path(progress_path).write_text(
                 build_progress_state_header({"completed_units": 2, "total_units": 5}) + "<p>body</p>",
                 encoding="utf-8",
@@ -39,23 +42,23 @@ class WorkerRuntimeTest(unittest.TestCase):
         import tempfile
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            progress_path = str(Path(tmpdir) / ".chronicle_progress_alpha.html.txt.tmp")
+            progress_path = str(Path(tmpdir) / "alpha.html.progress.txt.tmp")
             legacy_state = progress_path + ".state.json"
             Path(progress_path).write_text("partial body", encoding="utf-8")
             Path(legacy_state).write_text('{"completed_units": 3, "total_units": 7}', encoding="utf-8")
 
             self.assertEqual(read_progress_state(progress_path)["completed_units"], 3)
 
-    def test_build_progress_temp_path_uses_hidden_chronicle_sidecar(self):
+    def test_build_progress_temp_path_uses_visible_progress_file(self):
         output_path = "/tmp/Oyungezer 190 - Standart Kalite.pdf"
 
         self.assertEqual(
             build_progress_temp_path(output_path),
-            "/tmp/.chronicle_progress_Oyungezer 190 - Standart Kalite.pdf.txt.tmp",
+            "/tmp/Oyungezer 190 - Standart Kalite.pdf.progress.txt.tmp",
         )
         self.assertEqual(
             build_legacy_progress_temp_path(output_path),
-            "/tmp/Oyungezer 190 - Standart Kalite.pdf.progress.txt.tmp",
+            "/tmp/.chronicle_progress_Oyungezer 190 - Standart Kalite.pdf.txt.tmp",
         )
 
     def test_recover_completed_output_artifacts_promotes_temp_and_cleans_sidecar(self):
@@ -64,7 +67,7 @@ class WorkerRuntimeTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             output_path = Path(tmpdir) / "alpha.html"
             temp_path = Path(tmpdir) / "alpha.html.tmp"
-            progress_path = Path(tmpdir) / ".chronicle_progress_alpha.html.txt.tmp"
+            progress_path = Path(tmpdir) / "alpha.html.progress.txt.tmp"
             temp_path.write_text("<html>done</html>", encoding="utf-8")
             progress_path.write_text(
                 build_progress_state_header({"completed_units": 4, "total_units": 4}) + "<html>done</html>",
@@ -84,6 +87,17 @@ class WorkerRuntimeTest(unittest.TestCase):
             self.assertFalse(temp_path.exists())
             self.assertFalse(progress_path.exists())
             self.assertTrue(any("Materialized completed output" in entry for entry in logs))
+
+    def test_progress_state_indicates_completed_work_requires_total(self):
+        self.assertTrue(progress_state_indicates_completed_work({"completed_units": 4, "total_units": 4}))
+        self.assertFalse(progress_state_indicates_completed_work({"completed_units": 4, "total_units": 0}))
+        self.assertFalse(progress_state_indicates_completed_work({"completed_units": 1, "total_units": 4}))
+
+    def test_progress_state_indicates_partial_work_accepts_stranded_progress(self):
+        self.assertTrue(progress_state_indicates_partial_work({"completed_units": 3, "total_units": 14}))
+        self.assertTrue(progress_state_indicates_partial_work({"completed_pages": 3}))
+        self.assertFalse(progress_state_indicates_partial_work({"completed_units": 14, "total_units": 14}))
+        self.assertFalse(progress_state_indicates_partial_work({"completed_units": 0, "total_units": 14}))
 
     def test_build_worker_run_plan_disables_merge_for_mixed_formats(self):
         jobs = [
@@ -113,6 +127,17 @@ class WorkerRuntimeTest(unittest.TestCase):
 
         self.assertFalse(enabled)
         self.assertGreaterEqual(size_mb, 50)
+
+    def test_determine_needs_pdf_audit_skips_nla_newspaper_sources(self):
+        enabled, _size_mb = determine_needs_pdf_audit(
+            ".pdf",
+            {"pdf_textlayer_audit": True, "doc_profile": "newspaper"},
+            low_memory_mode=False,
+            path="/tmp/nla.news-issue108507.pdf",
+            low_memory_pdf_audit_skip_mb=40,
+        )
+
+        self.assertFalse(enabled)
 
     def test_compute_target_dir_preserves_relative_structure_when_available(self):
         job = {"path": "/source/sub/file.pdf", "source_root": "/source"}
@@ -229,13 +254,77 @@ class WorkerRuntimeTest(unittest.TestCase):
         self.assertEqual(result['client'], 'client:model:Fast')
         self.assertEqual(result['output_path'], '/out/sub/a.html')
         self.assertEqual(result['temp_path'], '/out/sub/a.html.tmp')
-        self.assertEqual(result['progress_temp_path'], '/out/sub/.chronicle_progress_a.html.txt.tmp')
+        self.assertEqual(result['progress_temp_path'], '/out/sub/a.html.progress.txt.tmp')
         self.assertIsInstance(result['memory'], BufferedOutputMemory)
         self.assertEqual(result['memory'].clear_every_pages, 2)
-        self.assertEqual(result['memory'].progress_temp_path, '/out/sub/.chronicle_progress_a.html.txt.tmp')
+        self.assertEqual(result['memory'].progress_temp_path, '/out/sub/a.html.progress.txt.tmp')
         self.assertEqual(makedirs_calls, [('/out/sub', True)])
         self.assertEqual(removed, ['/out/sub/a.html.tmp'])
         self.assertEqual(headers[0], ('a', 'html', 'en', 'ltr'))
+
+    def test_prepare_job_execution_context_auto_resumes_stranded_pdf_progress(self):
+        import tempfile
+
+        class FakePdfReader:
+            def __init__(self, _path):
+                self.pages = [object(), object(), object(), object(), object()]
+
+        logs = []
+        with tempfile.TemporaryDirectory() as tmpdir:
+            source_path = str(Path(tmpdir) / "paper.pdf")
+            output_path = str(Path(tmpdir) / "paper.html")
+            progress_path = build_progress_temp_path(output_path)
+            Path(source_path).write_bytes(b"%PDF-1.4\n")
+            Path(progress_path).write_text(
+                build_progress_state_header({"completed_units": 3, "total_units": 5, "completed_pages": 3, "total_pages": 5})
+                + "<html><body><p>pages 1-3</p>",
+                encoding="utf-8",
+            )
+
+            result = prepare_job_execution_context(
+                {'_queue_index': 0, 'path': source_path, 'engine': 'Fast', 'settings': {'format_type': 'html'}},
+                cfg={'collision_mode': None},
+                resume_mode=False,
+                low_memory_mode=False,
+                low_memory_pdf_audit_skip_mb=40,
+                custom_dest='',
+                dest_mode=0,
+                merge_mode=False,
+                master_output_path=None,
+                master_temp_path=None,
+                master_file_obj=None,
+                master_memory=None,
+                streamable_formats={'html', 'txt', 'md'},
+                supported_extensions={'.pdf'},
+                normalize_row_settings_fn=lambda job: job.get('settings', {}),
+                build_prompt_fn=lambda cfg: 'prompt',
+                model_from_label_fn=lambda label: f'model:{label}',
+                get_client_fn=lambda model: f'client:{model}',
+                determine_needs_pdf_audit_fn=lambda *args, **kwargs: (False, 0.0),
+                compute_target_dir_fn=lambda *args, **kwargs: tmpdir,
+                resolve_output_path_fn=lambda base, *args, **kwargs: {'output_path': output_path, 'should_skip': False},
+                write_header_fn=lambda *args: None,
+                get_output_lang_code_fn=lambda cfg: 'en',
+                get_output_text_direction_fn=lambda cfg: 'ltr',
+                pdf_reader_factory=FakePdfReader,
+                normalize_pdf_page_scope_text_fn=lambda scope: str(scope or '').strip(),
+                parse_pdf_page_scope_spec_fn=lambda scope, total: list(range(total)) if not scope else [int(part) - 1 for part in scope.split('-')],
+                set_queue_status_fn=lambda idx, status: None,
+                log_cb=logs.append,
+            )
+
+            try:
+                self.assertFalse(result['skip'])
+                self.assertEqual(result['job_cfg']['pdf_page_scope'], '4-5')
+                self.assertEqual(result['recovered_units'], 3)
+                self.assertEqual(result['original_total_units'], 5)
+                self.assertEqual(Path(result['temp_path']).read_text(encoding='utf-8'), "<html><body><p>pages 1-3</p>")
+                self.assertTrue(any("Rebuilt missing temp output" in entry for entry in logs))
+            finally:
+                if result.get('file_obj'):
+                    result['file_obj'].close()
+                if result.get('progress_file_obj'):
+                    result['progress_file_obj'].close()
 
     def test_prepare_job_execution_context_uses_pdf_scope_suffix_in_output_name(self):
         result = prepare_job_execution_context(
@@ -314,7 +403,7 @@ class WorkerRuntimeTest(unittest.TestCase):
         )
 
         self.assertIsInstance(result['memory'], MirroredProgressMemory)
-        self.assertEqual(result['progress_temp_path'], '/out/sub/.chronicle_progress_a.docx.txt.tmp')
+        self.assertEqual(result['progress_temp_path'], '/out/sub/a.docx.progress.txt.tmp')
 
     def test_mirrored_progress_memory_reads_written_text_since_checkpoint(self):
         import tempfile
@@ -420,7 +509,7 @@ class WorkerRuntimeTest(unittest.TestCase):
             import tempfile
 
             with tempfile.TemporaryDirectory() as tmpdir:
-                progress_path = str(Path(tmpdir) / ".chronicle_progress_a.docx.txt.tmp")
+                progress_path = str(Path(tmpdir) / "a.docx.progress.txt.tmp")
                 Path(progress_path).write_text(
                     build_progress_state_header({"completed_pages": 2, "total_pages": 6, "current_source_page": 2}) + "partial",
                     encoding="utf-8",
@@ -481,7 +570,7 @@ class WorkerRuntimeTest(unittest.TestCase):
         import tempfile
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            progress_path = str(Path(tmpdir) / ".chronicle_progress_a.html.txt.tmp")
+            progress_path = str(Path(tmpdir) / "a.html.progress.txt.tmp")
             temp_path = str(Path(tmpdir) / "a.html.tmp")
             Path(progress_path).write_text(
                 build_progress_state_header({"completed_units": 3, "total_units": 7}) + "partial progress",
@@ -538,7 +627,7 @@ class WorkerRuntimeTest(unittest.TestCase):
         import tempfile
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            progress_path = str(Path(tmpdir) / ".chronicle_progress_merged.docx.txt.tmp")
+            progress_path = str(Path(tmpdir) / "merged.docx.progress.txt.tmp")
             Path(progress_path).write_text(
                 build_progress_state_header(
                     {"completed_job_paths": ["/tmp/a.pdf", "/tmp/b.pdf", "/tmp/a.pdf"], "total_units": 4}
@@ -570,7 +659,7 @@ class WorkerRuntimeTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             output_path = Path(tmpdir) / "a.html"
             temp_path = Path(tmpdir) / "a.html.tmp"
-            progress_path = Path(tmpdir) / ".chronicle_progress_a.html.txt.tmp"
+            progress_path = Path(tmpdir) / "a.html.progress.txt.tmp"
             temp_path.write_text("<html>rescued</html>", encoding="utf-8")
             progress_path.write_text(
                 build_progress_state_header(
@@ -626,7 +715,104 @@ class WorkerRuntimeTest(unittest.TestCase):
             self.assertEqual(output_path.read_text(encoding="utf-8"), "<html>rescued</html>")
             self.assertFalse(temp_path.exists())
             self.assertFalse(progress_path.exists())
-            self.assertTrue(any("Recovered completed PDF task" in entry for entry in logs))
+            self.assertTrue(any("Recovered completed task from progress file" in entry for entry in logs))
+
+    def test_prepare_job_execution_context_recovers_completed_output_without_resume_mode(self):
+        import tempfile
+
+        statuses = []
+        logs = []
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_path = Path(tmpdir) / "a.html"
+            temp_path = Path(tmpdir) / "a.html.tmp"
+            progress_path = Path(tmpdir) / "a.html.progress.txt.tmp"
+            temp_path.write_text("<html>rescued</html>", encoding="utf-8")
+            progress_path.write_text(
+                build_progress_state_header(
+                    {
+                        "completed_units": 7,
+                        "total_units": 7,
+                    }
+                ) + "<html>rescued</html>",
+                encoding="utf-8",
+            )
+
+            result = prepare_job_execution_context(
+                {'_queue_index': 1, 'path': '/source/a.docx', 'engine': 'Fast', 'settings': {'format_type': 'html'}},
+                cfg={'collision_mode': None, 'preserve_source_structure': True},
+                resume_mode=False,
+                low_memory_mode=False,
+                low_memory_pdf_audit_skip_mb=40,
+                custom_dest=tmpdir,
+                dest_mode=1,
+                merge_mode=False,
+                master_output_path=None,
+                master_temp_path=None,
+                master_file_obj=None,
+                master_memory=None,
+                streamable_formats={'html', 'txt', 'md'},
+                supported_extensions={'.docx'},
+                normalize_row_settings_fn=lambda job: job.get('settings', {}),
+                build_prompt_fn=lambda cfg: 'prompt',
+                model_from_label_fn=lambda label: f'model:{label}',
+                get_client_fn=lambda model: f'client:{model}',
+                determine_needs_pdf_audit_fn=lambda *args, **kwargs: (False, 0.0),
+                compute_target_dir_fn=lambda *args, **kwargs: tmpdir,
+                resolve_output_path_fn=lambda *args, **kwargs: {'output_path': str(output_path), 'should_skip': False},
+                write_header_fn=lambda *args: None,
+                get_output_lang_code_fn=lambda cfg: 'en',
+                get_output_text_direction_fn=lambda cfg: 'ltr',
+                pdf_reader_factory=None,
+                normalize_pdf_page_scope_text_fn=None,
+                parse_pdf_page_scope_spec_fn=None,
+                set_queue_status_fn=lambda idx, status: statuses.append((idx, status)),
+                log_cb=logs.append,
+                makedirs_fn=lambda path, exist_ok=False: None,
+                path_exists_fn=lambda path: path in {"/source/a.docx", str(temp_path), str(progress_path)},
+                remove_fn=lambda path: Path(path).unlink(),
+                replace_fn=lambda src, dst: Path(src).replace(dst),
+                open_fn=open,
+            )
+
+            self.assertTrue(result['skip'])
+            self.assertEqual(statuses, [(1, 'Done')])
+            self.assertEqual(output_path.read_text(encoding="utf-8"), "<html>rescued</html>")
+            self.assertFalse(temp_path.exists())
+            self.assertFalse(progress_path.exists())
+            self.assertTrue(any("Recovered completed task from progress file" in entry for entry in logs))
+
+    def test_recover_completed_output_artifacts_falls_back_when_replace_hangs(self):
+        import tempfile
+
+        logs = []
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_path = Path(tmpdir) / "a.html"
+            temp_path = Path(tmpdir) / "a.html.tmp"
+            progress_path = Path(tmpdir) / "a.html.progress.txt.tmp"
+            temp_path.write_text("<html>rescued</html>", encoding="utf-8")
+            progress_path.write_text("progress", encoding="utf-8")
+
+            recovered = recover_completed_output_artifacts(
+                output_path=str(output_path),
+                temp_path=str(temp_path),
+                progress_temp_path=str(progress_path),
+                path_exists_fn=lambda path: Path(path).exists(),
+                replace_fn=lambda src, dst: time.sleep(0.2),
+                remove_fn=lambda path: Path(path).unlink(),
+                log_cb=logs.append,
+                operation_timeout_s=0.01,
+            )
+
+            fallback_paths = list(Path(tmpdir).glob("a_finalized_*.html"))
+            self.assertTrue(recovered)
+            self.assertFalse(output_path.exists())
+            self.assertEqual(len(fallback_paths), 1)
+            self.assertEqual(fallback_paths[0].read_text(encoding="utf-8"), "<html>rescued</html>")
+            self.assertFalse(temp_path.exists())
+            self.assertFalse(progress_path.exists())
+            self.assertTrue(any("did not finish within" in entry for entry in logs))
+            self.assertTrue(any("Materialized completed output" in entry for entry in logs))
 
     def test_resolve_output_path_handles_skip_and_auto_collision_modes(self):
         skipped = resolve_output_path(

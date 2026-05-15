@@ -45,6 +45,7 @@ except ImportError:  # pragma: no cover - optional dependency in lightweight tes
 import wx
 import wx.adv as wxadv
 import signal
+from chronicle_app.services.security import sanitize_log_text
 try:
     import winsound
 except ImportError:
@@ -83,9 +84,11 @@ from chronicle_app.services.runtime_policies import (
     DEFAULT_CLAUDE_MODEL,
     build_profile_selection_summary as shared_build_profile_selection_summary,
     get_preferred_profile_model as shared_get_preferred_profile_model,
+    get_model_vendor as shared_get_model_vendor,
     get_processing_speed_warning as shared_get_processing_speed_warning,
     get_model_tradeoff_text as shared_get_model_tradeoff_text,
     get_pdf_chunk_pages as shared_get_pdf_chunk_pages,
+    estimate_run_effort as shared_estimate_run_effort,
     persist_runtime_settings_to_cfg as shared_persist_runtime_settings_to_cfg,
     resolve_model_for_available_keys as shared_resolve_model_for_available_keys,
     wait_for_gemini_upload_ready as shared_wait_for_gemini_upload_ready,
@@ -114,11 +117,24 @@ except ImportError:  # pragma: no cover - optional in bare system python before 
     shared_load_installed_license = None
     shared_resolve_public_key = None
 from chronicle_app.services.document_processors import (
+    RESUMABLE_UNIT_EXTENSIONS,
+    RENDERABLE_DOCUMENT_EXTENSIONS,
+    SOURCE_TEXT_EXTENSIONS,
+    SUPPORTED_EXTENSIONS as SHARED_SUPPORTED_EXTENSIONS,
+    SUPPORTED_IMAGE_EXTENSIONS,
     estimate_text_work_units as shared_estimate_text_work_units,
     process_epub as shared_process_epub,
     process_img as shared_process_img,
     process_pptx as shared_process_pptx,
+    process_rendered_document as shared_process_rendered_document,
     process_text as shared_process_text,
+    supported_files_wildcard as shared_supported_files_wildcard,
+)
+from chronicle_app.services.diagnostics import (
+    build_provider_capability_matrix as shared_build_provider_capability_matrix,
+    build_resume_center_summary as shared_build_resume_center_summary,
+    compare_output_files as shared_compare_output_files,
+    create_support_bundle as shared_create_support_bundle,
 )
 from chronicle_app.services.pdf_processor import process_pdf as shared_process_pdf
 from chronicle_app.services.exporters import (
@@ -164,6 +180,7 @@ from chronicle_app.services.queue_state_runtime import (
     pause_selected_tasks as shared_pause_selected_tasks,
     refresh_queue_work_unit_estimates as shared_refresh_queue_work_unit_estimates,
     resume_selected_tasks as shared_resume_selected_tasks,
+    format_scan_log_message as shared_format_scan_log_message,
     should_log_page_progress as shared_should_log_page_progress,
     should_status_echo_log as shared_should_status_echo_log,
     stop_selected_tasks as shared_stop_selected_tasks,
@@ -175,6 +192,10 @@ from chronicle_app.services.run_control_runtime import (
     pause_current_processing_row as shared_pause_current_processing_row,
     prepare_running_close as shared_prepare_running_close,
     wait_while_paused as shared_wait_while_paused,
+)
+from chronicle_app.services.mac_activity_runtime import (
+    start_mac_activity_guard as shared_start_mac_activity_guard,
+    stop_mac_activity_guard as shared_stop_mac_activity_guard,
 )
 from chronicle_app.services.worker_runtime import (
     MirroredProgressMemory,
@@ -298,6 +319,9 @@ class PdfReader:
         self._document = fitz.open(self._path)
         self.pages = [_FitzPageAdapter(self._document, idx) for idx in range(len(self._document))]
 
+    def close(self):
+        self._document.close()
+
 
 class PdfWriter:
     def __init__(self):
@@ -341,11 +365,12 @@ def _install_runtime_crash_capture():
 
         def _write_uncaught(prefix, exc_type, exc_value, exc_traceback):
             try:
-                print(
-                    f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {prefix}: {exc_type.__name__}: {exc_value}",
-                    file=_CRASH_LOG_STREAM,
+                safe_header = sanitize_log_text(
+                    f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {prefix}: {exc_type.__name__}: {exc_value}"
                 )
-                traceback.print_exception(exc_type, exc_value, exc_traceback, file=_CRASH_LOG_STREAM)
+                print(safe_header, file=_CRASH_LOG_STREAM)
+                formatted = "".join(traceback.format_exception(exc_type, exc_value, exc_traceback))
+                print(sanitize_log_text(formatted), file=_CRASH_LOG_STREAM)
                 _CRASH_LOG_STREAM.flush()
             except Exception:
                 pass
@@ -422,7 +447,7 @@ LOW_MEMORY_PDF_AUDIT_SKIP_MB = 40
 SESSION_TERMINAL_STATUSES = {"Done", "Error", "Skipped", "Unsupported", "Missing", "Stopped"}
 QUEUE_EMPTY_PLACEHOLDER = "Queue is empty. Use Add Files or Add Folder to load items."
 STREAMABLE_FORMATS = {"html", "txt", "md"}
-SUPPORTED_EXTENSIONS = ['.pdf', '.docx', '.txt', '.md', '.rtf', '.csv', '.js', '.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif', '.webp', '.xlsx', '.xls', '.pptx', '.ppt', '.epub']
+SUPPORTED_EXTENSIONS = sorted(SHARED_SUPPORTED_EXTENSIONS)
 PROTECTED_INPUT_DIR_BASENAMES = {"checking documents"}
 ROW_SETTING_KEYS = (
     "format_type",
@@ -523,16 +548,18 @@ def profile_tooltip_text(profile_key):
         "slides": "Use this for slide decks, presentations, lecture slides, and speaker handouts.",
         "flyer": "Use this for flyers, posters, one-page notices, event sheets, and short announcements.",
         "brochure": "Use this for brochures, catalogues, pamphlets, and folded or multi-panel handouts.",
+        "modern_newspaper": "Use this for contemporary newspapers, e-papers, clean print-edition PDFs, article cards, section labels, bylines, captions, ads, and jump lines. Use Historical Newspapers for old OCR/newsprint scans.",
+        "magazine": "Use this for magazines, periodicals, reviews, feature articles, interviews, sidebars, captions, advertisements, pull quotes, and feature-led layouts.",
         "comic": "Use this for comics, manga, graphic novels, comic strips, and panel-based visual storytelling where balloons, captions, sound effects, and art descriptions matter.",
         "book": "Use this for books, novels, memoirs, and other long-form prose.",
-        "newspaper": "Use this for newspapers and other dense multi-column pages.",
+        "newspaper": "Use this for historical newspapers, old newsprint scans, OCR-backed Trove/NLA material, classifieds, mastheads, and degraded multi-column press layouts. Use Modern Newspapers for contemporary e-papers.",
         "academic": "Use this for research papers, journal articles, citations, equations, and footnotes.",
-        "transcript": "Use this for interviews, hearings, scripts, speaker turns, and dialogue-heavy text.",
+        "transcript": "Use this for scripts, plays, screenplays, interviews, hearings, speaker turns, and dialogue-heavy text.",
         "poetry": "Use this when line breaks, indentation, and stanza shape must be preserved.",
-        "handwritten": "Use this for handwritten letters, personal notes, diaries, drafts, and photographed handwritten pages. Use this instead of Medical unless the page is clearly clinical.",
+        "handwritten": "Use this for handwritten notes, personal diary pages, drafts, and photographed handwritten pages. Use Military Records for war diaries and unit logs; use Medical only when the page is clearly clinical.",
         "archival": "Use this for historical papers, archives, manuscripts, ledgers, and older source material.",
         "medical": "Use this for clinical notes, referral letters, charts, forms, and doctor handwriting when the content is clearly medical.",
-        "military": "Use this for war diaries, operational orders, service records, and other military files.",
+        "military": "Use this for war diaries, unit logs, operational orders, service records, casualty rolls, and other military files.",
         "intelligence": "Use this for cables, signals traffic, intelligence briefings, routing headers, and codewords.",
         "museum": "Use this for object labels, captions, wall text, provenance notes, and exhibit metadata.",
     }
@@ -561,6 +588,10 @@ def get_model_tradeoff_text(model_name):
 
 def get_processing_speed_warning(profile_key, model_name):
     return shared_get_processing_speed_warning(profile_key, model_name)
+
+
+def estimate_run_effort(profile_key, model_name, total_units, *, file_size_mb=None):
+    return shared_estimate_run_effort(profile_key, model_name, total_units, file_size_mb=file_size_mb)
 
 
 def build_profile_selection_summary(profile_key, current_model_name):
@@ -810,7 +841,7 @@ def build_log_header(build_stamp):
 
 # --- CORE LOGIC & SCRUBBERS ---
 HeartbeatMonitor = SharedHeartbeatMonitor
-heartbeat = HeartbeatMonitor(exit_fn=os._exit)
+heartbeat = HeartbeatMonitor(exit_fn=None)
 
 def enhance_image(file_path):
     try:
@@ -957,8 +988,8 @@ def apply_modern_currency(content):
     return core_apply_modern_currency(content)
 
 
-def apply_expanded_abbreviations(content):
-    return core_apply_expanded_abbreviations(content)
+def apply_expanded_abbreviations(content, doc_profile=None):
+    return core_apply_expanded_abbreviations(content, doc_profile)
 
 def normalize_streamed_html_document(full_html):
     return core_normalize_streamed_html_document(full_html)
@@ -1140,7 +1171,7 @@ def build_payload(model, prompt, file_path=None, mime="image/png", file_bytes=No
     return shared_build_payload(model, prompt, file_path=file_path, mime=mime, file_bytes=file_bytes)
 
 # --- DOCUMENT PROCESSORS ---
-def process_pdf(client, path, out, fmt, prompt, model, f_obj, mem, log_cb, confidence_cb=None, pause_cb=None, page_progress_cb=None, page_scope="", doc_profile="standard", auto_escalation_model=None):
+def process_pdf(client, path, out, fmt, prompt, model, f_obj, mem, log_cb, confidence_cb=None, pause_cb=None, page_progress_cb=None, page_scope="", doc_profile="standard", auto_escalation_model=None, allow_text_layer_fallback=False):
     return shared_process_pdf(
         client,
         path,
@@ -1157,6 +1188,7 @@ def process_pdf(client, path, out, fmt, prompt, model, f_obj, mem, log_cb, confi
         page_scope=page_scope,
         doc_profile=doc_profile,
         auto_escalation_model=auto_escalation_model,
+        allow_text_layer_fallback=allow_text_layer_fallback,
         script_dir=SCRIPT_DIR,
         pdf_reader_cls=PdfReader,
         pdf_writer_cls=PdfWriter,
@@ -1174,7 +1206,7 @@ def process_pdf(client, path, out, fmt, prompt, model, f_obj, mem, log_cb, confi
         exists_fn=os.path.exists,
     )
 
-def process_text(client, path, out, ext, fmt, prompt, model, f_obj, mem, log_cb, pause_cb=None, page_progress_cb=None):
+def process_text(client, path, out, ext, fmt, prompt, model, f_obj, mem, log_cb, pause_cb=None, page_progress_cb=None, resume_from_batch=0, doc_profile=None):
     return shared_process_text(
         client,
         path,
@@ -1199,9 +1231,12 @@ def process_text(client, path, out, ext, fmt, prompt, model, f_obj, mem, log_cb,
         openpyxl_module=openpyxl,
         subprocess_module=subprocess,
         page_progress_cb=page_progress_cb,
+        resume_from_batch=resume_from_batch,
+        doc_profile=doc_profile,
+        fitz_module=fitz,
     )
 
-def process_pptx(client, path, out, fmt, prompt, model, f_obj, mem, log_cb, pause_cb=None, page_progress_cb=None):
+def process_pptx(client, path, out, fmt, prompt, model, f_obj, mem, log_cb, pause_cb=None, page_progress_cb=None, resume_from_batch=0):
     return shared_process_pptx(
         client,
         path,
@@ -1222,9 +1257,10 @@ def process_pptx(client, path, out, fmt, prompt, model, f_obj, mem, log_cb, paus
         stream_with_cache_fn=stream_with_cache,
         generate_retry_fn=generate_retry,
         subprocess_module=subprocess,
+        resume_from_batch=resume_from_batch,
     )
 
-def process_epub(client, path, out, fmt, prompt, model, f_obj, mem, log_cb, pause_cb=None, page_progress_cb=None):
+def process_epub(client, path, out, fmt, prompt, model, f_obj, mem, log_cb, pause_cb=None, page_progress_cb=None, resume_from_batch=0):
     return shared_process_epub(
         client,
         path,
@@ -1245,6 +1281,7 @@ def process_epub(client, path, out, fmt, prompt, model, f_obj, mem, log_cb, paus
         generate_retry_fn=generate_retry,
         epub_module=epub,
         page_progress_cb=page_progress_cb,
+        resume_from_batch=resume_from_batch,
     )
 
 def process_img(client, path, out, fmt, prompt, model, f_obj, mem, log_cb, pause_cb=None):
@@ -1268,6 +1305,30 @@ def process_img(client, path, out, fmt, prompt, model, f_obj, mem, log_cb, pause
         remove_fn=os.remove,
     )
 
+def process_rendered_document(client, path, out, fmt, prompt, model, f_obj, mem, log_cb, pause_cb=None, page_progress_cb=None, resume_from_page=0):
+    return shared_process_rendered_document(
+        client,
+        path,
+        out,
+        fmt,
+        prompt,
+        model,
+        f_obj,
+        mem,
+        log_cb,
+        pause_cb=pause_cb,
+        page_progress_cb=page_progress_cb,
+        fitz_module=fitz,
+        enhance_image_fn=enhance_image,
+        build_payload_fn=build_payload,
+        build_request_cache_key_fn=build_request_cache_key,
+        sha256_file_fn=sha256_file,
+        stream_with_cache_fn=stream_with_cache,
+        generate_retry_fn=generate_retry,
+        remove_fn=os.remove,
+        resume_from_page=resume_from_page,
+    )
+
 class MainFrame(wx.Frame):
     def __init__(self):
         self.build_stamp = get_runtime_build_stamp()
@@ -1275,15 +1336,17 @@ class MainFrame(wx.Frame):
         self.autorun_spec_path = str(os.environ.get(AUTORUN_SPEC_ENV, "") or "").strip()
         self.autorun_active = bool(self.autorun_spec_path)
         self.autorun_close_on_finish = False
+        self.autorun_original_cfg = None
         self.cfg = load_json(CONFIG_FILE, {
             'format_type': 'html', 'model_name': 'gemini-2.5-flash', 'model_override': '', 'doc_profile': 'standard',
-            'translate_mode': 'none', 'collision_mode': 'skip', 'merge_files': False,
+            'translate_mode': 'none', 'collision_mode': 'auto', 'merge_files': False,
             'translate_target': 'English',
             'image_descriptions': True, 'modernize_punctuation': False, 'unit_conversion': False,
             'abbrev_expansion': False, 'preserve_original_page_numbers': False, 'large_print': False, 'delete_source_on_success': False,
             'preserve_source_structure': True,
             'custom_prompt': '', 'custom_commands': '',
             'pdf_textlayer_audit': True,
+            'allow_pdf_text_layer_fallback': False,
             'page_confidence_scoring': False,
             'low_memory_mode': False,
             'memory_telemetry': False,
@@ -1334,6 +1397,7 @@ class MainFrame(wx.Frame):
         self._last_engine_activity_ts = 0.0
         self._last_progress_heartbeat_ts = 0.0
         self.pending_scan_merge_extract = False
+        self._mac_activity_guard_process = None
         self.scheduled_start_ts = self._normalize_future_timestamp(self.cfg.get('scheduled_start_ts'))
         self.scheduled_start_triggered = False
         if self.scheduled_start_ts is None and self.cfg.get('scheduled_start_ts') is not None:
@@ -1715,6 +1779,7 @@ class MainFrame(wx.Frame):
             'format_choice': (wx.EVT_CHOICE, self.OnFormatChoiceChanged),
             'apply_settings': (wx.EVT_BUTTON, self.OnApplySettingsToQueue),
             'run_preflight': (wx.EVT_BUTTON, self.OnRunPreflight),
+            'first_pages_trial': (wx.EVT_BUTTON, self.OnFirstPagesTrial),
             'pdf_pages': (wx.EVT_CHOICE, self.OnPdfPageScopeChanged),
             'run_option': (wx.EVT_CHOICE, self.OnRunOptionChoiceChanged),
             'dest_mode': (wx.EVT_CHOICE, self.OnDestModeChanged),
@@ -1734,6 +1799,7 @@ class MainFrame(wx.Frame):
         self.format_choice = settings_section['format_choice']
         self.btn_apply_settings = settings_section['btn_apply_settings']
         self.btn_run_preflight = settings_section['btn_run_preflight']
+        self.btn_first_pages_trial = settings_section['btn_first_pages_trial']
         self.preflight_summary = settings_section['preflight_summary']
         self.run_translate_choice = settings_section['run_translate_choice']
         self.run_punct_choice = settings_section['run_punct_choice']
@@ -1825,6 +1891,7 @@ class MainFrame(wx.Frame):
                 spec.get("pdf_page_scope") or spec.get("page_scope") or ""
             )
 
+            self.autorun_original_cfg = dict(self.cfg)
             self.autorun_close_on_finish = bool(spec.get("close_on_finish", True))
             self.cfg["doc_profile"] = profile_key
             self.cfg["format_type"] = format_type
@@ -1985,17 +2052,20 @@ class MainFrame(wx.Frame):
                 batch_text_chunks_fn=batch_text_chunks,
                 docx_module=docx,
                 openpyxl_module=openpyxl,
+                fitz_module=fitz,
             ),
         )
         file_name = os.path.basename(path)
         mode_label = "manual override" if str(settings.get("model_override", "") or "").strip() else "automatic preflight"
-        strategy = "Deep scan path" if ext in {".pdf", ".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif", ".webp"} else "Direct source-text path"
+        strategy = "Deep scan path" if ext == ".pdf" or ext in SUPPORTED_IMAGE_EXTENSIONS or ext in RENDERABLE_DOCUMENT_EXTENSIONS else "Direct source-text path"
         reason = str(routing.get("routing_reason", "") or "No preflight reason available.")
-        if ext in [".docx", ".txt", ".md", ".rtf", ".csv", ".js", ".xlsx", ".xls", ".epub", ".pptx", ".ppt"]:
+        if ext in SOURCE_TEXT_EXTENSIONS | {".epub", ".mobi", ".fb2"} | {".pptx", ".ppt"}:
             reason = (
                 "Strong source text is available directly from the file, so Chronicle will replicate that text first "
                 "and only apply conservative accessibility repair."
             )
+        elif ext in RENDERABLE_DOCUMENT_EXTENSIONS:
+            reason = "Chronicle will render this file to page images and use the visual scan path for faithful extraction."
         elif "text layer" in reason.lower() or "born-digital" in reason.lower():
             strategy = "Direct text-first PDF path"
         scope_detail = ""
@@ -2006,9 +2076,29 @@ class MainFrame(wx.Frame):
             )
         elif unit_estimate.get("total_units", 0):
             scope_detail = f" Estimated work: {unit_estimate['total_units']} {unit_estimate.get('unit_label', 'unit(s)')}."
+        file_size_mb = None
+        try:
+            file_size_mb = os.path.getsize(path) / (1024 * 1024)
+        except OSError:
+            file_size_mb = None
+        effort = estimate_run_effort(
+            settings.get("doc_profile", "standard"),
+            selected_model,
+            unit_estimate.get("selected_count") or unit_estimate.get("total_units", 0),
+            file_size_mb=file_size_mb,
+        )
+        readiness_notes = []
+        if not self.HasProviderKey(shared_get_model_vendor(selected_model)):
+            readiness_notes.append(f"{self.LabelFromModel(selected_model)} key is not configured.")
+        output_dir = settings.get("output_dir") or self.cfg.get("output_dir") or ""
+        if output_dir and not os.access(output_dir, os.W_OK):
+            readiness_notes.append("Output folder may not be writable.")
+        if effort in {"long", "very long"} and "gemini" in selected_model:
+            readiness_notes.append("Long Gemini runs can hit free-tier quota limits; a paid Gemini setup is safer for sustained hard PDFs.")
+        readiness = "Ready" if not readiness_notes else "Needs attention: " + " ".join(readiness_notes)
         summary = (
             f"Preflight for {file_name}: {profile_label}, {mode_label}. "
-            f"Engine: {self.LabelFromModel(selected_model)}. Strategy: {strategy}. {reason}{scope_detail}"
+            f"Engine: {self.LabelFromModel(selected_model)}. Effort: {effort}. Strategy: {strategy}. {reason}{scope_detail}"
         )
         details = "\n".join(
             [
@@ -2016,6 +2106,8 @@ class MainFrame(wx.Frame):
                 f"Preset: {profile_label}",
                 f"Mode: {mode_label}",
                 f"Chosen engine: {self.LabelFromModel(selected_model)}",
+                f"Estimated effort: {effort}",
+                f"Readiness: {readiness}",
                 f"Strategy: {strategy}",
                 f"Reason: {reason}",
                 (
@@ -2072,6 +2164,49 @@ class MainFrame(wx.Frame):
                 "Preflight Error",
                 wx.OK | wx.ICON_WARNING,
             )
+        if event:
+            event.Skip()
+
+    def OnFirstPagesTrial(self, event):
+        if self.is_running:
+            return
+        if not self.queue:
+            wx.MessageBox(
+                "Add a PDF to the queue first, then use First 5 Pages Trial.",
+                "No File To Trial",
+                wx.OK | wx.ICON_INFORMATION,
+            )
+            if event:
+                event.Skip()
+            return
+        selected = self.GetSelectedIndices()
+        candidate_indices = selected if selected else list(range(len(self.queue)))
+        target_indices = [
+            idx for idx in candidate_indices
+            if 0 <= idx < len(self.queue)
+            and str(self.queue[idx].get("status", "Queued")) in {"Queued", "Paused"}
+            and os.path.splitext(self.queue[idx].get("path", ""))[1].lower() == ".pdf"
+        ]
+        if not target_indices:
+            wx.MessageBox(
+                "First 5 Pages Trial only applies to queued or paused PDF tasks.",
+                "No PDF Trial Target",
+                wx.OK | wx.ICON_INFORMATION,
+            )
+            if event:
+                event.Skip()
+            return
+
+        settings = self.BuildSettingsFromControls()
+        settings["pdf_page_scope"] = "1-5"
+        self.SetPdfPageScopeSelection("1-5")
+        self.ApplySettingsToRows(target_indices, settings, "first 5 pages trial settings")
+        self.UpdatePreflightSummary()
+        self.Log(
+            f"[Trial] First 5 Pages Trial prepared for {len(target_indices)} PDF task(s). Press Start Reading to run the trial.",
+            engine_event=True,
+        )
+        self.SafeSetStatusText("First 5 Pages Trial prepared. Press Start Reading when ready.")
         if event:
             event.Skip()
 
@@ -2416,6 +2551,8 @@ class MainFrame(wx.Frame):
         self.btn_apply_settings.Enable(can_edit and has_items)
         if hasattr(self, "btn_run_preflight") and self.btn_run_preflight is not None:
             self.btn_run_preflight.Enable(can_edit and has_items)
+        if hasattr(self, "btn_first_pages_trial") and self.btn_first_pages_trial is not None:
+            self.btn_first_pages_trial.Enable(can_edit and has_items)
         self.btn_start.Enable(can_edit and has_items)
         self.btn_schedule.Enable(can_edit and has_items)
         self.choice_recursive.Enable(can_edit)
@@ -2596,17 +2733,19 @@ class MainFrame(wx.Frame):
             self.UpdatePreflightSummary()
 
     def Log(self, msg, engine_event=False):
-        rendered = msg
+        safe_msg = sanitize_log_text(msg)
+        display_msg = shared_format_scan_log_message(safe_msg) if engine_event else safe_msg
+        rendered = display_msg
         if engine_event:
             now = time.time()
             if not getattr(self, "current_run_started_ts", 0.0):
                 self.current_run_started_ts = now
             self._last_engine_activity_ts = now
-            rendered = self._format_engine_log_message(msg, now=now)
+            rendered = self._format_engine_log_message(display_msg, now=now)
             self.processing_log_lines.append(rendered)
             wx.CallAfter(self.lt.AppendText, f"{rendered}\n")
-        if self.ShouldStatusEchoLog(msg, engine_event=engine_event):
-            wx.CallAfter(self.SafeSetStatusText, msg[:180])
+        if self.ShouldStatusEchoLog(safe_msg, engine_event=engine_event):
+            wx.CallAfter(self.SafeSetStatusText, display_msg[:180])
         print(rendered)
 
     def GetDefaultLogDirectory(self):
@@ -2645,6 +2784,95 @@ class MainFrame(wx.Frame):
             except Exception as ex:
                 wx.MessageBox(f"Could not save log file.\n\nDetails: {ex}", "Save Log Error", wx.OK | wx.ICON_ERROR)
         dlg.Destroy()
+
+    def BuildProviderCapabilityMatrix(self):
+        return shared_build_provider_capability_matrix(
+            self.keys,
+            has_provider_key_fn=self.HasProviderKey,
+        )
+
+    def OnProviderCapabilityMatrix(self, e):
+        text = self.BuildProviderCapabilityMatrix()
+        wx.MessageBox(text, "Provider Capability Matrix", wx.OK | wx.ICON_INFORMATION)
+        self.Log("Opened provider capability matrix.")
+
+    def OnResumeCenter(self, e):
+        session = load_json(SESSION_FILE, {}) if os.path.exists(SESSION_FILE) else {}
+        text = shared_build_resume_center_summary(
+            session,
+            terminal_statuses=SESSION_TERMINAL_STATUSES,
+        )
+        wx.MessageBox(text, "Resume Center", wx.OK | wx.ICON_INFORMATION)
+        self.Log("Opened resume center.")
+
+    def OnExportSupportBundle(self, e):
+        default_dir = self.GetDefaultLogDirectory()
+        dlg = wx.DirDialog(
+            self,
+            "Choose where to save the Chronicle support bundle",
+            defaultPath=default_dir,
+            style=wx.DD_DEFAULT_STYLE | wx.DD_DIR_MUST_EXIST,
+        )
+        try:
+            if dlg.ShowModal() != wx.ID_OK:
+                return
+            bundle_path = shared_create_support_bundle(
+                destination_dir=dlg.GetPath(),
+                build_stamp=self.build_stamp,
+                cfg=self.cfg,
+                queue=self.queue,
+                processing_log_lines=self.processing_log_lines,
+                session_file=SESSION_FILE,
+                provider_matrix_text=self.BuildProviderCapabilityMatrix(),
+            )
+            self.Log(f"Support bundle saved: {bundle_path}")
+            wx.MessageBox(
+                f"Support bundle saved:\n{bundle_path}",
+                "Support Bundle",
+                wx.OK | wx.ICON_INFORMATION,
+            )
+        except Exception as ex:
+            wx.MessageBox(
+                f"Could not create support bundle.\n\nDetails: {ex}",
+                "Support Bundle Error",
+                wx.OK | wx.ICON_ERROR,
+            )
+        finally:
+            dlg.Destroy()
+
+    def _choose_output_for_comparison(self, title):
+        dlg = wx.FileDialog(
+            self,
+            title,
+            defaultDir=self.GetDefaultLogDirectory(),
+            wildcard="Readable outputs (*.html;*.htm;*.txt;*.md;*.json;*.csv)|*.html;*.htm;*.txt;*.md;*.json;*.csv|All files (*.*)|*.*",
+            style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST,
+        )
+        try:
+            if dlg.ShowModal() == wx.ID_OK:
+                return dlg.GetPath()
+            return ""
+        finally:
+            dlg.Destroy()
+
+    def OnCompareOutputs(self, e):
+        left = self._choose_output_for_comparison("Choose the first Chronicle output")
+        if not left:
+            return
+        right = self._choose_output_for_comparison("Choose the second Chronicle output")
+        if not right:
+            return
+        try:
+            report = shared_compare_output_files(left, right)
+            self.lt.AppendText(f"{report}\n")
+            self.Log(f"Compared outputs: {left} and {right}")
+            wx.MessageBox(report[:4000], "Output Comparison", wx.OK | wx.ICON_INFORMATION)
+        except Exception as ex:
+            wx.MessageBox(
+                f"Could not compare outputs.\n\nDetails: {ex}",
+                "Output Comparison Error",
+                wx.OK | wx.ICON_ERROR,
+            )
 
     def SetQueueStatus(self, index, status):
         if 0 <= index < len(self.queue):
@@ -2884,7 +3112,8 @@ class MainFrame(wx.Frame):
         candidate = path if os.path.isdir(path) else os.path.dirname(path)
         if candidate and os.path.isdir(candidate):
             self.cfg['last_browse_dir'] = candidate
-            save_json(CONFIG_FILE, self.cfg)
+            if not self.autorun_active:
+                save_json(CONFIG_FILE, self.cfg)
 
     def _run_osascript_dialog(self, script_lines):
         if platform.system() != "Darwin":
@@ -3025,14 +3254,11 @@ class MainFrame(wx.Frame):
             custom_dest=custom_dest,
             dest_mode=dest_mode,
             script_dir=SCRIPT_DIR,
-            collision_mode=self.cfg.get('collision_mode', 'skip'),
+            collision_mode=self.cfg.get('collision_mode', 'auto'),
         )
 
     def OnAddFiles(self, e):
-        wildcard = (
-            'Supported Files|*.pdf;*.docx;*.txt;*.md;*.rtf;*.csv;*.js;*.jpg;*.jpeg;*.png;'
-            '*.bmp;*.tiff;*.tif;*.webp;*.epub;*.pptx;*.ppt;*.xlsx;*.xls'
-        )
+        wildcard = shared_supported_files_wildcard()
         dlg = wx.FileDialog(self, 'Select files to add', wildcard=wildcard, style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST | wx.FD_MULTIPLE)
         if dlg.ShowModal() == wx.ID_OK:
             selected_paths = dlg.GetPaths()
@@ -3597,7 +3823,8 @@ class MainFrame(wx.Frame):
                 title = "Missing Output Folder" if "Please choose" in output_error else "Invalid Output Folder"
                 wx.MessageBox(output_error, title, wx.OK | wx.ICON_ERROR)
                 return
-            save_json(CONFIG_FILE, self.cfg)
+            if not self.autorun_active:
+                save_json(CONFIG_FILE, self.cfg)
             shared_prepare_queue_for_start(
                 self.queue,
                 resume_mode=False,
@@ -3706,6 +3933,11 @@ class MainFrame(wx.Frame):
         self.current_run_started_ts = time.time()
         self._last_engine_activity_ts = self.current_run_started_ts
         self._last_progress_heartbeat_ts = 0.0
+        self._mac_activity_guard_process = shared_start_mac_activity_guard(
+            current_process=getattr(self, "_mac_activity_guard_process", None),
+            is_running=self.is_running,
+            log_cb=lambda message: self.Log(message, engine_event=True),
+        )
         self.SetRunningState(True)
         start_messages = shared_build_start_messages(resume_mode=resume_mode, pending_count=len(pending_rows))
         self.Log(start_messages["log_message"], engine_event=True)
@@ -3813,7 +4045,7 @@ class MainFrame(wx.Frame):
                 if not preserve_merge_progress:
                     master_progress_file_obj.write(build_progress_state_header({}))
                     master_progress_file_obj.flush()
-                self.Log(f"[Progress] In-progress recovery sidecar: {master_progress_temp_path}", engine_event=True)
+                self.Log(f"[Progress] In-progress recovery file: {master_progress_temp_path}", engine_event=True)
                 if streamable_fmt:
                     if os.path.exists(master_temp_path) and not preserve_merge_progress:
                         os.remove(master_temp_path)
@@ -3865,37 +4097,43 @@ class MainFrame(wx.Frame):
                 if current_status == "Paused":
                     self.Log(f"Deferred paused task: {os.path.basename(job['path'])}", engine_event=True)
                     continue
-                prepared = shared_prepare_job_execution_context(
-                    job,
-                    cfg=self.cfg,
-                    resume_mode=resume_mode,
-                    low_memory_mode=low_memory_mode,
-                    low_memory_pdf_audit_skip_mb=LOW_MEMORY_PDF_AUDIT_SKIP_MB,
-                    custom_dest=custom_dest,
-                    dest_mode=dest_mode,
-                    merge_mode=merge_mode,
-                    master_output_path=master_output_path,
-                    master_temp_path=master_temp_path,
-                    master_file_obj=master_file_obj,
-                    master_memory=master_memory,
-                    streamable_formats=STREAMABLE_FORMATS,
-                    supported_extensions=SUPPORTED_EXTENSIONS,
-                    normalize_row_settings_fn=self.NormalizeRowSettings,
-                    build_prompt_fn=build_prompt,
-                    model_from_label_fn=self.ModelFromLabel,
-                    get_client_fn=self.GetClient,
-                    determine_needs_pdf_audit_fn=shared_determine_needs_pdf_audit,
-                    compute_target_dir_fn=shared_compute_target_dir,
-                    resolve_output_path_fn=shared_resolve_output_path,
-                    write_header_fn=write_header,
-                    get_output_lang_code_fn=get_output_lang_code,
-                    get_output_text_direction_fn=get_output_text_direction,
-                    pdf_reader_factory=PdfReader,
-                    normalize_pdf_page_scope_text_fn=normalize_pdf_page_scope_text,
-                    parse_pdf_page_scope_spec_fn=parse_pdf_page_scope_spec,
-                    set_queue_status_fn=self.SetQueueStatus,
-                    log_cb=processing_log,
-                )
+                try:
+                    prepared = shared_prepare_job_execution_context(
+                        job,
+                        cfg=self.cfg,
+                        resume_mode=resume_mode,
+                        low_memory_mode=low_memory_mode,
+                        low_memory_pdf_audit_skip_mb=LOW_MEMORY_PDF_AUDIT_SKIP_MB,
+                        custom_dest=custom_dest,
+                        dest_mode=dest_mode,
+                        merge_mode=merge_mode,
+                        master_output_path=master_output_path,
+                        master_temp_path=master_temp_path,
+                        master_file_obj=master_file_obj,
+                        master_memory=master_memory,
+                        streamable_formats=STREAMABLE_FORMATS,
+                        supported_extensions=SUPPORTED_EXTENSIONS,
+                        normalize_row_settings_fn=self.NormalizeRowSettings,
+                        build_prompt_fn=build_prompt,
+                        model_from_label_fn=self.ModelFromLabel,
+                        get_client_fn=self.GetClient,
+                        determine_needs_pdf_audit_fn=shared_determine_needs_pdf_audit,
+                        compute_target_dir_fn=shared_compute_target_dir,
+                        resolve_output_path_fn=shared_resolve_output_path,
+                        write_header_fn=write_header,
+                        get_output_lang_code_fn=get_output_lang_code,
+                        get_output_text_direction_fn=get_output_text_direction,
+                        pdf_reader_factory=PdfReader,
+                        normalize_pdf_page_scope_text_fn=normalize_pdf_page_scope_text,
+                        parse_pdf_page_scope_spec_fn=parse_pdf_page_scope_spec,
+                        set_queue_status_fn=self.SetQueueStatus,
+                        log_cb=processing_log,
+                    )
+                except Exception as ex:
+                    self.SetQueueStatus(qidx, "Error")
+                    self.Log(f"Error preparing {os.path.basename(job.get('path', 'unknown file'))}: {ex}", engine_event=True)
+                    self.Log(traceback.format_exc().rstrip(), engine_event=True)
+                    continue
                 if prepared['skip']:
                     continue
 
@@ -3929,25 +4167,39 @@ class MainFrame(wx.Frame):
                 self.current_file_resume_state_path = resume_state_path
                 self.current_file_page_done = recovered_units
                 self.current_file_resume_recovered_units = recovered_units
-                unit_estimate = shared_estimate_current_file_total_units(
-                    ext,
-                    fp,
-                    job_cfg,
-                    pdf_reader_factory=PdfReader,
-                    normalize_pdf_page_scope_text_fn=normalize_pdf_page_scope_text,
-                    parse_pdf_page_scope_spec_fn=parse_pdf_page_scope_spec,
-                    pptx_slide_count_fn=lambda pptx_path: len(__import__('pptx').Presentation(pptx_path).slides),
-                    estimate_text_work_units_fn=lambda path, ext, cfg: shared_estimate_text_work_units(
-                        path,
+                try:
+                    unit_estimate = shared_estimate_current_file_total_units(
                         ext,
-                        text_chunk_chars=TEXT_CHUNK_CHARS,
-                        csv_to_accessible_text_fn=csv_to_accessible_text,
-                        clean_text_fn=clean_text,
-                        batch_text_chunks_fn=batch_text_chunks,
-                        docx_module=docx,
-                        openpyxl_module=openpyxl,
-                    ),
-                )
+                        fp,
+                        job_cfg,
+                        pdf_reader_factory=PdfReader,
+                        normalize_pdf_page_scope_text_fn=normalize_pdf_page_scope_text,
+                        parse_pdf_page_scope_spec_fn=parse_pdf_page_scope_spec,
+                        pptx_slide_count_fn=lambda pptx_path: len(__import__('pptx').Presentation(pptx_path).slides),
+                        estimate_text_work_units_fn=lambda path, ext, cfg: shared_estimate_text_work_units(
+                            path,
+                            ext,
+                            text_chunk_chars=TEXT_CHUNK_CHARS,
+                            csv_to_accessible_text_fn=csv_to_accessible_text,
+                            clean_text_fn=clean_text,
+                            batch_text_chunks_fn=batch_text_chunks,
+                            docx_module=docx,
+                            openpyxl_module=openpyxl,
+                            fitz_module=fitz,
+                        ),
+                    )
+                except Exception as ex:
+                    self.Log(
+                        f"[Preflight] Could not estimate work units for {fn}; continuing with a conservative one-unit progress estimate ({ex}).",
+                        engine_event=True,
+                    )
+                    unit_estimate = {
+                        "total_units": max(1, original_total_units or 1),
+                        "selected_scope": "",
+                        "selected_count": 0,
+                        "source_total": 0,
+                        "unit_label": "page(s)" if ext == ".pdf" else "unit(s)",
+                    }
                 self.current_file_page_total = original_total_units or unit_estimate["total_units"]
                 self.current_file_resume_remaining_units = max(0, self.current_file_page_total - recovered_units)
                 self.current_file_unit_label = unit_estimate.get("unit_label", "items")
@@ -3997,7 +4249,7 @@ class MainFrame(wx.Frame):
                         ),
                         should_log_page_progress_fn=self.ShouldLogPageProgress,
                         refresh_progress_fn=lambda: wx.CallAfter(self.UpdateProgressIndicators),
-                        persist_progress_state_fn=self._persist_resume_state if ext in ['.pdf', '.docx', '.txt', '.md', '.rtf', '.csv', '.js', '.xlsx', '.xls', '.epub', '.pptx', '.ppt'] else None,
+                        persist_progress_state_fn=self._persist_resume_state if ext == '.pdf' or ext in RESUMABLE_UNIT_EXTENSIONS else None,
                         resume_from_unit=resume_from_unit,
                         needs_pdf_audit=needs_pdf_audit,
                         append_pdf_audit_appendix_if_needed_fn=shared_append_pdf_audit_appendix_if_needed,
@@ -4010,6 +4262,7 @@ class MainFrame(wx.Frame):
                         process_pptx_fn=process_pptx,
                         process_epub_fn=process_epub,
                         process_img_fn=process_img,
+                        process_rendered_document_fn=process_rendered_document,
                         process_text_fn=process_text,
                         original_total_units=self.current_file_page_total,
                     )
@@ -4087,12 +4340,18 @@ class MainFrame(wx.Frame):
                     resume_state_path=master_resume_state_path,
                 )
 
+            all_items_completed = all(
+                str(self.queue[job.get("_queue_index", 0)].get("status", "Queued")) == "Done"
+                for job in queued_jobs
+                if 0 <= job.get("_queue_index", 0) < len(self.queue)
+            )
             shared_finalize_worker_completion(
                 auto_save_processing_log_fn=self.AutoSaveProcessingLog,
                 log_cb=processing_log,
                 platform_system=platform.system(),
                 subprocess_popen=subprocess.Popen,
                 winsound_module=winsound,
+                all_items_completed=all_items_completed,
             )
         except Exception as ex:
             self.Log(f"FATAL: {ex}", engine_event=True)
@@ -4134,6 +4393,18 @@ class MainFrame(wx.Frame):
                 delete_active_session_fn=self.DeleteActiveSession,
                 set_running_state_fn=lambda value: wx.CallAfter(self.SetRunningState, value),
             )
+            request_runtime.clear_cache()
+            self._mac_activity_guard_process = shared_stop_mac_activity_guard(
+                getattr(self, "_mac_activity_guard_process", None),
+                log_cb=lambda message: self.Log(message, engine_event=True),
+            )
+            if self.autorun_active and self.autorun_original_cfg is not None:
+                self.cfg = dict(self.autorun_original_cfg)
+                self.autorun_original_cfg = None
+                try:
+                    save_json(CONFIG_FILE, self.cfg)
+                except Exception as ex:
+                    self.Log(f"[Autorun] Warning: could not restore saved user settings ({ex})", engine_event=True)
             if self.autorun_active and self.autorun_close_on_finish:
                 wx.CallAfter(self.Close)
 

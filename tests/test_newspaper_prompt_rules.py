@@ -2,6 +2,7 @@ import unittest
 import sys
 import types
 
+from chronicle_core import get_modern_newspaper_profile_rules
 from chronicle_core import get_newspaper_profile_rules
 
 
@@ -41,6 +42,15 @@ class NewspaperPromptRulesTest(unittest.TestCase):
         self.assertIn("valid HTML tables", html_rules)
         self.assertIn("plain-text rows and columns", txt_rules)
 
+    def test_core_modern_newspaper_rules_are_distinct_from_historical_rules(self):
+        rules = get_modern_newspaper_profile_rules("html")
+
+        self.assertIn("MODERN NEWSPAPER / E-PAPER RULES", rules)
+        self.assertIn("not a historical OCR newspaper scan", rules)
+        self.assertIn("bylines, wire/source labels, datelines, timestamps", rules)
+        self.assertIn("valid HTML tables", rules)
+        self.assertNotIn("HISTORICAL NEWSPAPER RULES", rules)
+
     def test_cli_prompt_uses_shared_newspaper_rules(self):
         prompt = chronicle.get_prompt(
             {
@@ -59,6 +69,24 @@ class NewspaperPromptRulesTest(unittest.TestCase):
         self.assertIn("Join a continued article only when the continuation marker is visible", prompt)
         self.assertIn("never interleave their text into nearby news stories", prompt)
         self.assertIn("plain-text rows and columns", prompt)
+
+    def test_cli_prompt_uses_modern_newspaper_rules_without_historical_rules(self):
+        prompt = chronicle.get_prompt(
+            {
+                "doc_profile": "modern_newspaper",
+                "format_type": "html",
+                "translate_mode": "none",
+                "translate_target": "English",
+                "modernize_punctuation": True,
+                "unit_conversion": False,
+                "image_descriptions": True,
+                "abbrev_expansion": False,
+            }
+        )
+
+        self.assertIn("MODERN NEWSPAPER / E-PAPER RULES", prompt)
+        self.assertIn("Digital Furniture", prompt)
+        self.assertNotIn("HISTORICAL NEWSPAPER RULES", prompt)
 
 
 if __name__ == "__main__":

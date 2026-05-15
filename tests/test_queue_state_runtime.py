@@ -6,6 +6,7 @@ from chronicle_app.services.queue_state_runtime import (
     estimate_path_work_units,
     get_run_unit_totals,
     get_target_queue_indices_for_setting_change,
+    format_scan_log_message,
     pause_selected_tasks,
     refresh_queue_work_unit_estimates,
     resume_selected_tasks,
@@ -95,6 +96,38 @@ class QueueStateRuntimeTest(unittest.TestCase):
         self.assertTrue(should_log_page_progress(22, 100))
         self.assertTrue(should_status_echo_log("ordinary message", engine_event=False))
         self.assertFalse(should_status_echo_log("[Page] noisy", engine_event=True))
+
+    def test_format_scan_log_message_makes_dense_newspaper_progress_readable(self):
+        message = (
+            "[Gemini Image] Requesting dense newspaper strip 2/3 for source page 4 "
+            "via streaming inline REST on gemini-2.5-pro."
+        )
+
+        formatted = format_scan_log_message(message)
+
+        self.assertEqual(formatted, "Scanning page 4, part 2 of 3 with gemini-2.5-pro.")
+        self.assertNotIn("strip", formatted.lower())
+        self.assertNotIn("[Gemini Image]", formatted)
+
+    def test_format_scan_log_message_makes_scanned_image_progress_readable(self):
+        message = (
+            "[Gemini Image] Requesting full-page scanned image output for source page 7 "
+            "via streaming inline REST on gemini-2.5-pro."
+        )
+
+        formatted = format_scan_log_message(message)
+
+        self.assertEqual(formatted, "Scanning image-only page 7 with gemini-2.5-pro.")
+
+    def test_format_scan_log_message_relabels_internal_status_prefixes(self):
+        self.assertEqual(
+            format_scan_log_message("[Auto Engine] Routing dense newspaper page 1 to gemini-2.5-pro."),
+            "Routing: dense newspaper page 1 to gemini-2.5-pro.",
+        )
+        self.assertEqual(
+            format_scan_log_message("[FAIL-SAFE] Page 1 vision failed. Extracting raw text layer."),
+            "Recovery: Page 1 vision failed. Extracting raw text layer.",
+        )
 
     def test_build_progress_summary_includes_review_and_page_detail(self):
         queue = [

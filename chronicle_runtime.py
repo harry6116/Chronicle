@@ -60,6 +60,7 @@ from chronicle_app.services.app_files import (
     emit_launch_continuity as shared_emit_launch_continuity,
     resolve_runtime_crash_log_path as shared_resolve_runtime_crash_log_path,
 )
+from chronicle_app.services.security import sanitize_log_text
 from chronicle_app.services.prompting import (
     build_prompt as build_shared_prompt,
     enforce_archival_heading_structure as shared_enforce_archival_heading_structure,
@@ -90,8 +91,14 @@ from chronicle_core import (
     write_header as core_write_header,
     write_footer as core_write_footer,
 )
-from chronicle_app.services.legacy_pdf_runtime import (
-    process_pdf_gemini as legacy_process_pdf_gemini,
+from chronicle_app.services.document_processors import (
+    PRESENTATION_EXTENSIONS,
+    FITZ_TEXT_EXTENSIONS,
+    RENDERABLE_DOCUMENT_EXTENSIONS,
+    SOURCE_TEXT_EXTENSIONS,
+    SUPPORTED_EXTENSIONS as SHARED_SUPPORTED_EXTENSIONS,
+    SUPPORTED_IMAGE_EXTENSIONS,
+    prepare_image_for_scan,
 )
 
 # Dynamically link Homebrew's Python site-packages for Mac users
@@ -106,10 +113,23 @@ APP_NAME = "Chronicle"
 def _get_crash_log_path():
     return shared_resolve_runtime_crash_log_path(app_name=APP_NAME)
 
+class _RedactingStream:
+    def __init__(self, stream):
+        self._stream = stream
+
+    def write(self, text):
+        return self._stream.write(sanitize_log_text(text))
+
+    def flush(self):
+        return self._stream.flush()
+
+    def __getattr__(self, name):
+        return getattr(self._stream, name)
+
 if getattr(sys, 'frozen', False):
     try:
         crash_log_path = _get_crash_log_path()
-        sys.stdout = open(crash_log_path, 'a', buffering=1, encoding='utf-8', errors='replace')
+        sys.stdout = _RedactingStream(open(crash_log_path, 'a', buffering=1, encoding='utf-8', errors='replace'))
         sys.stderr = sys.stdout
     except Exception:
         pass
@@ -144,7 +164,7 @@ TEXT_BATCH_TARGET_CHARS = 24000
 API_CONNECTION_FAILURE_DELAY_SEC = 20.0
 GEMINI_UPLOAD_POLL_SEC = 2.5
 GEMINI_UPLOAD_MAX_WAIT_SEC = 180.0
-SUPPORTED_EXTENSIONS = ['.pdf', '.docx', '.txt', '.md', '.rtf', '.csv', '.js', '.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif', '.webp', '.xlsx', '.pptx']
+SUPPORTED_EXTENSIONS = sorted(SHARED_SUPPORTED_EXTENSIONS - {".xls", ".ppt"})
 PROTECTED_INPUT_DIR_BASENAMES = {"checking documents"}
 TRANSLATION_TARGETS = [
     ("English", "en"),
@@ -371,8 +391,8 @@ def apply_modern_currency(text_content):
     return core_apply_modern_currency(text_content)
 
 
-def apply_expanded_abbreviations(text_content):
-    return core_apply_expanded_abbreviations(text_content)
+def apply_expanded_abbreviations(text_content, doc_profile=None):
+    return core_apply_expanded_abbreviations(text_content, doc_profile)
 
 def normalize_streamed_html_document(full_html):
     return core_normalize_streamed_html_document(full_html)
@@ -550,7 +570,7 @@ def dispatch_save(config, path, memory_list, title, clear_memory=False):
     if config.get('unit_conversion'):
         content = apply_modern_currency(content)
     if config.get('abbrev_expansion'):
-        content = apply_expanded_abbreviations(content)
+        content = apply_expanded_abbreviations(content, config.get('doc_profile'))
     content = apply_newspaper_html_safety_fallback(content, fmt, config.get('doc_profile'))
     content = recover_newspaper_header_citation(content, fmt, config.get('doc_profile'), config.get('source_path'))
     content = recover_source_attribution_footer(content, fmt, config.get('doc_profile'), config.get('source_path'))
@@ -732,6 +752,14 @@ def handle_stream(response, output_path, format_type, file_obj=None, memory_list
     total_chars = 0
     inline_image_state = {"suppressing": False, "quote": '"'} if format_type in ("html", "epub") else None
     try:
+        if isinstance(response, str) or (hasattr(response, "text") and getattr(response, "text")):
+            text_val = response if isinstance(response, str) else response.text
+            if inline_image_state is not None:
+                text_val = _filter_streaming_inline_image_payload(text_val, inline_image_state)
+            clean_chunk = sanitize_model_output(clean_text_artifacts(text_val), format_type)
+            emitted.append(clean_chunk)
+            append_generated_text(format_type, file_obj=file_obj, memory_list=memory_list, text=clean_chunk)
+            return "".join(emitted)
         for chunk in response:
             heartbeat.ping()
             text_val = ""
@@ -872,12 +900,16 @@ def process_files():
             config['source_path'] = file_path
             if ext == '.pdf':
                 process_pdf(client, file_path, active_write_path, config['format_type'], prompt_text, config['model_name'], current_file_obj, current_memory)
-            elif ext == '.pptx':
+            elif ext in PRESENTATION_EXTENSIONS:
                 process_pptx_document(client, file_path, active_write_path, config['format_type'], prompt_text, config['model_name'], current_file_obj, current_memory)
-            elif ext in ['.docx', '.txt', '.md', '.rtf', '.csv', '.js', '.xlsx']:
+            elif ext in SOURCE_TEXT_EXTENSIONS:
                 process_text_document(client, file_path, active_write_path, ext, config['format_type'], prompt_text, config['model_name'], current_file_obj, current_memory)
-            elif ext in ['.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif', '.webp']:
+            elif ext in FITZ_TEXT_EXTENSIONS:
+                process_fitz_text_document_cli(client, file_path, active_write_path, config['format_type'], prompt_text, config['model_name'], current_file_obj, current_memory)
+            elif ext in SUPPORTED_IMAGE_EXTENSIONS:
                 process_image(client, file_path, active_write_path, config['format_type'], prompt_text, config['model_name'], current_file_obj, current_memory)
+            elif ext in RENDERABLE_DOCUMENT_EXTENSIONS:
+                process_rendered_document_cli(client, file_path, active_write_path, config['format_type'], prompt_text, config['model_name'], current_file_obj, current_memory)
             if config['batch_mode'] == 'recursive_delete':
                 if is_path_within_protected_input_dirs(file_path):
                     print(f"Protected folder rule: not deleting source file in protected directory: {file_path}")
@@ -897,7 +929,7 @@ def process_files():
                         if config.get('unit_conversion'):
                             cleaned_html = apply_modern_currency(cleaned_html)
                         if config.get('abbrev_expansion'):
-                            cleaned_html = apply_expanded_abbreviations(cleaned_html)
+                            cleaned_html = apply_expanded_abbreviations(cleaned_html, config.get('doc_profile'))
                         cleaned_html = apply_newspaper_html_safety_fallback(
                             cleaned_html,
                             'html',
@@ -939,7 +971,7 @@ def process_files():
                         if config.get('unit_conversion'):
                             cleaned_text = apply_modern_currency(cleaned_text)
                         if config.get('abbrev_expansion'):
-                            cleaned_text = apply_expanded_abbreviations(cleaned_text)
+                            cleaned_text = apply_expanded_abbreviations(cleaned_text, config.get('doc_profile'))
                         cleaned_text = apply_handwriting_audit_flag(
                             cleaned_text,
                             config['format_type'],
@@ -972,7 +1004,7 @@ def process_files():
                         if config.get('unit_conversion'):
                             cleaned_html = apply_modern_currency(cleaned_html)
                         if config.get('abbrev_expansion'):
-                            cleaned_html = apply_expanded_abbreviations(cleaned_html)
+                            cleaned_html = apply_expanded_abbreviations(cleaned_html, config.get('doc_profile'))
                     cleaned_html = apply_newspaper_html_safety_fallback(
                         cleaned_html,
                         'html',
@@ -1014,7 +1046,7 @@ def process_files():
                         if config.get('unit_conversion'):
                             cleaned_text = apply_modern_currency(cleaned_text)
                         if config.get('abbrev_expansion'):
-                            cleaned_text = apply_expanded_abbreviations(cleaned_text)
+                            cleaned_text = apply_expanded_abbreviations(cleaned_text, config.get('doc_profile'))
                     cleaned_text = apply_handwriting_audit_flag(
                         cleaned_text,
                         config['format_type'],
@@ -1036,12 +1068,12 @@ def get_pdf_chunk_pages(model_name, profile_key, total_pages, default_chunk_page
             avg_page_mb = float(file_size_mb) / max(1, int(total_pages))
         except (TypeError, ValueError):
             avg_page_mb = None
+    if profile_key in {"newspaper", "modern_newspaper", "magazine"} and avg_page_mb is not None and avg_page_mb >= 0.9:
+        return 1
     if "claude" in model_name or "gpt" in model_name:
         return 1
-    if profile_key == "newspaper" and total_pages >= 24:
+    if profile_key in {"newspaper", "modern_newspaper", "magazine"} and total_pages >= 24:
         return 2
-    if profile_key == "newspaper" and avg_page_mb is not None and avg_page_mb >= 0.9:
-        return 1
     if profile_key in {"legal", "government"}:
         if total_pages >= 150:
             return 1
@@ -1054,9 +1086,9 @@ def get_pdf_chunk_pages(model_name, profile_key, total_pages, default_chunk_page
 
 def process_pdf(client, pdf_path, output_path, format_type, prompt_text, model_name, file_obj, memory_list):
     profile_key = "newspaper" if "HISTORICAL NEWSPAPER RULES" in prompt_text else None
-    if model_name.startswith("gemini-") and profile_key != "newspaper" and _probe_pdf_text_layer(pdf_path):
-        legacy_process_pdf_gemini(client, pdf_path, format_type, prompt_text, model_name, file_obj, memory_list)
-        return
+    if "MODERN NEWSPAPER / E-PAPER RULES" in prompt_text:
+        profile_key = "modern_newspaper"
+    allow_text_layer_fallback = os.environ.get("CHRONICLE_ALLOW_PDF_TEXT_LAYER_FALLBACK") == "1"
 
     doc = fitz.open(pdf_path)
     try:
@@ -1112,7 +1144,12 @@ def process_pdf(client, pdf_path, output_path, format_type, prompt_text, model_n
                     )
             except Exception as e:
                 print(f"\n[Gearshift Triggered] Error processing page {current_page + 1}: {e}")
-                print(f"\n[CRITICAL FAILURE] Single page vision failed for page {current_page + 1}. Initiating sentence-level text fallback.")
+                if not allow_text_layer_fallback:
+                    raise RuntimeError(
+                        f"PDF vision/model processing failed for page {current_page + 1}, "
+                        "and PDF text-layer emergency fallback is disabled."
+                    ) from e
+                print(f"\n[CRITICAL FAILURE] Single page vision failed for page {current_page + 1}. Initiating user-enabled emergency text-layer fallback.")
                 fallback_text = doc.load_page(current_page).get_text("text") or "[Unreadable Image Layer]"
                 payload = fallback_text + "\n\n" + prompt_text if ("claude" in model_name or "gpt" in model_name) else [fallback_text, prompt_text]
                 cache_key = build_request_cache_key(
@@ -1138,12 +1175,14 @@ def process_pdf(client, pdf_path, output_path, format_type, prompt_text, model_n
 
 def process_text_document(client, file_path, output_path, ext, format_type, prompt_text, model_name, file_obj, memory_list):
     profile_key = "newspaper" if "HISTORICAL NEWSPAPER RULES" in prompt_text else None
+    if "MODERN NEWSPAPER / E-PAPER RULES" in prompt_text:
+        profile_key = "modern_newspaper"
     is_tabular_html = "TABULAR DATA & SPREADSHEETS RULES" in prompt_text and format_type == "html"
-    if is_tabular_html and ext in ('.csv', '.xlsx'):
+    if is_tabular_html and ext in ('.csv', '.tsv', '.xlsx'):
         datasets = []
-        if ext == '.csv':
+        if ext in ('.csv', '.tsv'):
             raw_csv = open(file_path, 'r', encoding='utf-8', errors='ignore').read()
-            rows = core_parse_csv_rows(raw_csv)
+            rows = core_parse_csv_rows(raw_csv.replace("\t", ",") if ext == '.tsv' else raw_csv)
             if rows:
                 datasets.append({
                     "name": "Table Data",
@@ -1171,9 +1210,9 @@ def process_text_document(client, file_path, output_path, ext, format_type, prom
     full_text = ""
     if ext == '.docx':
         full_text = "\n".join([p.text for p in docx.Document(file_path).paragraphs])
-    elif ext == '.csv':
+    elif ext in ('.csv', '.tsv'):
         raw_csv = open(file_path, 'r', encoding='utf-8', errors='ignore').read()
-        full_text = csv_to_accessible_text(raw_csv)
+        full_text = csv_to_accessible_text(raw_csv.replace("\t", ",") if ext == '.tsv' else raw_csv)
     elif ext == '.xlsx':
         wb = openpyxl.load_workbook(file_path, data_only=True)
         for name in wb.sheetnames:
@@ -1209,12 +1248,23 @@ def process_text_document(client, file_path, output_path, ext, format_type, prom
             profile_key=profile_key,
         )
 
-def process_image(client, file_path, output_path, format_type, prompt_text, model_name, file_obj, memory_list):
-    profile_key = "newspaper" if "HISTORICAL NEWSPAPER RULES" in prompt_text else None
-    enhanced_path = enhance_image_for_microtext(file_path)
-    if "claude" in model_name or "gpt" in model_name:
-        payload = build_multimodal_payload(model_name, prompt_text, enhanced_path, "image/png")
-        cache_key = build_request_cache_key(model_name, prompt_text, "image", sha256_file(enhanced_path))
+def process_fitz_text_document_cli(client, file_path, output_path, format_type, prompt_text, model_name, file_obj, memory_list):
+    if fitz is None:
+        raise RuntimeError("This ebook format requires PyMuPDF.")
+    doc = fitz.open(file_path)
+    try:
+        full_text = ""
+        for page_index in range(len(doc)):
+            text = doc[page_index].get_text("text")
+            if text.strip():
+                full_text += f"\n[--- Page: {page_index + 1} ---]\n{text}\n"
+    finally:
+        doc.close()
+    scrubbed_text = clean_text_artifacts(full_text)
+    chunks = [scrubbed_text[i:i + TEXT_CHUNK_CHARS] for i in range(0, len(scrubbed_text), TEXT_CHUNK_CHARS)]
+    for chunk in batch_text_chunks(chunks or [""]):
+        payload = chunk + "\n\n" + prompt_text if ("claude" in model_name or "gpt" in model_name) else [chunk, prompt_text]
+        cache_key = build_request_cache_key(model_name, prompt_text, "fitz-text", sha256_text(chunk))
         stream_with_cache(
             cache_key,
             lambda: generate_with_retry(client, model_name, payload),
@@ -1222,31 +1272,77 @@ def process_image(client, file_path, output_path, format_type, prompt_text, mode
             format_type,
             file_obj=file_obj,
             memory_list=memory_list,
-            profile_key=profile_key,
         )
-    else:
-        cache_key = build_request_cache_key(model_name, prompt_text, "image-upload", sha256_file(enhanced_path))
-        def _gemini_image_request():
-            uploaded = client.files.upload(file=enhanced_path)
-            uploaded = wait_for_gemini_upload_ready(client, uploaded, poll_sec=2.0)
-            response = generate_with_retry(client, model_name, [uploaded, prompt_text])
-            def _cleanup_upload():
+
+def process_image(client, file_path, output_path, format_type, prompt_text, model_name, file_obj, memory_list):
+    profile_key = "newspaper" if "HISTORICAL NEWSPAPER RULES" in prompt_text else None
+    if "MODERN NEWSPAPER / E-PAPER RULES" in prompt_text:
+        profile_key = "modern_newspaper"
+    staged_path = prepare_image_for_scan(file_path, log_cb=print)
+    enhanced_path = enhance_image_for_microtext(staged_path)
+    try:
+        if "claude" in model_name or "gpt" in model_name:
+            payload = build_multimodal_payload(model_name, prompt_text, enhanced_path, "image/png")
+            cache_key = build_request_cache_key(model_name, prompt_text, "image", sha256_file(enhanced_path))
+            stream_with_cache(
+                cache_key,
+                lambda: generate_with_retry(client, model_name, payload),
+                output_path,
+                format_type,
+                file_obj=file_obj,
+                memory_list=memory_list,
+                profile_key=profile_key,
+            )
+        else:
+            cache_key = build_request_cache_key(model_name, prompt_text, "image-upload", sha256_file(enhanced_path))
+            def _gemini_image_request():
+                uploaded = client.files.upload(file=enhanced_path)
+                uploaded = wait_for_gemini_upload_ready(client, uploaded, poll_sec=2.0)
+                response = generate_with_retry(client, model_name, [uploaded, prompt_text])
+                def _cleanup_upload():
+                    try:
+                        client.files.delete(name=uploaded.name)
+                    except Exception as cleanup_ex:
+                        print(f"Warning: could not delete temporary Gemini upload {uploaded.name}: {cleanup_ex}")
+                return response, _cleanup_upload
+            stream_with_cache(
+                cache_key,
+                _gemini_image_request,
+                output_path,
+                format_type,
+                file_obj=file_obj,
+                memory_list=memory_list,
+                profile_key=profile_key,
+            )
+    finally:
+        for cleanup_path in (enhanced_path, staged_path):
+            if cleanup_path != file_path:
                 try:
-                    client.files.delete(name=uploaded.name)
-                except Exception as cleanup_ex:
-                    print(f"Warning: could not delete temporary Gemini upload {uploaded.name}: {cleanup_ex}")
-            return response, _cleanup_upload
-        stream_with_cache(
-            cache_key,
-            _gemini_image_request,
-            output_path,
-            format_type,
-            file_obj=file_obj,
-            memory_list=memory_list,
-            profile_key=profile_key,
-        )
-    if enhanced_path != file_path:
-        os.remove(enhanced_path)
+                    os.remove(cleanup_path)
+                except FileNotFoundError:
+                    pass
+
+def process_rendered_document_cli(client, file_path, output_path, format_type, prompt_text, model_name, file_obj, memory_list):
+    if fitz is None:
+        raise RuntimeError("Renderable document support requires PyMuPDF.")
+    doc = fitz.open(file_path)
+    try:
+        for page_index in range(len(doc)):
+            page = doc[page_index]
+            pix = page.get_pixmap(matrix=fitz.Matrix(2.0, 2.0), alpha=False)
+            temp_png = _write_temp_png("chronicle_cli_rendered_doc_", pix.tobytes("png"))
+            try:
+                page_prompt = (
+                    f"{prompt_text}\n\nRENDERED DOCUMENT PAGE MODE:\n"
+                    f"- This is page {page_index + 1} of {len(doc)} rendered from {os.path.basename(file_path)}.\n"
+                    "- Read the visible page image faithfully and preserve meaningful reading order."
+                )
+                process_image(client, temp_png, output_path, format_type, page_prompt, model_name, file_obj, memory_list)
+            finally:
+                if os.path.exists(temp_png):
+                    os.remove(temp_png)
+    finally:
+        doc.close()
 
 def wait_for_gemini_upload_ready(client, uploaded, poll_sec=GEMINI_UPLOAD_POLL_SEC, max_wait_sec=GEMINI_UPLOAD_MAX_WAIT_SEC, time_fn=time.time, sleep_fn=time.sleep, log_cb=print):
     start = time_fn()

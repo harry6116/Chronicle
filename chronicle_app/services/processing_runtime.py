@@ -1,6 +1,7 @@
 import base64
 import hashlib
 import os
+import queue
 import random
 import threading
 import time
@@ -9,6 +10,19 @@ from collections import OrderedDict
 from chronicle_app.services.runtime_policies import normalize_model_name
 
 CLAUDE_FILES_API_BETA = "files-api-2025-04-14"
+GEMINI_GENERATE_TIMEOUT_MS = 300_000
+STREAM_CHUNK_TIMEOUT_SEC = 120.0
+DEFAULT_MAX_CACHE_TEXT_CHARS = 250_000
+
+
+class PrecleanStream:
+    _chronicle_preclean_stream = True
+
+    def __init__(self, iterator):
+        self._iterator = iterator
+
+    def __iter__(self):
+        return iter(self._iterator)
 
 
 class HeartbeatMonitor:
@@ -20,9 +34,11 @@ class HeartbeatMonitor:
         self.timer = None
 
     def _stall_abort(self):
-        self._print_fn("\n[NETWORK STALL ALERT] API connection hung for over 5 minutes. Forcing fail-safe reboot.")
         if self._exit_fn is not None:
+            self._print_fn("\n[NETWORK STALL ALERT] API connection hung for over 5 minutes. Forcing fail-safe reboot.")
             self._exit_fn(1)
+            return
+        self._print_fn("\n[NETWORK STALL ALERT] API connection has been quiet for over 5 minutes. Keeping Chronicle open for recovery.")
 
     def ping(self):
         if self.timer:
@@ -44,11 +60,13 @@ class RequestRuntime:
         api_request_queue_poll_sec,
         api_max_concurrent_requests,
         api_cache_max_entries,
+        max_cache_text_chars=DEFAULT_MAX_CACHE_TEXT_CHARS,
     ):
         self.api_min_request_interval_sec = api_min_request_interval_sec
         self.api_max_pending_requests = api_max_pending_requests
         self.api_request_queue_poll_sec = api_request_queue_poll_sec
         self.api_cache_max_entries = api_cache_max_entries
+        self.max_cache_text_chars = max_cache_text_chars
         self._api_request_lock = threading.Lock()
         self._last_api_request_ts = 0.0
         self._api_request_semaphore = threading.Semaphore(api_max_concurrent_requests)
@@ -77,11 +95,17 @@ class RequestRuntime:
     def cache_put(self, cache_key, text):
         if not text:
             return
+        if self.max_cache_text_chars is not None and len(str(text)) > self.max_cache_text_chars:
+            return
         with self._chunk_cache_lock:
             self._chunk_cache[cache_key] = text
             self._chunk_cache.move_to_end(cache_key)
             while len(self._chunk_cache) > self.api_cache_max_entries:
                 self._chunk_cache.popitem(last=False)
+
+    def clear_cache(self):
+        with self._chunk_cache_lock:
+            self._chunk_cache.clear()
 
     def wait_for_request_slot(self, log_cb=print, *, time_module=time):
         warned = False
@@ -137,18 +161,114 @@ def handle_stream(
     heartbeat=None,
     sanitize_model_output_fn,
     clean_text_fn,
+    stream_chunk_timeout_sec=STREAM_CHUNK_TIMEOUT_SEC,
 ):
     if heartbeat is not None:
         heartbeat.ping()
     raw_parts = []
+    if getattr(response, "_chronicle_preclean_stream", False):
+        iterator = iter(response)
+        try:
+            while True:
+                result_q = queue.Queue(maxsize=1)
+
+                def read_next_chunk():
+                    try:
+                        result_q.put((True, next(iterator)))
+                    except StopIteration:
+                        result_q.put((False, None))
+                    except BaseException as exc:
+                        result_q.put((None, exc))
+
+                read_thread = threading.Thread(
+                    target=read_next_chunk,
+                    name="chronicle-preclean-stream-next",
+                    daemon=True,
+                )
+                read_thread.start()
+                read_thread.join(stream_chunk_timeout_sec)
+                if read_thread.is_alive():
+                    raise TimeoutError(
+                        "Timed out waiting for streamed model output "
+                        f"after {stream_chunk_timeout_sec:.0f}s without a chunk."
+                    )
+                ok, value = result_q.get()
+                if ok is False:
+                    break
+                if ok is None:
+                    raise value
+                if pause_cb:
+                    pause_cb()
+                if heartbeat is not None:
+                    heartbeat.ping()
+                text = value if isinstance(value, str) else getattr(value, "text", "")
+                if text:
+                    raw_parts.append(text)
+                    if fmt_type in ["html", "txt", "md"] and file_obj:
+                        file_obj.write(text)
+                        file_obj.flush()
+                    if memory is not None:
+                        memory.append(text)
+        finally:
+            if heartbeat is not None:
+                heartbeat.stop()
+        return "".join(raw_parts)
+    if isinstance(response, str):
+        raw_parts.append(response)
+        response = None
+    elif hasattr(response, "text") and getattr(response, "text"):
+        raw_parts.append(response.text)
+        response = None
+    if response is None:
+        raw_text = "".join(raw_parts)
+        cleaned = sanitize_model_output_fn(clean_text_fn(raw_text), fmt_type)
+        if fmt_type in ["html", "txt", "md"] and file_obj and cleaned:
+            file_obj.write(cleaned)
+            file_obj.flush()
+        if memory is not None and cleaned:
+            memory.append(cleaned)
+        if heartbeat is not None:
+            heartbeat.stop()
+        return cleaned
+    iterator = iter(response)
     try:
-        for chunk in response:
+        while True:
+            result_q = queue.Queue(maxsize=1)
+
+            def read_next_chunk():
+                try:
+                    result_q.put((True, next(iterator)))
+                except StopIteration:
+                    result_q.put((False, None))
+                except BaseException as exc:
+                    result_q.put((None, exc))
+
+            read_thread = threading.Thread(
+                target=read_next_chunk,
+                name="chronicle-stream-next",
+                daemon=True,
+            )
+            read_thread.start()
+            read_thread.join(stream_chunk_timeout_sec)
+            if read_thread.is_alive():
+                raise TimeoutError(
+                    "Timed out waiting for streamed model output "
+                    f"after {stream_chunk_timeout_sec:.0f}s without a chunk."
+                )
+            ok, value = result_q.get()
+            if ok is False:
+                break
+            if ok is None:
+                raise value
+            chunk = value
             if pause_cb:
                 pause_cb()
             if heartbeat is not None:
                 heartbeat.ping()
             text = ""
-            if hasattr(chunk, "text") and chunk.text:
+            if isinstance(chunk, str):
+                text = chunk
+            elif hasattr(chunk, "text") and chunk.text:
                 text = chunk.text
             elif hasattr(chunk, "type") and chunk.type == "content_block_delta":
                 text = chunk.delta.text
@@ -246,7 +366,11 @@ def generate_retry(
                         messages=[{"role": "user", "content": contents}],
                         stream=True,
                     )
-                return client.models.generate_content_stream(model=model, contents=contents)
+                return client.models.generate_content_stream(
+                    model=model,
+                    contents=contents,
+                    config={"http_options": {"timeout": GEMINI_GENERATE_TIMEOUT_MS}},
+                )
             finally:
                 runtime.release_request_slot()
         except Exception as exc:

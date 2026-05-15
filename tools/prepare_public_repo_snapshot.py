@@ -95,8 +95,10 @@ EXCLUDED_FILE_NAMES = {
     "Check_GitHub_Download_Counts.command",
     "CHRONICLE_FORUM_POST.txt",
     ".DS_Store",
+    "Clean_War_Diary_Compression_Temps.command",
     "CONTINUITY.md",
     "Download_Latest_Windows_Artifact.command",
+    "nla.news-issue108507.html",
     "api_key.txt",
     "api_keys.json",
     "chronicle.py",
@@ -108,6 +110,7 @@ EXCLUDED_FILE_NAMES = {
     "Run_Windows_GitHub_Build.command",
     "Sync_from_GitHub.command",
     "Update_Samples.command",
+    "View_War_Diary_Compression_Log.command",
     "WAKE_PHRASE.md",
     "user_config.json",
 }

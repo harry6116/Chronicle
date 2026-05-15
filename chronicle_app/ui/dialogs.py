@@ -714,6 +714,11 @@ class PrefsDialog(wx.Dialog):
             "Post-pass audit compares PDF text layer with extracted output and appends recovered content when needed."
         )
         adv_sizer.Add(self.chk_pdf_audit, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 8)
+        self.chk_pdf_text_fallback = wx.CheckBox(panel, label="Enable emergency PDF text-layer fallback")
+        self.chk_pdf_text_fallback.SetToolTip(
+            "Off by default. When enabled, Chronicle may use embedded PDF text only after Gemini/model vision processing fails."
+        )
+        adv_sizer.Add(self.chk_pdf_text_fallback, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 8)
         self.chk_page_confidence = wx.CheckBox(panel, label="Enable page confidence scoring")
         self.chk_page_confidence.SetToolTip("Logs per-page confidence estimates for PDF processing. Off by default.")
         adv_sizer.Add(self.chk_page_confidence, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 8)
@@ -739,7 +744,7 @@ class PrefsDialog(wx.Dialog):
         self.dp.SetSelection(pmap.get(selected_profile, 0))
         self.mo.SetSelection(model_override_map.get(str(cfg.get("model_override", "") or ""), 0))
         self.ct.SetSelection(tmap.get(cfg.get("translate_mode", "none"), 0))
-        self.cc.SetSelection(cmap.get(cfg.get("collision_mode", "skip"), 0))
+        self.cc.SetSelection(cmap.get(cfg.get("collision_mode", "auto"), 2))
         target_name, _ = self._get_translation_target(cfg)
         target_choices = [name for name, _ in TRANSLATION_TARGETS]
         self.tgt.SetSelection(target_choices.index(target_name) if target_name in target_choices else 0)
@@ -758,6 +763,7 @@ class PrefsDialog(wx.Dialog):
         self.tc_custom_prompt.SetValue(str(cfg.get("custom_prompt", "")))
         self.tc_custom_commands.SetValue(str(cfg.get("custom_commands", "")))
         self.chk_pdf_audit.SetValue(bool(cfg.get("pdf_textlayer_audit", True)))
+        self.chk_pdf_text_fallback.SetValue(bool(cfg.get("allow_pdf_text_layer_fallback", False)))
         self.chk_page_confidence.SetValue(bool(cfg.get("page_confidence_scoring", False)))
         self.chk_low_memory.SetValue(bool(cfg.get("low_memory_mode", False)))
         self.chk_memory_telemetry.SetValue(bool(cfg.get("memory_telemetry", False)))
@@ -797,7 +803,7 @@ class PrefsDialog(wx.Dialog):
                 "model_override": self.model_override_choices[self.mo.GetSelection()][0],
                 "translate_mode": trev.get(self.ct.GetSelection(), "none"),
                 "translate_target": selected_target,
-                "collision_mode": crev.get(self.cc.GetSelection(), "skip"),
+                "collision_mode": crev.get(self.cc.GetSelection(), "auto"),
                 "modernize_punctuation": self.cp.GetSelection() == 1,
                 "unit_conversion": self.cu.GetSelection() == 1,
                 "abbrev_expansion": self.ca.GetSelection() == 1,
@@ -811,6 +817,7 @@ class PrefsDialog(wx.Dialog):
                 "custom_prompt": self.tc_custom_prompt.GetValue().strip(),
                 "custom_commands": self.tc_custom_commands.GetValue().strip(),
                 "pdf_textlayer_audit": self.chk_pdf_audit.GetValue(),
+                "allow_pdf_text_layer_fallback": self.chk_pdf_text_fallback.GetValue(),
                 "page_confidence_scoring": self.chk_page_confidence.GetValue(),
                 "low_memory_mode": self.chk_low_memory.GetValue(),
                 "memory_telemetry": self.chk_memory_telemetry.GetValue(),
@@ -839,7 +846,7 @@ class PrefsDialog(wx.Dialog):
         target_name, _ = self._get_translation_target(preset)
         target_choices = [name for name, _ in TRANSLATION_TARGETS]
         self.tgt.SetSelection(target_choices.index(target_name) if target_name in target_choices else 0)
-        self.cc.SetSelection(cmap_rev.get(preset.get("collision_mode", "skip"), 0))
+        self.cc.SetSelection(cmap_rev.get(preset.get("collision_mode", "auto"), 2))
         self.cp.SetSelection(1 if preset.get("modernize_punctuation", False) else 0)
         self.cu.SetSelection(1 if preset.get("unit_conversion", False) else 0)
         self.ca.SetSelection(1 if preset.get("abbrev_expansion", False) else 0)

@@ -239,6 +239,20 @@ class AccessibilityContractsTest(unittest.TestCase):
         self.assertIn("Treat review blurbs, `Books by` lists, contents pages, copyright blocks", prompt)
         self.assertIn("GLOBAL QUOTE NORMALIZATION", prompt)
 
+    def test_transcript_prompt_keeps_script_dialogue_contract(self):
+        cfg = self._base_cfg(doc_profile="transcript", preserve_original_page_numbers=True)
+
+        cli_prompt = chronicle.get_prompt(cfg)
+        gui_prompt = chronicle_gui.build_prompt(cfg)
+
+        for prompt in (cli_prompt, gui_prompt):
+            self.assertIn("SCRIPT / DIALOGUE / TRANSCRIPT RULES", prompt)
+            self.assertIn("ABSOLUTE LINE FIDELITY", prompt)
+            self.assertIn("SPEAKER TURNS", prompt)
+            self.assertIn("STAGE DIRECTIONS", prompt)
+            self.assertIn("COLON DISCIPLINE", prompt)
+            self.assertIn("[Original Page Number: X]", prompt)
+
     def test_standard_prompt_keeps_recovery_and_accessibility_remediation_rules(self):
         cfg = self._base_cfg(doc_profile="standard", format_type="docx")
 
@@ -258,6 +272,9 @@ class AccessibilityContractsTest(unittest.TestCase):
         self.assertIn(("flyer", "Flyers / Posters"), chronicle_gui.PROFILE_CHOICES)
         self.assertIn(("forms", "Forms / Checklists"), chronicle_gui.PROFILE_CHOICES)
         self.assertIn(("slides", "Slides / Presentations"), chronicle_gui.PROFILE_CHOICES)
+        self.assertIn(("modern_newspaper", "Modern Newspapers / E-Papers"), chronicle_gui.PROFILE_CHOICES)
+        self.assertIn(("magazine", "Magazines / Periodicals"), chronicle_gui.PROFILE_CHOICES)
+        self.assertIn(("newspaper", "Historical Newspapers"), chronicle_gui.PROFILE_CHOICES)
         self.assertIn(("comic", "Comics / Manga / Graphic Novels"), chronicle_gui.PROFILE_CHOICES)
 
     def test_every_preset_has_a_distinct_tooltip_summary(self):
@@ -320,6 +337,31 @@ class AccessibilityContractsTest(unittest.TestCase):
             self.assertIn("Never emit an empty panel heading", prompt)
             self.assertIn("Do not bury visible SFX only inside an image description", prompt)
             self.assertIn("Every panel/story-beat section must include a concise `[Image Description: ...]`", prompt)
+
+    def test_magazine_prompt_keeps_periodical_article_cleanup_rules(self):
+        cfg = self._base_cfg(doc_profile="magazine")
+
+        cli_prompt = chronicle.get_prompt(cfg)
+        gui_prompt = chronicle_gui.build_prompt(cfg)
+
+        for prompt in (cli_prompt, gui_prompt):
+            self.assertIn("MAGAZINES / PERIODICALS RULES", prompt)
+            self.assertIn("ARTICLE BOUNDARIES", prompt)
+            self.assertIn("TOC DISCIPLINE", prompt)
+
+    def test_modern_newspaper_prompt_is_distinct_from_historical_and_magazine(self):
+        cfg = self._base_cfg(doc_profile="modern_newspaper")
+
+        cli_prompt = chronicle.get_prompt(cfg)
+        gui_prompt = chronicle_gui.build_prompt(cfg)
+
+        for prompt in (cli_prompt, gui_prompt):
+            self.assertIn("MODERN NEWSPAPER / E-PAPER RULES", prompt)
+            self.assertIn("not a historical OCR newspaper scan", prompt)
+            self.assertIn("not a magazine feature layout", prompt)
+            self.assertIn("bylines, wire/source labels, datelines, timestamps", prompt)
+            self.assertNotIn("HISTORICAL NEWSPAPER RULES", prompt)
+            self.assertNotIn("MAGAZINES / PERIODICALS RULES", prompt)
 
     def test_comic_heading_enforcement_adds_page_and_panel_headings(self):
         raw = '<html><body><main id="content"><p>Pepper and Carrot</p><p>[Image Description: A cat.]</p></main></body></html>'
@@ -930,11 +972,18 @@ class AccessibilityContractsTest(unittest.TestCase):
     def test_profile_selection_summary_shows_runtime_hint_and_recommendation(self):
         text = chronicle_gui.build_profile_selection_summary("newspaper", "gemini-2.5-flash")
 
-        self.assertIn("Newspapers", text)
-        self.assertIn("slowest", text)
+        self.assertIn("Historical Newspapers", text)
+        self.assertIn("old press-layout", text)
         self.assertIn("Recommended engine: Deep Engine (Gemini 2.5 Pro).", text)
         self.assertIn("Current override: Fast Engine (Gemini 2.5 Flash).", text)
         self.assertIn("Engine manually overridden.", text)
+
+    def test_profile_selection_summary_describes_modern_newspaper_profile(self):
+        text = chronicle_gui.build_profile_selection_summary("modern_newspaper", "gemini-2.5-pro")
+
+        self.assertIn("Modern Newspapers / E-Papers", text)
+        self.assertIn("bylines", text)
+        self.assertIn("contemporary news page furniture", text)
 
     def test_profile_selection_summary_describes_comic_profile(self):
         text = chronicle_gui.build_profile_selection_summary("comic", "gemini-2.5-pro")

@@ -1,4 +1,5 @@
 import os
+import re
 
 
 def get_target_queue_indices_for_setting_change(queue, selected_indices, *, assignable_statuses=("Queued", "Paused")):
@@ -82,6 +83,75 @@ def should_status_echo_log(msg, *, engine_event=False):
         return True
     noisy_prefixes = ("[Page]", "[Confidence]", "[Memory]")
     return not str(msg).startswith(noisy_prefixes)
+
+
+def format_scan_log_message(msg):
+    text = str(msg or "")
+    if not text:
+        return text
+
+    match = re.match(
+        r"^\[Gemini Image\] Requesting dense newspaper strip (\d+)/(\d+) for source page (\d+) via (?:streaming )?inline REST on (.+?)\.$",
+        text,
+    )
+    if match:
+        part_num, part_total, source_page, model = match.groups()
+        return f"Scanning page {source_page}, part {part_num} of {part_total} with {model}."
+
+    match = re.match(
+        r"^\[Gemini Image\] Requesting dense newspaper page output for source page (\d+) via (?:streaming )?inline REST on (.+?)\.$",
+        text,
+    )
+    if match:
+        source_page, model = match.groups()
+        return f"Scanning page {source_page} as a dense newspaper page with {model}."
+
+    match = re.match(
+        r"^\[Gemini Image\] Requesting full-page scanned image output for source page (\d+) via (?:streaming )?inline REST on (.+?)\.$",
+        text,
+    )
+    if match:
+        source_page, model = match.groups()
+        return f"Scanning image-only page {source_page} with {model}."
+
+    match = re.match(r"^\[Gemini Pro\] Still waiting for bounded (.+?) output \((.+?)\)\.$", text)
+    if match:
+        request_kind, timing = match.groups()
+        return f"Still waiting for Gemini Pro {request_kind.lower()} output ({timing})."
+
+    prefix_replacements = (
+        (r"^\[PDF Heuristic\]\s*", "Preflight: "),
+        (r"^\[Auto Engine\]\s*", "Routing: "),
+        (r"^\[Gemini PDF\]\s*", "Gemini PDF: "),
+        (r"^\[Gemini Image\]\s*", "Gemini image: "),
+        (r"^\[OpenAI PDF\]\s*", "OpenAI PDF: "),
+        (r"^\[Claude PDF\]\s*", "Claude PDF: "),
+        (r"^\[FAIL-SAFE\]\s*", "Recovery: "),
+        (r"^\[Gearshift Triggered\]\s*", "Retrying with a smaller PDF batch: "),
+        (r"^\[Gearshift\]\s*", "Retry: "),
+        (r"^\[Throttle\]\s*", "Waiting: "),
+        (r"^\[Backpressure\]\s*", "Waiting: "),
+        (r"^\[Rate Limit\]\s*", "Provider rate limit: "),
+        (r"^\[Cache\]\s*", "Cache: "),
+        (r"^\[Progress\]\s*", "Progress: "),
+        (r"^\[Resume\]\s*", "Resume: "),
+        (r"^\[Recovery\]\s*", "Recovery: "),
+        (r"^\[Upload Wait\]\s*", "Upload wait: "),
+        (r"^\[Finalize\]\s*", "Saving: "),
+        (r"^\[Output QA\]\s*", "Output check: "),
+        (r"^\[Audit\]\s*", "Output check: "),
+        (r"^\[Scope\]\s*", "Page range: "),
+        (r"^\[Quality\]\s*", "Image quality: "),
+        (r"^\[Low-Memory\]\s*", "Memory guard: "),
+        (r"^\[Mac\]\s*", "Mac: "),
+        (r"^\[Image\]\s*", "Image: "),
+    )
+    for pattern, replacement in prefix_replacements:
+        updated = re.sub(pattern, replacement, text)
+        if updated != text:
+            updated = re.sub(r"^Routing:\s+Routing\s+", "Routing: ", updated)
+            return updated
+    return text
 
 
 def build_progress_summary(

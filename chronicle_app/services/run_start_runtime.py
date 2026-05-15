@@ -116,10 +116,26 @@ def validate_pending_pdf_page_scopes(
             continue
         settings = normalize_row_settings_fn(row)
         page_scope = normalize_pdf_page_scope_text_fn(settings.get("pdf_page_scope", ""))
+        reader = None
+        total_pdf_pages = 0
+        try:
+            reader = pdf_reader_factory(fp)
+            total_pdf_pages = len(reader.pages)
+        except Exception as ex:
+            return {
+                "filename": os.path.basename(fp),
+                "details": f"Chronicle could not inspect this PDF before launch: {ex}",
+            }
+        finally:
+            close_fn = getattr(reader, "close", None)
+            if callable(close_fn):
+                try:
+                    close_fn()
+                except Exception:
+                    pass
         if not page_scope:
             continue
         try:
-            total_pdf_pages = len(pdf_reader_factory(fp).pages)
             parse_pdf_page_scope_spec_fn(page_scope, total_pdf_pages)
         except Exception as ex:
             return {

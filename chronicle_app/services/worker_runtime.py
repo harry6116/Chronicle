@@ -6,6 +6,19 @@ import zlib
 import base64
 
 from chronicle_app.services.adaptive_engine_routing import select_execution_model_for_job
+from chronicle_app.services.document_processors import (
+    EPUB_EXTENSIONS,
+    FITZ_TEXT_EXTENSIONS,
+    PRESENTATION_EXTENSIONS,
+    RENDERABLE_DOCUMENT_EXTENSIONS,
+    SOURCE_TEXT_EXTENSIONS,
+)
+from chronicle_app.services.nla_newspaper import should_skip_pdf_textlayer_audit_for_nla_source
+from chronicle_app.services.worker_finalize_runtime import (
+    FINALIZE_FILESYSTEM_OPERATION_TIMEOUT_SECONDS,
+    _promote_temp_output,
+    _run_filesystem_call_with_timeout,
+)
 
 
 PROGRESS_STATE_HEADER_PREFIX = "[[CHRONICLE_PROGRESS_STATE::"
@@ -53,6 +66,8 @@ def build_worker_run_plan(cfg, jobs, *, normalize_row_settings_fn, streamable_fo
 def determine_needs_pdf_audit(ext, cfg, *, low_memory_mode, path, low_memory_pdf_audit_skip_mb, getsize=os.path.getsize):
     needs_pdf_audit = ext == ".pdf" and bool(cfg.get("pdf_textlayer_audit", True))
     file_size_mb = 0.0
+    if needs_pdf_audit and should_skip_pdf_textlayer_audit_for_nla_source(ext=ext, cfg=cfg, path=path):
+        needs_pdf_audit = False
     if needs_pdf_audit and low_memory_mode:
         try:
             file_size_mb = getsize(path) / (1024.0 * 1024.0)
@@ -104,6 +119,10 @@ def build_output_base_name(base, ext, job_cfg, *, normalize_pdf_page_scope_text_
 
 
 def build_progress_temp_path(output_path):
+    return f"{output_path}.progress.txt.tmp" if output_path else None
+
+
+def build_legacy_progress_temp_path(output_path):
     if not output_path:
         return None
     directory = os.path.dirname(output_path)
@@ -111,17 +130,8 @@ def build_progress_temp_path(output_path):
     return os.path.join(directory, f".chronicle_progress_{basename}.txt.tmp")
 
 
-def build_legacy_progress_temp_path(output_path):
-    return f"{output_path}.progress.txt.tmp" if output_path else None
-
-
 def resolve_progress_temp_path(output_path, *, path_exists_fn=os.path.exists):
     current_path = build_progress_temp_path(output_path)
-    legacy_path = build_legacy_progress_temp_path(output_path)
-    if current_path and path_exists_fn(current_path):
-        return current_path
-    if legacy_path and path_exists_fn(legacy_path):
-        return legacy_path
     return current_path
 
 
@@ -262,25 +272,55 @@ def recover_completed_output_artifacts(
     replace_fn=os.replace,
     remove_fn=os.remove,
     log_cb=None,
+    operation_timeout_s=FINALIZE_FILESYSTEM_OPERATION_TIMEOUT_SECONDS,
 ):
     output_exists = bool(output_path and path_exists_fn(output_path))
     temp_exists = bool(temp_path and path_exists_fn(temp_path))
     progress_exists = bool(progress_temp_path and path_exists_fn(progress_temp_path))
     if not output_exists and temp_exists:
-        replace_fn(temp_path, output_path)
-        output_exists = True
-        temp_exists = False
+        recovered_path = _promote_temp_output(
+            temp_path,
+            output_path,
+            label=os.path.basename(output_path) or str(output_path or "output"),
+            log_cb=log_cb or (lambda _msg: None),
+            path_exists=path_exists_fn,
+            replace_fn=replace_fn,
+            remove_fn=remove_fn,
+            operation_timeout_s=operation_timeout_s,
+        )
+        output_exists = bool(recovered_path)
+        temp_exists = bool(temp_path and path_exists_fn(temp_path))
         if log_cb:
-            log_cb(f"[Recovery] Materialized completed output from stranded temp file: {output_path}")
+            log_cb(f"[Recovery] Materialized completed output from stranded temp file: {recovered_path}")
     if output_exists and progress_exists:
         try:
-            remove_fn(progress_temp_path)
+            _run_filesystem_call_with_timeout(
+                remove_fn,
+                progress_temp_path,
+                timeout_s=operation_timeout_s,
+            )
             if log_cb:
-                log_cb(f"[Recovery] Removed stale completed progress sidecar: {progress_temp_path}")
+                log_cb(f"[Recovery] Removed stale completed progress file: {progress_temp_path}")
         except Exception as cleanup_ex:
             if log_cb:
-                log_cb(f"[Recovery] Warning: could not remove stale completed progress sidecar ({cleanup_ex})")
+                log_cb(f"[Recovery] Warning: could not remove stale completed progress file ({cleanup_ex})")
     return output_exists
+
+
+def progress_state_indicates_completed_work(state):
+    if not isinstance(state, dict):
+        return False
+    completed_units = max(0, int(state.get("completed_units", state.get("completed_pages", 0)) or 0))
+    total_units = max(0, int(state.get("total_units", state.get("total_pages", 0)) or 0))
+    return bool(total_units and completed_units >= total_units)
+
+
+def progress_state_indicates_partial_work(state):
+    if not isinstance(state, dict):
+        return False
+    completed_units = max(0, int(state.get("completed_units", state.get("completed_pages", 0)) or 0))
+    total_units = max(0, int(state.get("total_units", state.get("total_pages", 0)) or 0))
+    return bool(completed_units > 0 and (not total_units or completed_units < total_units))
 
 
 def _compress_page_indices_to_scope(page_indices):
@@ -531,7 +571,7 @@ def estimate_current_file_total_units(
             }
         except Exception:
             return {"total_units": 1, "selected_scope": "", "selected_count": 0, "source_total": 0, "unit_label": "page(s)"}
-    if ext in [".docx", ".txt", ".md", ".rtf", ".csv", ".js", ".xlsx", ".xls", ".epub"]:
+    if ext in SOURCE_TEXT_EXTENSIONS | EPUB_EXTENSIONS | FITZ_TEXT_EXTENSIONS:
         if estimate_text_work_units_fn is not None:
             try:
                 total_units = max(1, int(estimate_text_work_units_fn(path, ext, job_cfg)))
@@ -539,7 +579,7 @@ def estimate_current_file_total_units(
             except Exception:
                 pass
         return {"total_units": 1, "selected_scope": "", "selected_count": 0, "source_total": 0, "unit_label": "file unit(s)"}
-    if ext in [".pptx", ".ppt"]:
+    if ext in PRESENTATION_EXTENSIONS:
         if estimate_text_work_units_fn is not None:
             try:
                 total_units = max(1, int(estimate_text_work_units_fn(path, ext, job_cfg)))
@@ -552,6 +592,16 @@ def estimate_current_file_total_units(
             return {"total_units": max(1, int(pptx_slide_count_fn(path))), "selected_scope": "", "selected_count": 0, "source_total": 0, "unit_label": "slide(s)"}
         except Exception:
             return {"total_units": 1, "selected_scope": "", "selected_count": 0, "source_total": 0, "unit_label": "slide(s)"}
+    if ext in RENDERABLE_DOCUMENT_EXTENSIONS:
+        try:
+            reader = pdf_reader_factory(path)
+            total_pages = len(reader.pages)
+            close_fn = getattr(reader, "close", None)
+            if callable(close_fn):
+                close_fn()
+            return {"total_units": max(1, total_pages), "selected_scope": "", "selected_count": total_pages, "source_total": total_pages, "unit_label": "page(s)"}
+        except Exception:
+            return {"total_units": 1, "selected_scope": "", "selected_count": 0, "source_total": 0, "unit_label": "page(s)"}
     return {"total_units": 1, "selected_scope": "", "selected_count": 0, "source_total": 0, "unit_label": "page(s)"}
 
 
@@ -684,9 +734,37 @@ def prepare_job_execution_context(
 
         temp_path = output_path + '.tmp'
         progress_temp_path = resolve_progress_temp_path(output_path, path_exists_fn=path_exists_fn)
+        completed_state = read_progress_state(
+            progress_temp_path,
+            path_exists_fn=path_exists_fn,
+            open_fn=open_fn,
+        )
+        resume_existing_progress = bool(resume_mode or progress_state_indicates_partial_work(completed_state))
+        if progress_state_indicates_completed_work(completed_state):
+            recovered_output = recover_completed_output_artifacts(
+                output_path=output_path,
+                temp_path=temp_path,
+                progress_temp_path=progress_temp_path,
+                path_exists_fn=path_exists_fn,
+                replace_fn=replace_fn,
+                remove_fn=remove_fn,
+                log_cb=log_cb,
+            )
+            if recovered_output:
+                set_queue_status_fn(qidx, 'Done')
+                log_cb(f"Recovered completed task from progress file: {fn}")
+                return {
+                    'skip': True,
+                    'qidx': qidx,
+                    'path': fp,
+                    'file_name': fn,
+                    'base': base,
+                    'ext': ext,
+                    'output_path': output_path,
+                }
         resume_info = {"recovered_units": 0, "original_total_units": None, "resume_state_path": _build_progress_state_path(progress_temp_path), "resume_from_unit": 0}
         if (
-            resume_mode
+            resume_existing_progress
             and ext == '.pdf'
             and pdf_reader_factory is not None
             and normalize_pdf_page_scope_text_fn is not None
@@ -713,7 +791,7 @@ def prepare_job_execution_context(
                     log_cb=log_cb,
                 )
                 set_queue_status_fn(qidx, 'Done')
-                log_cb(f"Recovered completed PDF task from progress sidecar: {fn}")
+                log_cb(f"Recovered completed PDF task from progress file: {fn}")
                 return {
                     'skip': True,
                     'qidx': qidx,
@@ -731,7 +809,7 @@ def prepare_job_execution_context(
                     f"continuing with pages {resume_info['resume_scope']}."
                 )
 
-        if resume_mode and ext in ['.docx', '.txt', '.md', '.rtf', '.csv', '.js', '.xlsx', '.xls', '.epub', '.pptx', '.ppt']:
+        if resume_existing_progress and ext in SOURCE_TEXT_EXTENSIONS | EPUB_EXTENSIONS | FITZ_TEXT_EXTENSIONS | PRESENTATION_EXTENSIONS | RENDERABLE_DOCUMENT_EXTENSIONS:
             resume_info = _load_unit_resume_state(
                 progress_temp_path=progress_temp_path,
                 path_exists_fn=path_exists_fn,
@@ -745,12 +823,26 @@ def prepare_job_execution_context(
                 )
 
         preserve_progress = bool(
-            resume_mode
-            and ext in ['.pdf', '.docx', '.txt', '.md', '.rtf', '.csv', '.js', '.xlsx', '.xls', '.epub', '.pptx', '.ppt']
+            resume_existing_progress
+            and ext in ({'.pdf'} | SOURCE_TEXT_EXTENSIONS | EPUB_EXTENSIONS | FITZ_TEXT_EXTENSIONS | PRESENTATION_EXTENSIONS | RENDERABLE_DOCUMENT_EXTENSIONS)
             and resume_info.get('recovered_units', 0) > 0
             and path_exists_fn(progress_temp_path)
             and (fmt not in streamable_formats or path_exists_fn(temp_path))
         )
+        if (
+            resume_existing_progress
+            and not preserve_progress
+            and fmt in streamable_formats
+            and resume_info.get('recovered_units', 0) > 0
+            and path_exists_fn(progress_temp_path)
+            and not path_exists_fn(temp_path)
+        ):
+            recovered_text = read_progress_text(progress_temp_path, path_exists_fn=path_exists_fn, open_fn=open_fn)
+            if recovered_text:
+                with open_fn(temp_path, 'w', encoding='utf-8') as recovered_temp_obj:
+                    recovered_temp_obj.write(recovered_text)
+                log_cb(f"[Resume] Rebuilt missing temp output from preserved progress file: {temp_path}")
+                preserve_progress = True
         if path_exists_fn(temp_path) and not preserve_progress:
             remove_fn(temp_path)
         if path_exists_fn(progress_temp_path) and not preserve_progress:
@@ -764,7 +856,7 @@ def prepare_job_execution_context(
                 progress_file_obj.flush()
         raw_file_obj = open_fn(temp_path, 'a' if preserve_progress else 'w', encoding='utf-8') if fmt in streamable_formats else None
         file_obj = MirroredTextWriter(raw_file_obj, progress_file_obj) if raw_file_obj else None
-        log_cb(f"[Progress] In-progress recovery sidecar: {progress_temp_path}")
+        log_cb(f"[Progress] In-progress recovery file: {progress_temp_path}")
         if file_obj and not preserve_progress:
             write_header_fn(file_obj, base, fmt, get_output_lang_code_fn(job_cfg), get_output_text_direction_fn(job_cfg))
         if fmt in streamable_formats:

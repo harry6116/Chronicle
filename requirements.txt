@@ -12,6 +12,7 @@ lxml>=6.0.2
 beautifulsoup4>=4.13.5
 html5lib>=1.1
 pillow>=12.1.1
+pillow-heif>=1.3.0
 opencv-python>=4.13.0.92
 wxPython>=4.2.5
 pyinstaller>=6.19.0

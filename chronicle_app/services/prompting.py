@@ -1,5 +1,6 @@
 import re
 
+from chronicle_core import get_modern_newspaper_profile_rules
 from chronicle_core import get_newspaper_profile_rules
 
 
@@ -329,6 +330,8 @@ GENERAL THROUGHPUT RULES:
         )
     elif profile == "newspaper":
         base += get_newspaper_profile_rules(format_type)
+    elif profile == "modern_newspaper":
+        base += get_modern_newspaper_profile_rules(format_type)
     elif profile == "book":
         base += (
             "BOOK / NOVEL / LONG-FORM PROSE RULES:\n"
@@ -404,6 +407,18 @@ GENERAL THROUGHPUT RULES:
             "- Do not flatten a brochure into generic prose if the visible structure is a sequence of short sections, product tiles, or panels.\n"
             "- Use image descriptions when photographs or product shots carry essential meaning beyond decorative atmosphere."
         )
+    elif profile == "magazine":
+        base += (
+            "MAGAZINES / PERIODICALS RULES:\n"
+            "- Treat the source as a modern periodical, not a classic newspaper. Recover article, review, interview, column, sidebar, advertisement, caption, pull-quote, and table-of-contents blocks as distinct accessible sections.\n"
+            "- ARTICLE BOUNDARIES: Keep each article or review under a clear heading. Preserve author/byline, deck/subtitle, ratings, issue/date metadata, and page references when visible.\n"
+            "- READING ORDER: Flatten multi-column and design-heavy layouts into the order a human reader would follow, without preserving decorative grids, page-wrapper comments, or visual facsimile layout.\n"
+            "- RUNNING FURNITURE CLEANUP: Suppress repeated section labels, magazine title headers, footer straps, page numbers, and recurring department labels when they are page furniture rather than unique article text.\n"
+            "- CAPTIONS AND CALLOUTS: Keep photo captions, pull quotes, boxed sidebars, score boxes, and reviewer verdicts near the article or image they support, clearly labeled when necessary.\n"
+            "- ADVERTISEMENTS: If an advertisement carries substantive text, preserve it as an `Advertisement` section. If it is purely decorative or repetitive, describe it briefly only when image descriptions are enabled.\n"
+            "- TOC DISCIPLINE: Do not let repeated section furniture, short running heads, or page-wrapper labels become navigable headings or table-of-contents entries.\n"
+            "- PLACEHOLDER ERADICATION: Never emit `IMAGE_URL`, `IMAGE_PLACEHOLDER`, empty image tags, or markdown headings inside HTML output."
+        )
     elif profile == "comic":
         base += (
             "COMICS / MANGA / GRAPHIC NOVELS RULES:\n"
@@ -467,7 +482,17 @@ GENERAL THROUGHPUT RULES:
             '- Indigenous/Ancient: Preserve all diacritics (Maori macrons). Wrap detected indigenous languages in <span lang="mi"> (or appropriate ISO code).'
         )
     elif profile == "transcript":
-        base += "TRANSCRIPT RULES:\n- Wrap stage directions and sound effects in semantic italics/brackets so screen readers pause."
+        base += (
+            "SCRIPT / DIALOGUE / TRANSCRIPT RULES:\n"
+            "- ABSOLUTE LINE FIDELITY: Preserve speaker names, character names, casing, unusual spellings, ellipses, dashes, repeated letters, profanity, and punctuation exactly as printed unless a character is visibly impossible to read.\n"
+            "- SCRIPT STRUCTURE: Keep title/subtitle material as headings. Preserve scene headings, act/scene labels, page cues, and section breaks as navigable headings when present.\n"
+            "- SPEAKER TURNS: Keep each spoken turn as its own paragraph or line. Put the visible speaker/cue before the dialogue, and do not merge adjacent speakers into one paragraph.\n"
+            "- STAGE DIRECTIONS: Preserve parentheticals, bracketed actions, asterisked directions, sound cues, pauses, and performance notes distinctly from spoken dialogue. In HTML, wrap stage directions in `<em>` or `<strong><em>` where appropriate so screen readers signal the shift.\n"
+            "- COLON DISCIPLINE: When a line uses `Speaker: dialogue`, keep the speaker label distinct from the spoken text. Do not move the colon into the dialogue or invent a speaker when none is printed.\n"
+            "- SHORT LINE DISCIPLINE: Do not discard short exclamations, one-word replies, options, alternatives, or shouted lines just because they look isolated on the page.\n"
+            "- NO DRAMATURGICAL EDITING: Do not improve jokes, smooth dialogue, censor language, normalize character voice, or rewrite rough notes into polished prose.\n"
+            "- PAGE REFERENCES: When original page references are enabled, preserve page boundaries with `[Original Page Number: X]` markers without interrupting a single dialogue turn mid-line."
+        )
     elif profile == "poetry":
         base += (
             "POETRY & LITERATURE RULES:\n"
