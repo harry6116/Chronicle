@@ -10,11 +10,15 @@ All notable changes to Chronicle will be documented in this file.
 ### Changed
 - **Gemini PDF Handling:** Gemini remains Chronicle's preferred path for PDF upload and visual PDF reading when Gemini is selected, with a narrow rendered-page fallback for image-only scanned pages that cannot be read reliably through the embedded text layer.
 - **Document Preset Guidance:** Public and user-facing preset names now separate military records, personal diaries, historical newspapers, modern newspapers, magazines, office reports, government records, books, and specialist layouts more clearly.
+- **Profile-Aware Abbreviation Glossaries:** Moved abbreviation expansion into separate military, newspaper, medical, and civil-title glossary modules, with document-profile routing so military, historical newspaper, modern newspaper, and medical records can expand different shorthand safely while keeping HTML tags and attributes intact.
 
 ### Fixed
 - **Image-Only Scanned PDF Handling:** Low-text scanned archive pages can now be rendered into visible temporary page images beside the source document while active, allowing Gemini to read the page visually and preventing immediate false-complete output.
 - **OCR-Backed Newspaper Hang Guards:** Dense OCR-backed newspaper PDFs now use their reliable text layer immediately and avoid redundant final audits or cleanup passes that could make completed work appear stuck.
 - **Finalization Hang Guards:** Final cleanup, temp promotion, output close, and progress artifact cleanup are timeout-bounded so Chronicle can recover from locked or slow filesystem operations instead of hanging after extraction.
+- **Large War-Diary Final Save Guard:** Large complete military/archive HTML outputs now skip the redundant whole-document final cleanup pass, preventing regex-heavy cleanup from pinning CPU after all pages have already been written.
+- **Save-First Finalization:** Streamed HTML/TXT/Markdown outputs are now promoted to the final file before any optional cleanup, and final cleanup is bypassed by default so regex polish cannot block the completed scan from saving.
+- **Emergency Text Fallback:** If a non-streamed final writer such as DOCX/PDF/EPUB fails at the final dispatch step, Chronicle now writes a `.recovered.txt` emergency output containing the completed extracted text.
 
 ## [1.0.2] - 2026-04-11
 ### Added
@@ -32,6 +36,7 @@ All notable changes to Chronicle will be documented in this file.
 
 ## [Unreleased]
 ### Fixed
+- **Stall Heartbeat Crash Guard:** Long quiet model-output waits no longer hard-exit the Chronicle app. The GUI heartbeat now logs a recovery warning while the bounded stream reader raises a normal timeout, keeping the app open with readable progress evidence.
 - **OCR-Backed NLA Newspaper Hang Guard:** Dense NLA newspaper PDFs with strong embedded OCR now use the local text layer immediately instead of waiting on Gemini image-strip calls before the first page checkpoint, preventing OCR-rich Trove/NLA newspaper issues from appearing stuck at page one.
 - **NLA Newspaper Final-Save Stall Guard:** OCR-backed NLA newspaper output now skips the redundant PDF text-layer audit after extraction, so Chronicle does not stall between `14/14` page progress and final `.tmp` promotion.
 - **NLA Newspaper Final Cleanup Bypass:** The same OCR-backed NLA newspaper route now bypasses redundant final HTML normalization, allowing the already-rendered local OCR output to promote directly into the final file.

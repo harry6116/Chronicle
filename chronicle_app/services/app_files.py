@@ -4,6 +4,8 @@ import re
 import tempfile
 import time
 
+from chronicle_app.services.security import sanitize_log_text
+
 
 CONTINUITY_FILENAME = "CONTINUITY.md"
 RUNTIME_STATUS_BEGIN = "<!-- CHRONICLE_RUNTIME_STATUS:BEGIN -->"
@@ -255,6 +257,7 @@ def write_processing_log(log_dir, build_stamp, processing_log_lines, *, time_mod
     stamp = time_module.strftime("%Y%m%d_%H%M%S")
     path = os.path.join(log_dir, f"chronicle_processing_log_{stamp}.txt")
     with open(path, "w", encoding="utf-8") as fh:
-        lines = build_log_header(build_stamp, time_module=time_module) + list(processing_log_lines)
+        safe_lines = [sanitize_log_text(line) for line in processing_log_lines]
+        lines = build_log_header(build_stamp, time_module=time_module) + safe_lines
         fh.write("\n".join(lines).rstrip() + "\n")
     return path

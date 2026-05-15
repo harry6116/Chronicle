@@ -62,7 +62,7 @@ INCLUDED_TOP_LEVEL = {
     'Sync_from_GitHub.command',
     'Update_Samples.command',
     'Download_Latest_Windows_Artifact.command',
-    'Push_to_GitHub.command',
+    'Publish_GitHub_Release.command',
 }
 
 

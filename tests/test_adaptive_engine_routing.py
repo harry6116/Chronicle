@@ -69,7 +69,58 @@ class AdaptiveEngineRoutingTest(unittest.TestCase):
         self.assertEqual(result["difficulty"], "hard")
         self.assertIn("comic profile stays on the deep engine", result["routing_reason"])
 
-    def test_auto_routing_prefers_flash_for_clean_legal_pdf_with_strong_text_layer(self):
+    def test_auto_routing_keeps_modern_newspapers_on_deep_engine_by_default(self):
+        clean_page = "Modern newspaper article text " * 120
+        result = select_execution_model_for_job(
+            "/tmp/a.pdf",
+            ".pdf",
+            {"doc_profile": "modern_newspaper", "model_override": ""},
+            "gemini-2.5-pro",
+            pdf_reader_factory=lambda path: _FakeReader([clean_page, clean_page]),
+            normalize_pdf_page_scope_text_fn=lambda scope: "",
+            parse_pdf_page_scope_spec_fn=lambda scope, total: list(range(total)),
+            getsize_fn=lambda path: 1 * 1024 * 1024,
+        )
+
+        self.assertEqual(result["model_name"], "gemini-2.5-pro")
+        self.assertEqual(result["difficulty"], "hard")
+        self.assertIn("modern_newspaper profile stays on the deep engine", result["routing_reason"])
+
+    def test_deep_scan_profiles_never_downgrade_clean_text_pdfs_to_flash_by_default(self):
+        clean_page = "Clean but structurally important benchmark text " * 140
+        deep_profiles = {
+            "academic",
+            "archival",
+            "comic",
+            "handwritten",
+            "intelligence",
+            "legal",
+            "magazine",
+            "medical",
+            "military",
+            "modern_newspaper",
+            "newspaper",
+        }
+
+        for profile in deep_profiles:
+            with self.subTest(profile=profile):
+                result = select_execution_model_for_job(
+                    "/tmp/a.pdf",
+                    ".pdf",
+                    {"doc_profile": profile, "model_override": ""},
+                    "gemini-2.5-pro",
+                    pdf_reader_factory=lambda path: _FakeReader([clean_page, clean_page]),
+                    normalize_pdf_page_scope_text_fn=lambda scope: "",
+                    parse_pdf_page_scope_spec_fn=lambda scope, total: list(range(total)),
+                    getsize_fn=lambda path: 1 * 1024 * 1024,
+                )
+
+                self.assertEqual(result["model_name"], "gemini-2.5-pro")
+                self.assertIsNone(result["auto_escalation_model"])
+                self.assertEqual(result["difficulty"], "hard")
+                self.assertIn("stays on the deep engine", result["routing_reason"])
+
+    def test_auto_routing_keeps_legal_on_deep_engine_even_with_strong_text_layer(self):
         clean_page = "Aged Care Bill 2024 clause text " * 120
         result = select_execution_model_for_job(
             "/tmp/a.pdf",
@@ -82,11 +133,10 @@ class AdaptiveEngineRoutingTest(unittest.TestCase):
             getsize_fn=lambda path: 1 * 1024 * 1024,
         )
 
-        self.assertEqual(result["model_name"], "gemini-2.5-flash")
-        self.assertEqual(result["auto_escalation_model"], "gemini-2.5-pro")
-        self.assertEqual(result["difficulty"], "mixed")
-        self.assertIn("Chronicle will escalate hard pages", result["routing_reason"])
-        self.assertIn("sampled pages", result["routing_reason"])
+        self.assertEqual(result["model_name"], "gemini-2.5-pro")
+        self.assertIsNone(result["auto_escalation_model"])
+        self.assertEqual(result["difficulty"], "hard")
+        self.assertIn("legal profile stays on the deep engine", result["routing_reason"])
 
     def test_auto_routing_tolerates_front_matter_blank_in_legal_pdf(self):
         clean_page = "Aged Care Bill 2024 clause text " * 120
@@ -101,8 +151,8 @@ class AdaptiveEngineRoutingTest(unittest.TestCase):
             getsize_fn=lambda path: 1 * 1024 * 1024,
         )
 
-        self.assertEqual(result["model_name"], "gemini-2.5-flash")
-        self.assertEqual(result["auto_escalation_model"], "gemini-2.5-pro")
+        self.assertEqual(result["model_name"], "gemini-2.5-pro")
+        self.assertIsNone(result["auto_escalation_model"])
 
     def test_auto_routing_keeps_pro_for_scan_heavy_legal_pdf(self):
         result = select_execution_model_for_job(
@@ -118,7 +168,7 @@ class AdaptiveEngineRoutingTest(unittest.TestCase):
 
         self.assertEqual(result["model_name"], "gemini-2.5-pro")
         self.assertEqual(result["difficulty"], "hard")
-        self.assertIn("deep path", result["routing_reason"])
+        self.assertIn("legal profile stays on the deep engine", result["routing_reason"])
 
     def test_auto_routing_samples_broadly_across_long_legal_scope(self):
         pages = [""] * 100
@@ -137,7 +187,8 @@ class AdaptiveEngineRoutingTest(unittest.TestCase):
             getsize_fn=lambda path: 3 * 1024 * 1024,
         )
 
-        self.assertIn("sampled pages", result["routing_reason"])
+        self.assertEqual(result["model_name"], "gemini-2.5-pro")
+        self.assertIn("legal profile stays on the deep engine", result["routing_reason"])
 
 
 if __name__ == "__main__":

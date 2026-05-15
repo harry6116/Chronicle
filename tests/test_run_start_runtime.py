@@ -148,6 +148,33 @@ class RunStartRuntimeTest(unittest.TestCase):
 
         self.assertEqual(error, {"filename": "b.pdf", "details": "bad scope"})
 
+    def test_validate_pending_pdf_page_scopes_reports_unreadable_pdf_even_without_custom_scope(self):
+        rows = [
+            {"path": "/tmp/broken.pdf", "settings": {"pdf_page_scope": ""}},
+            {"path": "/tmp/next.pdf", "settings": {"pdf_page_scope": ""}},
+        ]
+
+        def reader_factory(path):
+            if path.endswith("broken.pdf"):
+                raise RuntimeError("cannot open")
+            return None
+
+        error = validate_pending_pdf_page_scopes(
+            rows,
+            normalize_row_settings_fn=lambda row: row["settings"],
+            pdf_reader_factory=reader_factory,
+            normalize_pdf_page_scope_text_fn=lambda scope: str(scope).strip(),
+            parse_pdf_page_scope_spec_fn=lambda scope, total: [],
+        )
+
+        self.assertEqual(
+            error,
+            {
+                "filename": "broken.pdf",
+                "details": "Chronicle could not inspect this PDF before launch: cannot open",
+            },
+        )
+
     def test_find_missing_api_key_requirement_reports_label(self):
         rows = [
             {"engine": "Gemini", "settings": {"model_name": "gemini-2.5-flash"}},

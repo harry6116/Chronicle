@@ -17,6 +17,10 @@ class ChronicleMenuBar:
         donate_id = wx.NewIdRef()
         import_license_id = wx.NewIdRef()
         save_log_id = wx.NewIdRef()
+        support_bundle_id = wx.NewIdRef()
+        provider_matrix_id = wx.NewIdRef()
+        resume_center_id = wx.NewIdRef()
+        compare_outputs_id = wx.NewIdRef()
         discover_scanners_id = wx.NewIdRef()
         scan_via_naps2_id = wx.NewIdRef()
 
@@ -26,6 +30,11 @@ class ChronicleMenuBar:
         file_menu.Append(discover_scanners_id, "Find Connected &Devices...\tAlt+S")
         file_menu.Append(scan_via_naps2_id, "Scan via &NAPS2...\tAlt+N")
         file_menu.Append(save_log_id, "&Save Processing Log...\tAlt+L")
+        file_menu.AppendSeparator()
+        file_menu.Append(support_bundle_id, "Export Support &Bundle...")
+        file_menu.Append(provider_matrix_id, "Provider Capability &Matrix...")
+        file_menu.Append(resume_center_id, "Open &Resume Center...")
+        file_menu.Append(compare_outputs_id, "Compare Two &Outputs...")
 
         mac_access_id = None
         if platform.system() == "Darwin":
@@ -48,6 +57,10 @@ class ChronicleMenuBar:
         self.frame.Bind(wx.EVT_MENU, self.frame.OnDiscoverScanners, id=discover_scanners_id)
         self.frame.Bind(wx.EVT_MENU, self.frame.OnScanViaNaps2, id=scan_via_naps2_id)
         self.frame.Bind(wx.EVT_MENU, self.frame.OnSaveLog, id=save_log_id)
+        self.frame.Bind(wx.EVT_MENU, self.frame.OnExportSupportBundle, id=support_bundle_id)
+        self.frame.Bind(wx.EVT_MENU, self.frame.OnProviderCapabilityMatrix, id=provider_matrix_id)
+        self.frame.Bind(wx.EVT_MENU, self.frame.OnResumeCenter, id=resume_center_id)
+        self.frame.Bind(wx.EVT_MENU, self.frame.OnCompareOutputs, id=compare_outputs_id)
         self.frame.Bind(wx.EVT_MENU, self.frame.OnAppQuitRequested, id=wx.ID_EXIT)
         self.frame.Bind(wx.EVT_MENU, self.frame.OnOpenHelp, id=help_open_id)
         self.frame.Bind(wx.EVT_MENU, self.frame.OnAboutBuild, id=help_about_build_id)

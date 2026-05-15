@@ -1,5 +1,18 @@
 import os
 
+from chronicle_app.services.nla_newspaper import (
+    should_skip_pdf_textlayer_audit_for_nla_output,
+    should_skip_pdf_textlayer_audit_for_nla_source,
+)
+from chronicle_app.services.document_processors import SUPPORTED_IMAGE_EXTENSIONS
+from chronicle_app.services.document_processors import (
+    EPUB_EXTENSIONS,
+    FITZ_TEXT_EXTENSIONS,
+    PRESENTATION_EXTENSIONS,
+    RENDERABLE_DOCUMENT_EXTENSIONS,
+    SOURCE_TEXT_EXTENSIONS,
+)
+
 
 def build_confidence_callback(*, enabled, file_name, describe_quality_score_fn, log_cb):
     if not enabled:
@@ -14,7 +27,7 @@ def build_confidence_callback(*, enabled, file_name, describe_quality_score_fn, 
 
 
 def log_image_quality_if_needed(*, enabled, ext, path, file_name, assess_image_file_quality_fn, log_cb):
-    if not enabled or ext not in ['.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif', '.webp']:
+    if not enabled or ext not in SUPPORTED_IMAGE_EXTENSIONS:
         return False
     quality = assess_image_file_quality_fn(path)
     if not quality:
@@ -105,6 +118,7 @@ def dispatch_processing_for_job(
     process_pptx_fn,
     process_epub_fn,
     process_img_fn,
+    process_rendered_document_fn,
     process_text_fn,
     persist_progress_state_fn=None,
     resume_from_unit=0,
@@ -117,24 +131,38 @@ def dispatch_processing_for_job(
             page_progress_cb=page_progress_cb, page_scope=page_scope,
             doc_profile=job_cfg.get("doc_profile", "standard"),
             auto_escalation_model=auto_escalation_model,
+            allow_text_layer_fallback=bool(job_cfg.get("allow_pdf_text_layer_fallback")),
         )
-    if ext in ['.pptx', '.ppt']:
+    if ext in PRESENTATION_EXTENSIONS:
         return process_pptx_fn(
             client, path, temp_path, fmt, prompt, model, file_obj, memory, processing_log,
             pause_cb=pause_cb, page_progress_cb=page_progress_cb, resume_from_batch=resume_from_unit,
         )
-    if ext == '.epub':
+    if ext in EPUB_EXTENSIONS:
         return process_epub_fn(
             client, path, temp_path, fmt, prompt, model, file_obj, memory, processing_log,
             pause_cb=pause_cb, page_progress_cb=page_progress_cb, resume_from_batch=resume_from_unit,
         )
-    if ext in ['.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif', '.webp']:
+    if ext in SUPPORTED_IMAGE_EXTENSIONS:
         return process_img_fn(client, path, temp_path, fmt, prompt, model, file_obj, memory, processing_log, pause_cb=pause_cb)
+    if ext in RENDERABLE_DOCUMENT_EXTENSIONS:
+        return process_rendered_document_fn(
+            client, path, temp_path, fmt, prompt, model, file_obj, memory, processing_log,
+            pause_cb=pause_cb, page_progress_cb=page_progress_cb, resume_from_page=resume_from_unit,
+        )
     return process_text_fn(
         client, path, temp_path, ext, fmt, prompt, model, file_obj, memory, processing_log,
         pause_cb=pause_cb, page_progress_cb=page_progress_cb, resume_from_batch=resume_from_unit,
         doc_profile=job_cfg.get("doc_profile", "standard"),
     )
+
+
+def should_skip_pdf_textlayer_audit_for_output(*, ext, cfg, extracted_text):
+    return should_skip_pdf_textlayer_audit_for_nla_output(ext=ext, cfg=cfg, extracted_text=extracted_text)
+
+
+def should_skip_pdf_textlayer_audit_for_source(*, ext, cfg, path):
+    return should_skip_pdf_textlayer_audit_for_nla_source(ext=ext, cfg=cfg, path=path)
 
 
 def process_job_content(
@@ -169,6 +197,7 @@ def process_job_content(
     process_pptx_fn,
     process_epub_fn,
     process_img_fn,
+    process_rendered_document_fn,
     process_text_fn,
     persist_progress_state_fn=None,
     resume_from_unit=0,
@@ -176,6 +205,12 @@ def process_job_content(
 ):
     start_mem_checkpoint = memory.checkpoint() if memory is not None and hasattr(memory, "checkpoint") else None
     start_mem_len = len(memory) if memory is not None else 0
+    if needs_pdf_audit and should_skip_pdf_textlayer_audit_for_source(ext=ext, cfg=cfg, path=path):
+        processing_log(
+            "[Audit] Skipping PDF text-layer audit for NLA newspaper PDF; "
+            "the NLA OCR layer is handled directly and audit comparison is redundant."
+        )
+        needs_pdf_audit = False
     confidence_cb = build_confidence_callback(
         enabled=bool(cfg.get('page_confidence_scoring', False)),
         file_name=file_name,
@@ -206,7 +241,7 @@ def process_job_content(
             resume_recovered_units=resume_from_unit,
             original_total_units=original_total_units,
         )
-    elif ext in ['.pptx', '.ppt']:
+    elif ext in PRESENTATION_EXTENSIONS:
         page_progress_cb = build_page_progress_callback(
             file_name=file_name,
             update_progress_state_fn=update_progress_state_fn,
@@ -220,7 +255,7 @@ def process_job_content(
             resume_recovered_units=resume_from_unit,
             original_total_units=original_total_units,
         )
-    elif ext in ['.docx', '.txt', '.md', '.rtf', '.csv', '.js', '.xlsx', '.xls', '.epub']:
+    elif ext in SOURCE_TEXT_EXTENSIONS | EPUB_EXTENSIONS | FITZ_TEXT_EXTENSIONS:
         page_progress_cb = build_page_progress_callback(
             file_name=file_name,
             update_progress_state_fn=update_progress_state_fn,
@@ -234,7 +269,22 @@ def process_job_content(
             resume_recovered_units=resume_from_unit,
             original_total_units=original_total_units,
         )
-    dispatch_processing_for_job(
+    elif ext in RENDERABLE_DOCUMENT_EXTENSIONS:
+        page_progress_cb = build_page_progress_callback(
+            file_name=file_name,
+            update_progress_state_fn=update_progress_state_fn,
+            should_log_page_progress_fn=should_log_page_progress_fn,
+            log_cb=processing_log,
+            refresh_progress_fn=refresh_progress_fn,
+            memory=memory,
+            log_prefix="Page",
+            unit_label="page",
+            source_unit_label="source page",
+            persist_progress_state_fn=persist_progress_state_fn,
+            resume_recovered_units=resume_from_unit,
+            original_total_units=original_total_units,
+        )
+    processing_result = dispatch_processing_for_job(
         ext,
         job_cfg=cfg,
         client=client,
@@ -255,6 +305,7 @@ def process_job_content(
         process_pptx_fn=process_pptx_fn,
         process_epub_fn=process_epub_fn,
         process_img_fn=process_img_fn,
+        process_rendered_document_fn=process_rendered_document_fn,
         process_text_fn=process_text_fn,
         resume_from_unit=resume_from_unit,
     )
@@ -270,6 +321,27 @@ def process_job_content(
                 extracted_for_file = fh.read()
         except Exception as audit_read_ex:
             processing_log(f"[Audit] Falling back to buffered text for audit ({audit_read_ex}).")
+    used_dense_newspaper_local_ocr = bool(
+        isinstance(processing_result, dict)
+        and processing_result.get("used_dense_newspaper_local_ocr")
+    )
+    if needs_pdf_audit and extracted_for_file and (
+        used_dense_newspaper_local_ocr
+        or should_skip_pdf_textlayer_audit_for_output(
+            ext=ext,
+            cfg=cfg,
+            extracted_text=extracted_for_file,
+        )
+    ):
+        if used_dense_newspaper_local_ocr:
+            reason = "the extraction used the local OCR text layer page by page"
+        else:
+            reason = "the extraction output is OCR-backed NLA newspaper text"
+        processing_log(
+            "[Audit] Skipping redundant PDF text-layer audit for OCR-backed NLA newspaper output; "
+            f"{reason}."
+        )
+        needs_pdf_audit = False
     if needs_pdf_audit and extracted_for_file:
         append_pdf_audit_appendix_if_needed_fn(
             pdf_path=path,

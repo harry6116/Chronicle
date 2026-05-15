@@ -25,6 +25,10 @@ derive_windows_asset_path() {
   printf '%s/Chronicle.windows.zip' "$DEFAULT_ASSET_DIR"
 }
 
+normalize_answer() {
+  printf '%s' "$1" | tr '[:upper:]' '[:lower:]'
+}
+
 seed_release_notes_file_if_missing() {
   local target="$1"
   local tag="$2"
@@ -122,11 +126,11 @@ fi
 echo ""
 echo "Release notes will be read from:"
 echo "  $NOTES_FILE"
-echo "If you want to edit that file now, type OPEN in ALL CAPITALS."
+echo "If you want to edit that file now, type OPEN."
 echo "Otherwise, just press Enter to keep going."
 read -r -p "Type OPEN to edit the notes file now: " OPEN_NOTES
 
-if [[ "$OPEN_NOTES" == "OPEN" ]]; then
+if [[ "$(normalize_answer "$OPEN_NOTES")" == "open" ]]; then
   open -e "$NOTES_FILE"
   echo ""
   echo "The notes file has been opened in TextEdit."
@@ -143,18 +147,19 @@ echo "Mac asset: $MAC_ASSET"
 echo "Windows asset: $WINDOWS_ASSET"
 echo "Notes file: $NOTES_FILE"
 echo ""
-echo "To continue, type RELEASE in ALL CAPITALS."
+echo "To continue, type RELEASE."
 while true; do
   read -r -p "Type RELEASE to continue (or CANCEL to stop): " CONFIRM
-  if [[ "$CONFIRM" == "RELEASE" ]]; then
+  CONFIRM_NORMALIZED="$(normalize_answer "$CONFIRM")"
+  if [[ "$CONFIRM_NORMALIZED" == "release" ]]; then
     break
   fi
-  if [[ "$CONFIRM" == "CANCEL" ]]; then
+  if [[ "$CONFIRM_NORMALIZED" == "cancel" ]]; then
     echo "Cancelled."
     read -r -p "Press Enter to close..."
     exit 0
   fi
-  echo "Please type RELEASE to publish or CANCEL to stop."
+  echo "Please type RELEASE to publish or CANCEL to stop. Capitals are optional."
 done
 
 if gh release view "$TAG" --repo "$REPO_SLUG" >/dev/null 2>&1; then

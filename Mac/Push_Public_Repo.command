@@ -6,6 +6,10 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 SNAPSHOT_DIR="$ROOT_DIR/artifacts/public_repo_stage/Chronicle"
 DEFAULT_PUBLIC_REPO_DIR="${CHRONICLE_PUBLIC_REPO_DIR:-$HOME/Documents/Chronicle Public Repo}"
 
+normalize_answer() {
+  printf '%s' "$1" | tr '[:upper:]' '[:lower:]'
+}
+
 clear
 echo "--- CHRONICLE PUBLIC REPO PUSH ---"
 echo "This script syncs ONLY the curated public snapshot into a local clone of the public repo."
@@ -54,10 +58,10 @@ echo ""
 echo "This will replace the full working tree contents with the staged public snapshot."
 echo "Your .git folder will be preserved."
 echo ""
-echo "To continue, type PUBLIC in ALL CAPITALS."
+echo "To continue, type PUBLIC."
 read -r -p "Type PUBLIC to continue: " confirm
 
-if [[ "$confirm" != "PUBLIC" ]]; then
+if [[ "$(normalize_answer "$confirm")" != "public" ]]; then
   echo "Cancelled."
   read -r -p "Press Enter to close..."
   exit 0

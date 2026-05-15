@@ -2,6 +2,8 @@ import os
 import random
 import time
 
+from chronicle_app.services.document_processors import SUPPORTED_IMAGE_EXTENSIONS, prepare_image_for_scan
+
 
 def driver_from_scanner_source(source):
     text = (source or "").strip().lower()
@@ -11,7 +13,7 @@ def driver_from_scanner_source(source):
 
 
 def scan_output_extensions():
-    return {".pdf", ".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif", ".webp"}
+    return {".pdf"} | SUPPORTED_IMAGE_EXTENSIONS
 
 
 def collect_scan_files(output_dir, before_paths, started_ts):
@@ -48,6 +50,7 @@ def merge_scan_files_to_single_pdf(
     image_module,
     random_module=random,
     time_module=time,
+    image_prepare_fn=prepare_image_for_scan,
 ):
     pdf_writer = pdf_writer_cls()
     temp_pdfs = []
@@ -62,8 +65,11 @@ def merge_scan_files_to_single_pdf(
                 for page in reader.pages:
                     pdf_writer.add_page(page)
                     page_count += 1
-            elif ext in {".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif", ".webp"}:
-                with image_module.open(path) as img:
+            elif ext in SUPPORTED_IMAGE_EXTENSIONS:
+                image_path = image_prepare_fn(path) if ext not in {".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif", ".webp"} else path
+                if image_path != path:
+                    temp_pdfs.append(image_path)
+                with image_module.open(image_path) as img:
                     if img.mode != "RGB":
                         img = img.convert("RGB")
                     temp_pdf = os.path.join(

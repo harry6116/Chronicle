@@ -171,7 +171,10 @@ def dispatch_save(
     if cfg.get("unit_conversion"):
         content = apply_modern_currency_fn(content)
     if cfg.get("abbrev_expansion"):
-        content = apply_expanded_abbreviations_fn(content)
+        try:
+            content = apply_expanded_abbreviations_fn(content, cfg.get("doc_profile"))
+        except TypeError:
+            content = apply_expanded_abbreviations_fn(content)
     if cfg.get("merge_files", False):
         content = strip_synthetic_page_filename_headings_fn(content, fmt)
     if should_reject_transformed_content(raw_content, content, fmt=fmt):

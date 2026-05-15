@@ -1,18 +1,72 @@
 import gc
 import html
 import io
+import json
 import os
+import queue
+import subprocess
+import sys
 import tempfile
 import hashlib
+import base64
 import re
+import threading
+import time
+import urllib.request
 
 from chronicle_app.services.processing_runtime import CLAUDE_FILES_API_BETA
+from chronicle_app.services.processing_runtime import GEMINI_GENERATE_TIMEOUT_MS
+from chronicle_app.services.processing_runtime import PrecleanStream
+from chronicle_app.services.nla_newspaper import contains_nla_ocr_marker
 from chronicle_app.services.runtime_policies import normalize_model_name
 from chronicle_app.services.runtime_policies import wait_for_gemini_upload_ready
 
 
 OPENAI_PDF_BASE64_FALLBACK_REASON = "OpenAI PDF direct upload is not available in Chronicle yet. Falling back to the PDF text layer."
 CLAUDE_PDF_FILES_API_FALLBACK_REASON = "Claude Files API is unavailable for this PDF slice. Falling back to inline PDF mode."
+GEMINI_FILE_UPLOAD_TIMEOUT_MS = 300_000
+GEMINI_FILE_DELETE_TIMEOUT_MS = 30_000
+GEMINI_NONSTREAM_WALL_TIMEOUT_SEC = 180.0
+GEMINI_NONSTREAM_PROGRESS_LOG_SEC = 30.0
+DENSE_NEWSPAPER_DEFAULT_TILE_COUNT = 2
+DENSE_NEWSPAPER_MAX_TILE_COUNT = 4
+DENSE_NEWSPAPER_TILE_OVERLAP_RATIO = 0.025
+DENSE_NEWSPAPER_LOCAL_OCR_MIN_CHARS = 8000
+NLA_LOCAL_OCR_FAST_PATH_ENV = "CHRONICLE_NLA_LOCAL_OCR_FAST_PATH"
+NLA_TROVE_ARTICLE_OCR_ENV = "CHRONICLE_NLA_TROVE_ARTICLE_OCR"
+PDF_TEXT_FAST_PATH_ENV = "CHRONICLE_PDF_TEXT_FAST_PATH"
+PDF_TEXT_LAYER_FALLBACK_ENV = "CHRONICLE_ALLOW_PDF_TEXT_LAYER_FALLBACK"
+DEEP_SCAN_TEXT_FAST_PATH_BLOCKED_PROFILES = {
+    "academic",
+    "archival",
+    "comic",
+    "handwritten",
+    "intelligence",
+    "legal",
+    "magazine",
+    "medical",
+    "military",
+    "modern_newspaper",
+    "newspaper",
+}
+SCANNED_IMAGE_ONLY_PROFILES = {
+    "archival",
+    "forms",
+    "government",
+    "handwritten",
+    "manual",
+    "military",
+    "standard",
+}
+
+try:
+    import fitz
+except ImportError:  # pragma: no cover - optional in lightweight test environments
+    fitz = None
+
+
+def _gemini_http_options(timeout_ms):
+    return {"http_options": {"timeout": timeout_ms}}
 
 
 def process_pdf(
@@ -50,8 +104,13 @@ def process_pdf(
     tempdir_fn=tempfile.gettempdir,
     mkstemp_fn=tempfile.mkstemp,
     wait_for_gemini_upload_ready_fn=wait_for_gemini_upload_ready,
+    allow_text_layer_fallback=False,
+    urlopen_fn=None,
 ):
     reader = pdf_reader_cls(path)
+    allow_text_layer_fallback = bool(
+        allow_text_layer_fallback or os.environ.get(PDF_TEXT_LAYER_FALLBACK_ENV) == "1"
+    )
     total_document_pages = len(reader.pages)
     selected_page_indices = parse_pdf_page_scope_spec_fn(page_scope, total_document_pages)
     total = len(selected_page_indices)
@@ -67,6 +126,7 @@ def process_pdf(
     methods = ["vision" for _ in range(total)]
     reported = [False for _ in range(total)]
     escalated_pages = set()
+    used_dense_newspaper_local_ocr = False
     normalized_scope = normalize_pdf_page_scope_text_fn(page_scope)
     text_fast_path_logged = False
     if normalized_scope and total < total_document_pages:
@@ -80,6 +140,26 @@ def process_pdf(
                 "Using smaller PDF slices to avoid long upload stalls."
             )
 
+    def is_dense_newspaper_pdf():
+        if "HISTORICAL NEWSPAPER RULES" not in prompt:
+            return False
+        if file_size_mb is None or total_document_pages <= 0:
+            return False
+        return (file_size_mb / max(1, total_document_pages)) >= 0.9
+
+    def is_gemini_pro_model(request_model):
+        return "gemini-2.5-pro" in normalize_model_name(request_model).lower()
+
+    def is_gemini_model(request_model):
+        return "gemini" in normalize_model_name(request_model).lower()
+
+    def resolve_dense_newspaper_strip_model():
+        if is_gemini_pro_model(model):
+            return normalize_model_name(model)
+        if auto_escalation_model and is_gemini_pro_model(auto_escalation_model) and is_gemini_model(model):
+            return normalize_model_name(auto_escalation_model)
+        return None
+
     def build_pdf_slice_bytes(start, end):
         writer = pdf_writer_cls()
         for idx in range(start, end):
@@ -87,6 +167,81 @@ def process_pdf(
         buffer = io.BytesIO()
         writer.write(buffer)
         return buffer.getvalue()
+
+    def build_page_png_bytes(page_idx):
+        if fitz is None:
+            raise RuntimeError("PyMuPDF is unavailable for scanned PDF image rendering.")
+        last_error = None
+        for zoom in (1.8, 1.45, 1.2):
+            doc = None
+            try:
+                doc = fitz.open(path)
+                page = doc.load_page(selected_page_indices[page_idx])
+                pix = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom), alpha=False, colorspace=fitz.csRGB)
+                image_bytes = pix.tobytes("png")
+                if image_bytes:
+                    return image_bytes
+            except Exception as render_ex:
+                last_error = render_ex
+            finally:
+                if doc is not None:
+                    try:
+                        doc.close()
+                    except Exception:
+                        pass
+        raise RuntimeError(f"Could not render scanned PDF page image: {last_error}")
+
+    def get_dense_newspaper_tile_count(page_idx):
+        if fitz is None:
+            return DENSE_NEWSPAPER_DEFAULT_TILE_COUNT
+        doc = None
+        try:
+            doc = fitz.open(path)
+            page = doc.load_page(selected_page_indices[page_idx])
+            width = float(getattr(page.rect, "width", 0) or 0)
+            if width >= 1800:
+                return DENSE_NEWSPAPER_MAX_TILE_COUNT
+            if width >= 1450:
+                return 3
+            return DENSE_NEWSPAPER_DEFAULT_TILE_COUNT
+        except Exception:
+            return DENSE_NEWSPAPER_DEFAULT_TILE_COUNT
+        finally:
+            if doc is not None:
+                try:
+                    doc.close()
+                except Exception:
+                    pass
+
+    def build_page_tile_png_bytes(page_idx, tile_idx, tile_count):
+        if fitz is None:
+            raise RuntimeError("PyMuPDF is unavailable for dense newspaper image rendering.")
+        last_error = None
+        zooms = (1.7, 1.45, 1.2) if tile_count <= 2 else (2.0, 1.7, 1.45)
+        for zoom in zooms:
+            doc = None
+            try:
+                doc = fitz.open(path)
+                page = doc.load_page(selected_page_indices[page_idx])
+                rect = page.rect
+                overlap = rect.width * DENSE_NEWSPAPER_TILE_OVERLAP_RATIO
+                tile_width = rect.width / tile_count
+                x0 = max(rect.x0, rect.x0 + tile_idx * tile_width - (overlap if tile_idx else 0))
+                x1 = min(rect.x1, rect.x0 + (tile_idx + 1) * tile_width + (overlap if tile_idx < tile_count - 1 else 0))
+                clip = fitz.Rect(x0, rect.y0, x1, rect.y1)
+                pix = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom), clip=clip, alpha=False, colorspace=fitz.csRGB)
+                image_bytes = pix.tobytes("png")
+                if image_bytes:
+                    return image_bytes
+            except Exception as render_ex:
+                last_error = render_ex
+            finally:
+                if doc is not None:
+                    try:
+                        doc.close()
+                    except Exception:
+                        pass
+        raise RuntimeError(f"Could not render dense newspaper page strip: {last_error}")
 
     def get_page_text_metrics(page_idx):
         try:
@@ -106,9 +261,97 @@ def process_pdf(
             "line_count": line_count,
         }
 
-    def should_use_text_fast_path(page_idx):
+    def is_nla_newspaper_ocr_text(text):
+        return contains_nla_ocr_marker(text, sample_chars=2000)
+
+    def extract_nla_page_id(text):
+        match = re.search(r"nla\.news-page(\d+)", text or "")
+        return match.group(1) if match else None
+
+    def fetch_trove_text(url):
+        opener = urlopen_fn or urllib.request.urlopen
+        request = urllib.request.Request(url, headers={"User-Agent": "Chronicle newspaper OCR rescue"})
+        with opener(request, timeout=25) as response:
+            return response.read().decode("utf-8", errors="replace")
+
+    def strip_trove_tags(markup):
+        cleaned = re.sub(r"<br\s*/?>", "\n", markup or "", flags=re.IGNORECASE)
+        cleaned = re.sub(r"<[^>]+>", " ", cleaned)
+        cleaned = html.unescape(cleaned)
+        cleaned = re.sub(r"\s+", " ", cleaned).strip()
+        cleaned = re.sub(r"\s+([,.;:!?])", r"\1", cleaned)
+        return cleaned.strip(" |")
+
+    def parse_trove_page_article_ids(page_html):
+        article_ids = []
+        for article_id in re.findall(r'class="[^"]*articleFromDB[^"]*"[^>]*id="article(\d+)"', page_html or "", flags=re.IGNORECASE):
+            if article_id not in article_ids:
+                article_ids.append(article_id)
+        if article_ids:
+            return article_ids
+        for article_id in re.findall(r"/newspaper/article/(\d+)", page_html or ""):
+            if article_id not in article_ids:
+                article_ids.append(article_id)
+        return article_ids
+
+    def parse_trove_article_rendition(article_html):
+        title = ""
+        title_match = re.search(r"<title>\s*([^<]+?)\s*</title>", article_html or "", flags=re.IGNORECASE)
+        if title_match:
+            title = html.unescape(title_match.group(1))
+            title = re.sub(r"^\d{2}\s+\w+\s+\d{4}\s+-\s*", "", title).strip().rstrip(".")
+        body = (article_html or "").split("<hr/>", 1)[-1]
+        paragraphs = []
+        for zone in re.findall(r"<div class='zone'>(.*?)</div>", body, flags=re.IGNORECASE | re.DOTALL):
+            for match in re.finditer(r"<p[^>]*>(.*?)</p>", zone, flags=re.IGNORECASE | re.DOTALL):
+                text = strip_trove_tags(match.group(1))
+                compact = re.sub(r"\s+", "", text)
+                if len(compact) < 2 or re.fullmatch(r"[-–—_.·,:;\[\](){}]+", compact):
+                    continue
+                paragraphs.append(text)
+        while paragraphs and title and paragraphs[0].rstrip(".").casefold() == title.rstrip(".").casefold():
+            paragraphs.pop(0)
+        return title, paragraphs
+
+    def should_use_dense_newspaper_local_ocr(page_idx):
+        if os.environ.get(NLA_LOCAL_OCR_FAST_PATH_ENV) != "1":
+            return False, None
+        if not is_dense_newspaper_pdf():
+            return False, None
+        metrics = get_page_text_metrics(page_idx)
+        if metrics["chars"] < DENSE_NEWSPAPER_LOCAL_OCR_MIN_CHARS:
+            return False, metrics
+        if not is_nla_newspaper_ocr_text(metrics["text"]):
+            return False, metrics
+        return True, metrics
+
+    def should_use_scanned_image_only_page(page_idx, chunk_size):
+        if chunk_size != 1:
+            return False, None
+        if not is_gemini_pro_model(model):
+            return False, None
+        if is_dense_newspaper_pdf():
+            return False, None
         profile = str(doc_profile or "standard").lower()
-        if profile not in {"standard", "office", "government", "legal", "manual", "academic", "book", "tabular"}:
+        if profile not in SCANNED_IMAGE_ONLY_PROFILES:
+            return False, None
+        if file_size_mb is None or total_document_pages <= 0:
+            return False, None
+        avg_page_mb = file_size_mb / max(1, total_document_pages)
+        if avg_page_mb < 0.75:
+            return False, None
+        metrics = get_page_text_metrics(page_idx)
+        if metrics["chars"] > 220:
+            return False, metrics
+        return True, metrics
+
+    def should_use_text_fast_path(page_idx):
+        if os.environ.get(PDF_TEXT_FAST_PATH_ENV) != "1":
+            return False, None
+        profile = str(doc_profile or "standard").lower()
+        if profile in DEEP_SCAN_TEXT_FAST_PATH_BLOCKED_PROFILES:
+            return False, None
+        if profile not in {"standard", "office", "government", "legal", "manual", "academic", "book", "tabular", "transcript"}:
             return False, None
         if file_size_mb is not None and total_document_pages > 0:
             avg_page_mb_local = file_size_mb / max(1, total_document_pages)
@@ -300,10 +543,7 @@ def process_pdf(
             response = generate_retry_fn(client, request_model, [uploaded, request_prompt], log_cb=log_cb)
 
             def _cleanup_upload():
-                try:
-                    client.files.delete(name=uploaded.name)
-                except Exception as cleanup_ex:
-                    log_cb(f"Warning: could not delete temporary Gemini upload {uploaded.name}: {cleanup_ex}")
+                cleanup_gemini_upload(uploaded)
 
             return response, _cleanup_upload
 
@@ -476,6 +716,82 @@ def process_pdf(
                 normalized.append(compact)
             return normalized
 
+        def is_transcript_stage_direction(line):
+            compact = line.strip()
+            if len(compact) < 3:
+                return False
+            if compact.startswith("*") and compact.endswith("*"):
+                return True
+            if compact.startswith("(") and compact.endswith(")"):
+                return True
+            if compact.startswith("[") and compact.endswith("]"):
+                return True
+            return False
+
+        def split_transcript_speaker_line(line):
+            if ":" not in line:
+                return None
+            speaker, dialogue = line.split(":", 1)
+            speaker = " ".join(speaker.split())
+            dialogue = " ".join(dialogue.split())
+            if not speaker or not dialogue:
+                return None
+            if len(speaker) > 80:
+                return None
+            if speaker.startswith(("*", "(", "[")):
+                return None
+            if not any(ch.isalpha() for ch in speaker):
+                return None
+            return speaker, dialogue
+
+        def split_transcript_stage_dialogue_line(line):
+            compact = " ".join(line.split())
+            match = re.match(r"^(\*[^*]{2,}\*)\s*:\s*(\S.*)$", compact)
+            if not match:
+                return None
+            return match.group(1), match.group(2)
+
+        def transcript_running_page_marker(line):
+            compact = " ".join(line.split())
+            match = re.match(r"^.+?\s+([IVXLCDM]+-\d+)$", compact)
+            if match and len(compact) <= 90:
+                return match.group(1)
+            return None
+
+        def is_transcript_structural_heading(line):
+            compact = " ".join(line.split())
+            if not compact:
+                return False
+            upper = compact.upper()
+            if upper in {"FIRST ACT", "SECOND ACT", "THIRD ACT", "FOURTH ACT", "FIFTH ACT"}:
+                return True
+            if re.fullmatch(r"ACT\s+[IVXLCDM0-9]+", upper):
+                return True
+            if upper.startswith(("SCENE:", "SCENE ", "THE PERSONS IN THE PLAY", "THE SCENES OF THE PLAY", "TIME:")):
+                return True
+            return False
+
+        def is_transcript_speaker_cue(line):
+            compact = " ".join(line.split())
+            if not compact or len(compact) > 50:
+                return False
+            if any(ch.isdigit() for ch in compact):
+                return False
+            if transcript_running_page_marker(compact):
+                return False
+            if is_transcript_structural_heading(compact):
+                return False
+            if compact.upper() != compact:
+                contd_pattern = r"^[A-Z][A-Z .'\-]+(?:\s+\(cont'd\)|\s+\(CONT'D\))$"
+                if not re.fullmatch(contd_pattern, compact):
+                    return False
+            if not any(ch.isalpha() for ch in compact):
+                return False
+            if any(ch in compact for ch in ":;?!"):
+                return False
+            words = compact.replace("(cont'd)", "").replace("(CONT'D)", "").split()
+            return 1 <= len(words) <= 5
+
         def render_direct_html(lines):
             fragments = []
             page_marker, working_lines = split_page_marker(lines)
@@ -488,15 +804,45 @@ def process_pdf(
             while idx < len(working_lines):
                 line = working_lines[idx]
                 escaped = html.escape(line)
-                if line.startswith("Chapter ") or line.startswith("Contents") or (" bill " in f" {line.lower()} "):
+                if (
+                    str(doc_profile or "").lower() == "transcript"
+                    and idx == 0
+                    and idx + 1 < len(working_lines)
+                    and working_lines[idx + 1].strip().startswith("-")
+                    and line.upper() == line
+                ):
                     fragments.append(f"<h1>{escaped}</h1>")
-                elif line.startswith("Part ") or (line.upper() == line and len(line.split()) <= 8):
+                elif str(doc_profile or "").lower() == "transcript" and is_transcript_structural_heading(line):
+                    fragments.append(f"<h2>{escaped}</h2>")
+                elif str(doc_profile or "").lower() == "transcript" and transcript_running_page_marker(line):
+                    marker = transcript_running_page_marker(line)
+                    fragments.append(f"<p>[Original Page Number: {html.escape(marker)}]</p>")
+                elif str(doc_profile or "").lower() == "transcript" and split_transcript_stage_dialogue_line(line):
+                    stage, dialogue = split_transcript_stage_dialogue_line(line)
+                    while idx + 1 < len(working_lines) and should_join_paragraph_line(dialogue, working_lines[idx + 1]):
+                        idx += 1
+                        dialogue = f"{dialogue} {working_lines[idx]}"
+                    fragments.append(f"<p><strong><em>{html.escape(stage)}</em></strong>: {html.escape(dialogue)}</p>")
+                elif str(doc_profile or "").lower() == "transcript" and is_transcript_stage_direction(line):
+                    fragments.append(f"<p><strong><em>{escaped}</em></strong></p>")
+                elif str(doc_profile or "").lower() == "transcript" and split_transcript_speaker_line(line):
+                    speaker, dialogue = split_transcript_speaker_line(line)
+                    fragments.append(f"<p><strong>{html.escape(speaker)}</strong>: {html.escape(dialogue)}</p>")
+                elif str(doc_profile or "").lower() == "transcript" and is_transcript_speaker_cue(line):
+                    fragments.append(f"<p><strong>{escaped}</strong></p>")
+                elif line.startswith("Chapter ") or line.startswith("Contents") or (" bill " in f" {line.lower()} "):
+                    fragments.append(f"<h1>{escaped}</h1>")
+                elif line.startswith("Part ") or (
+                    str(doc_profile or "").lower() != "transcript"
+                    and line.upper() == line
+                    and len(line.split()) <= 8
+                ):
                     fragments.append(f"<h2>{escaped}</h2>")
                 elif line.startswith("Division "):
                     fragments.append(f"<h3>{escaped}</h3>")
-                elif is_section_heading(line):
+                elif str(doc_profile or "").lower() != "transcript" and is_section_heading(line):
                     fragments.append(f"<h3>{escaped}</h3>")
-                elif is_heading_line(line):
+                elif str(doc_profile or "").lower() != "transcript" and is_heading_line(line):
                     fragments.append(f"<h3>{escaped}</h3>")
                 else:
                     paragraph = line
@@ -587,10 +933,15 @@ def process_pdf(
         log_cb(f"[Gemini PDF] Uploading slice {pdf_name} ({len(pdf_bytes)} bytes).")
         upload_stream = io.BytesIO(pdf_bytes)
         upload_stream.name = pdf_name
+        upload_config = {
+            "mime_type": "application/pdf",
+            "display_name": pdf_name,
+            **_gemini_http_options(GEMINI_FILE_UPLOAD_TIMEOUT_MS),
+        }
         try:
             uploaded = client.files.upload(
                 file=upload_stream,
-                config={"mime_type": "application/pdf", "display_name": pdf_name},
+                config=upload_config,
             )
         except Exception as upload_ex:
             log_cb(f"[Gemini PDF] In-memory upload unavailable for this PDF slice. Falling back to temp-file upload. ({upload_ex})")
@@ -599,7 +950,7 @@ def process_pdf(
                 write_pdf_slice_bytes_to_path(pdf_bytes, tmp_path)
                 uploaded = client.files.upload(
                     file=tmp_path,
-                    config={"mime_type": "application/pdf", "display_name": pdf_name},
+                    config=upload_config,
                 )
             finally:
                 cleanup_temp_pdf(tmp_path)
@@ -607,6 +958,752 @@ def process_pdf(
         uploaded = wait_for_gemini_upload_ready_fn(client, uploaded, log_cb=log_cb, poll_sec=0.5, max_wait_sec=30.0)
         log_cb(f"[Gemini PDF] Slice {pdf_name} is ready.")
         return uploaded
+
+    def upload_gemini_image_slice(image_name, image_bytes):
+        log_cb(f"[Gemini Image] Uploading rendered page {image_name} ({len(image_bytes)} bytes).")
+        upload_stream = io.BytesIO(image_bytes)
+        upload_stream.name = image_name
+        upload_config = {
+            "mime_type": "image/png",
+            "display_name": image_name,
+            **_gemini_http_options(GEMINI_FILE_UPLOAD_TIMEOUT_MS),
+        }
+        try:
+            uploaded = client.files.upload(
+                file=upload_stream,
+                config=upload_config,
+            )
+        except Exception as upload_ex:
+            log_cb(f"[Gemini Image] In-memory upload unavailable for this rendered page. Falling back to temp-file upload. ({upload_ex})")
+            fd, tmp_path = mkstemp_fn(prefix="chronicle_page_upload_", suffix=".png", dir=tempdir_fn())
+            os.close(fd)
+            try:
+                with open(tmp_path, "wb") as fh:
+                    fh.write(image_bytes)
+                uploaded = client.files.upload(
+                    file=tmp_path,
+                    config=upload_config,
+                )
+            finally:
+                cleanup_temp_pdf(tmp_path)
+        log_cb(f"[Gemini Image] Waiting for rendered page {image_name} to become ready.")
+        uploaded = wait_for_gemini_upload_ready_fn(client, uploaded, log_cb=log_cb, poll_sec=0.5, max_wait_sec=30.0)
+        log_cb(f"[Gemini Image] Rendered page {image_name} is ready.")
+        return uploaded
+
+    def cleanup_gemini_upload(uploaded):
+        try:
+            client.files.delete(
+                name=uploaded.name,
+                config=_gemini_http_options(GEMINI_FILE_DELETE_TIMEOUT_MS),
+            )
+        except TypeError:
+            try:
+                client.files.delete(name=uploaded.name)
+            except Exception as cleanup_ex:
+                log_cb(f"Warning: could not delete temporary Gemini upload {uploaded.name}: {cleanup_ex}")
+        except Exception as cleanup_ex:
+            log_cb(f"Warning: could not delete temporary Gemini upload {uploaded.name}: {cleanup_ex}")
+
+    def generate_gemini_nonstream(request_model, contents):
+        result_q = queue.Queue(maxsize=1)
+
+        def _request():
+            try:
+                try:
+                    result = client.models.generate_content(
+                        model=normalize_model_name(request_model),
+                        contents=contents,
+                        config=_gemini_http_options(GEMINI_GENERATE_TIMEOUT_MS),
+                    )
+                except TypeError:
+                    result = client.models.generate_content(
+                        model=normalize_model_name(request_model),
+                        contents=contents,
+                    )
+                result_q.put((True, result))
+            except BaseException as exc:
+                result_q.put((False, exc))
+
+        worker = threading.Thread(target=_request, name="chronicle-gemini-nonstream", daemon=True)
+        worker.start()
+        start = time.time()
+        next_progress_log = GEMINI_NONSTREAM_PROGRESS_LOG_SEC
+        while worker.is_alive():
+            elapsed = time.time() - start
+            remaining = GEMINI_NONSTREAM_WALL_TIMEOUT_SEC - elapsed
+            if remaining <= 0:
+                break
+            worker.join(min(5.0, remaining))
+            elapsed = time.time() - start
+            if worker.is_alive() and elapsed >= next_progress_log:
+                log_cb(
+                    "[Gemini Pro] Still waiting for bounded non-stream output "
+                    f"({elapsed:.0f}s elapsed, timeout {GEMINI_NONSTREAM_WALL_TIMEOUT_SEC:.0f}s)."
+                )
+                next_progress_log += GEMINI_NONSTREAM_PROGRESS_LOG_SEC
+        if worker.is_alive():
+            raise TimeoutError(
+                "Timed out waiting for Gemini Pro non-stream output "
+                f"after {GEMINI_NONSTREAM_WALL_TIMEOUT_SEC:.0f}s."
+            )
+        ok, value = result_q.get()
+        if ok:
+            return value
+        raise value
+
+    def resolve_gemini_rest_api_key():
+        api_client = getattr(client, "_api_client", None)
+        api_key = getattr(api_client, "api_key", None)
+        if api_key:
+            return str(api_key).strip()
+        for env_name in ("GEMINI_API_KEY", "GOOGLE_API_KEY"):
+            api_key = os.environ.get(env_name)
+            if api_key:
+                return api_key.strip()
+        if getattr(sys, "frozen", False):
+            support_dir = os.path.expanduser("~/Library/Application Support/Chronicle")
+            json_path = os.path.join(support_dir, "api_keys.json")
+            try:
+                with open(json_path, "r", encoding="utf-8") as fh:
+                    saved = json.load(fh)
+                api_key = saved.get("gemini") if isinstance(saved, dict) else None
+                if api_key:
+                    return str(api_key).strip()
+            except Exception:
+                pass
+            text_path = os.path.join(support_dir, "api_key_gemini.txt")
+            try:
+                with open(text_path, "r", encoding="utf-8") as fh:
+                    api_key = fh.read().strip()
+                if api_key:
+                    return api_key
+            except Exception:
+                pass
+        return ""
+
+    def post_gemini_rest_generate(model_key, payload, api_key, error_prefix):
+        body = json.dumps(payload).encode("utf-8")
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_key}:generateContent"
+        try:
+            completed = subprocess.run(
+                [
+                    "/usr/bin/curl",
+                    "--silent",
+                    "--show-error",
+                    "--fail-with-body",
+                    "--http1.1",
+                    "--noproxy",
+                    "*",
+                    "--connect-timeout",
+                    "30",
+                    "--max-time",
+                    str(int(GEMINI_NONSTREAM_WALL_TIMEOUT_SEC)),
+                    "-H",
+                    "Content-Type: application/json",
+                    "-H",
+                    f"x-goog-api-key: {api_key}",
+                    "--data-binary",
+                    "@-",
+                    url,
+                ],
+                input=body,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+                timeout=GEMINI_NONSTREAM_WALL_TIMEOUT_SEC + 10.0,
+            )
+        except subprocess.TimeoutExpired as timeout_ex:
+            raise TimeoutError(f"{error_prefix}: curl timed out after {timeout_ex.timeout:.0f}s.") from timeout_ex
+        if completed.returncode != 0:
+            stdout_text = completed.stdout.decode("utf-8", errors="replace").strip()
+            stderr_text = completed.stderr.decode("utf-8", errors="replace").strip()
+            detail = stdout_text or stderr_text or f"curl exited {completed.returncode}"
+            raise RuntimeError(f"{error_prefix}: {detail}")
+        return completed.stdout
+
+    def iter_gemini_rest_stream_text(model_key, payload, api_key, error_prefix):
+        body = json.dumps(payload).encode("utf-8")
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_key}:streamGenerateContent?alt=sse"
+        proc = subprocess.Popen(
+            [
+                "/usr/bin/curl",
+                "--silent",
+                "--show-error",
+                "--fail-with-body",
+                "--no-buffer",
+                "--http1.1",
+                "--noproxy",
+                "*",
+                "--connect-timeout",
+                "30",
+                "--max-time",
+                str(int(GEMINI_NONSTREAM_WALL_TIMEOUT_SEC)),
+                "-H",
+                "Content-Type: application/json",
+                "-H",
+                f"x-goog-api-key: {api_key}",
+                "--data-binary",
+                "@-",
+                url,
+            ],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        try:
+            proc.stdin.write(body)
+            proc.stdin.close()
+        except Exception:
+            try:
+                proc.kill()
+            except Exception:
+                pass
+            raise
+        try:
+            for raw_line in iter(proc.stdout.readline, b""):
+                line = raw_line.decode("utf-8", errors="replace").strip()
+                if not line or not line.startswith("data:"):
+                    continue
+                payload_text = line[5:].strip()
+                if not payload_text or payload_text == "[DONE]":
+                    continue
+                data = json.loads(payload_text)
+                if "error" in data:
+                    message = data.get("error", {}).get("message") or data["error"]
+                    raise RuntimeError(f"{error_prefix}: {message}")
+                parts = (
+                    data.get("candidates", [{}])[0]
+                    .get("content", {})
+                    .get("parts", [])
+                )
+                text = "".join(part.get("text", "") for part in parts if isinstance(part, dict))
+                if text:
+                    yield text
+            stderr_text = proc.stderr.read().decode("utf-8", errors="replace").strip()
+            return_code = proc.wait(timeout=5)
+            if return_code != 0:
+                detail = stderr_text or f"curl exited {return_code}"
+                raise RuntimeError(f"{error_prefix}: {detail}")
+        finally:
+            if proc.poll() is None:
+                try:
+                    proc.kill()
+                except Exception:
+                    pass
+
+    def generate_gemini_file_rest(request_model, uploaded, text_prompt, mime_type):
+        api_key = resolve_gemini_rest_api_key()
+        file_uri = getattr(uploaded, "uri", None)
+        if not api_key or not file_uri:
+            return generate_gemini_nonstream(request_model, [uploaded, text_prompt])
+        model_key = normalize_model_name(request_model)
+        payload = {
+            "contents": [
+                {
+                    "role": "user",
+                    "parts": [
+                        {"fileData": {"mimeType": mime_type, "fileUri": file_uri}},
+                        {"text": text_prompt},
+                    ],
+                }
+            ]
+        }
+        result_q = queue.Queue(maxsize=1)
+
+        def _rest_request():
+            try:
+                result_q.put((True, post_gemini_rest_generate(model_key, payload, api_key, "Gemini REST request failed")))
+            except BaseException as exc:
+                result_q.put((None, exc))
+
+        worker = threading.Thread(target=_rest_request, name="chronicle-gemini-rest", daemon=True)
+        worker.start()
+        start = time.time()
+        next_progress_log = GEMINI_NONSTREAM_PROGRESS_LOG_SEC
+        while worker.is_alive():
+            elapsed = time.time() - start
+            remaining = GEMINI_NONSTREAM_WALL_TIMEOUT_SEC - elapsed
+            if remaining <= 0:
+                break
+            worker.join(min(5.0, remaining))
+            elapsed = time.time() - start
+            if worker.is_alive() and elapsed >= next_progress_log:
+                log_cb(
+                    "[Gemini Pro] Still waiting for bounded REST output "
+                    f"({elapsed:.0f}s elapsed, timeout {GEMINI_NONSTREAM_WALL_TIMEOUT_SEC:.0f}s)."
+                )
+                next_progress_log += GEMINI_NONSTREAM_PROGRESS_LOG_SEC
+        if worker.is_alive():
+            raise TimeoutError(
+                "Timed out waiting for Gemini Pro REST output "
+                f"after {GEMINI_NONSTREAM_WALL_TIMEOUT_SEC:.0f}s."
+            )
+        ok, value = result_q.get()
+        if ok is None:
+            return generate_gemini_nonstream(request_model, [uploaded, text_prompt])
+        if ok is False:
+            raise value
+        response_bytes = value
+        data = json.loads(response_bytes.decode("utf-8", errors="replace") or "{}")
+        if "error" in data:
+            message = data.get("error", {}).get("message") or data["error"]
+            raise RuntimeError(f"Gemini REST request failed: {message}")
+        parts = (
+            data.get("candidates", [{}])[0]
+            .get("content", {})
+            .get("parts", [])
+        )
+        text = "".join(part.get("text", "") for part in parts if isinstance(part, dict))
+        return text
+
+    def stream_gemini_file_rest_text(request_model, uploaded, text_prompt, mime_type):
+        api_key = resolve_gemini_rest_api_key()
+        file_uri = getattr(uploaded, "uri", None)
+        if not api_key or not file_uri:
+            return None
+        model_key = normalize_model_name(request_model)
+        payload = {
+            "contents": [
+                {
+                    "role": "user",
+                    "parts": [
+                        {"fileData": {"mimeType": mime_type, "fileUri": file_uri}},
+                        {"text": text_prompt},
+                    ],
+                }
+            ]
+        }
+        return iter_gemini_rest_stream_text(
+            model_key,
+            payload,
+            api_key,
+            "Gemini REST stream failed",
+        )
+
+    def generate_gemini_inline_image_rest(request_model, image_bytes, text_prompt, mime_type="image/png"):
+        api_key = resolve_gemini_rest_api_key()
+        if not api_key:
+            if not getattr(sys, "frozen", False):
+                inline_payload = [
+                    {
+                        "role": "user",
+                        "parts": [
+                            {
+                                "inlineData": {
+                                    "mimeType": mime_type,
+                                    "data": base64.b64encode(image_bytes).decode("ascii"),
+                                }
+                            },
+                            {"text": text_prompt},
+                        ],
+                    }
+                ]
+                result = generate_gemini_nonstream(request_model, inline_payload)
+                return getattr(result, "text", "") or ""
+            raise RuntimeError("Gemini API key is unavailable for inline image REST generation.")
+        model_key = normalize_model_name(request_model)
+        payload = {
+            "contents": [
+                {
+                    "role": "user",
+                    "parts": [
+                        {
+                            "inlineData": {
+                                "mimeType": mime_type,
+                                "data": base64.b64encode(image_bytes).decode("ascii"),
+                            }
+                        },
+                        {"text": text_prompt},
+                    ],
+                }
+            ]
+        }
+        result_q = queue.Queue(maxsize=1)
+
+        def _rest_request():
+            try:
+                result_q.put((True, post_gemini_rest_generate(model_key, payload, api_key, "Gemini inline image REST request failed")))
+            except BaseException as exc:
+                result_q.put((False, exc))
+
+        worker = threading.Thread(target=_rest_request, name="chronicle-gemini-inline-image-rest", daemon=True)
+        worker.start()
+        start = time.time()
+        next_progress_log = GEMINI_NONSTREAM_PROGRESS_LOG_SEC
+        while worker.is_alive():
+            elapsed = time.time() - start
+            remaining = GEMINI_NONSTREAM_WALL_TIMEOUT_SEC - elapsed
+            if remaining <= 0:
+                break
+            worker.join(min(5.0, remaining))
+            elapsed = time.time() - start
+            if worker.is_alive() and elapsed >= next_progress_log:
+                log_cb(
+                    "[Gemini Pro] Still waiting for inline image REST output "
+                    f"({elapsed:.0f}s elapsed, timeout {GEMINI_NONSTREAM_WALL_TIMEOUT_SEC:.0f}s)."
+                )
+                next_progress_log += GEMINI_NONSTREAM_PROGRESS_LOG_SEC
+        if worker.is_alive():
+            raise TimeoutError(
+                "Timed out waiting for Gemini inline image REST output "
+                f"after {GEMINI_NONSTREAM_WALL_TIMEOUT_SEC:.0f}s."
+            )
+        ok, value = result_q.get()
+        if ok is False:
+            raise value
+        data = json.loads(value.decode("utf-8", errors="replace") or "{}")
+        if "error" in data:
+            message = data.get("error", {}).get("message") or data["error"]
+            raise RuntimeError(f"Gemini inline image REST request failed: {message}")
+        parts = (
+            data.get("candidates", [{}])[0]
+            .get("content", {})
+            .get("parts", [])
+        )
+        return "".join(part.get("text", "") for part in parts if isinstance(part, dict))
+
+    def stream_gemini_inline_image_rest_text(request_model, image_bytes, text_prompt, mime_type="image/png"):
+        api_key = resolve_gemini_rest_api_key()
+        if not api_key:
+            raise RuntimeError("Gemini API key is unavailable for streaming inline image REST generation.")
+        model_key = normalize_model_name(request_model)
+        payload = {
+            "contents": [
+                {
+                    "role": "user",
+                    "parts": [
+                        {
+                            "inlineData": {
+                                "mimeType": mime_type,
+                                "data": base64.b64encode(image_bytes).decode("ascii"),
+                            }
+                        },
+                        {"text": text_prompt},
+                    ],
+                }
+            ]
+        }
+        return iter_gemini_rest_stream_text(
+            model_key,
+            payload,
+            api_key,
+            "Gemini inline image REST stream failed",
+        )
+
+    def render_plain_newspaper_ocr_as_html(raw_text, source_page, tile_num):
+        lines = [line.strip() for line in (raw_text or "").splitlines() if line.strip()]
+        if not lines:
+            return ""
+        fragments = [
+            "<section>",
+        ]
+        if tile_num in (None, 1):
+            fragments.append(f"<h2>Page {source_page}</h2>")
+        for line in lines:
+            compact = re.sub(r"\s+", " ", line).strip()
+            if not compact:
+                continue
+            compact = compact.strip("*# ")
+            escaped = html.escape(compact)
+            words = compact.split()
+            looks_heading = (
+                len(words) <= 8
+                and any(ch.isalpha() for ch in compact)
+                and (
+                    compact.upper() == compact
+                    or compact.endswith(":")
+                    or compact in {"The", "Age"}
+                )
+            )
+            if looks_heading:
+                fragments.append(f"<h3>{escaped.rstrip(':')}</h3>")
+            else:
+                fragments.append(f"<p>{escaped}</p>")
+        fragments.append("</section>")
+        return "\n".join(fragments)
+
+    def render_newspaper_ocr_line_as_html(line):
+        compact = re.sub(r"\s+", " ", line or "").strip()
+        if not compact:
+            return ""
+        compact = compact.strip("*# ")
+        escaped = html.escape(compact)
+        words = compact.split()
+        looks_heading = (
+            len(words) <= 8
+            and any(ch.isalpha() for ch in compact)
+            and (
+                compact.upper() == compact
+                or compact.endswith(":")
+                or compact in {"The", "Age"}
+            )
+        )
+        if looks_heading:
+            return f"<h3>{escaped.rstrip(':')}</h3>\n"
+        return f"<p>{escaped}</p>\n"
+
+    def stream_plain_newspaper_ocr_as_html(text_stream, source_page, tile_num):
+        yield "<section>\n"
+        if tile_num in (None, 1):
+            yield f"<h2>Page {source_page}</h2>\n"
+        pending = ""
+        for chunk in text_stream:
+            pending += chunk
+            while "\n" in pending:
+                line, pending = pending.split("\n", 1)
+                rendered = render_newspaper_ocr_line_as_html(line)
+                if rendered:
+                    yield rendered
+        rendered = render_newspaper_ocr_line_as_html(pending)
+        if rendered:
+            yield rendered
+        yield "</section>\n"
+
+    def emit_dense_newspaper_text_layer_fallback(page_idx, reason):
+        if not allow_text_layer_fallback:
+            raise RuntimeError(
+                "Dense newspaper image processing failed, and PDF text-layer emergency fallback is disabled. "
+                "Enable the user-controlled emergency text-layer fallback to recover raw embedded OCR."
+            )
+        source_page = selected_page_indices[page_idx] + 1
+        if reason:
+            log_cb(f"[FAIL-SAFE] Dense newspaper page {source_page} using local OCR text layer after image-strip failure: {reason}")
+        else:
+            log_cb(f"[FAIL-SAFE] Dense newspaper page {source_page} using local OCR text layer after image-strip failure.")
+        txt = reader.pages[selected_page_indices[page_idx]].extract_text() or ""
+        if not txt.strip():
+            txt = "[Unreadable Image Layer]"
+        if fmt in ("html", "epub"):
+            rendered = render_plain_newspaper_ocr_as_html(txt, source_page, None)
+        else:
+            rendered = txt.rstrip() + "\n\n"
+        if f_obj is not None and hasattr(f_obj, "write"):
+            f_obj.write(rendered)
+            if hasattr(f_obj, "flush"):
+                f_obj.flush()
+        if mem is not None:
+            mem.append(rendered)
+        penalties[page_idx] += 0.24
+        methods[page_idx] = "newspaper-text-layer-fallback"
+        report_page(page_idx)
+        report_progress(1, page_idx)
+
+    def process_dense_newspaper_local_ocr_page(page_idx, metrics):
+        nonlocal used_dense_newspaper_local_ocr
+        source_page = selected_page_indices[page_idx] + 1
+        log_cb(
+            f"[PDF Fast Path] Dense NLA newspaper OCR detected on source page {source_page} "
+            f"({metrics['chars']} text-layer characters). Using local OCR output to avoid image-strip stalls."
+        )
+        txt = metrics.get("text") or ""
+        if not txt.strip():
+            txt = "[Unreadable Image Layer]"
+        if fmt in ("html", "epub"):
+            rendered = render_plain_newspaper_ocr_as_html(txt, source_page, None)
+        else:
+            rendered = txt.rstrip() + "\n\n"
+        if f_obj is not None and hasattr(f_obj, "write"):
+            f_obj.write(rendered)
+            if hasattr(f_obj, "flush"):
+                f_obj.flush()
+        if mem is not None:
+            mem.append(rendered)
+        methods[page_idx] = "newspaper-local-ocr"
+        used_dense_newspaper_local_ocr = True
+        report_page(page_idx)
+        report_progress(1, page_idx)
+
+    def process_nla_trove_article_ocr_page(page_idx):
+        if os.environ.get(NLA_TROVE_ARTICLE_OCR_ENV) != "1":
+            return False
+        if fmt not in ("html", "epub") or str(doc_profile or "").lower() != "newspaper":
+            return False
+        metrics = get_page_text_metrics(page_idx)
+        page_id = extract_nla_page_id(metrics.get("text", ""))
+        if not page_id:
+            return False
+        source_page = selected_page_indices[page_idx] + 1
+        try:
+            page_html = fetch_trove_text(f"https://trove.nla.gov.au/newspaper/page/{page_id}")
+            article_ids = parse_trove_page_article_ids(page_html)
+            if not article_ids:
+                return False
+            fragments = [f"<section>", f"<h2>Page {source_page}</h2>"]
+            article_count = 0
+            for article_id in article_ids:
+                article_html = fetch_trove_text(
+                    f"https://trove.nla.gov.au/newspaper/rendition/nla.news-article{article_id}.txt"
+                )
+                title, paragraphs = parse_trove_article_rendition(article_html)
+                if not paragraphs:
+                    continue
+                fragments.append("<article>")
+                if title:
+                    fragments.append(f"<h3>{html.escape(title, quote=False)}</h3>")
+                for paragraph in paragraphs:
+                    fragments.append(f"<p>{html.escape(paragraph, quote=False)}</p>")
+                fragments.append("</article>")
+                article_count += 1
+            fragments.append("</section>")
+            if article_count <= 0:
+                return False
+            rendered = "\n".join(fragments) + "\n"
+            if f_obj:
+                f_obj.write(rendered)
+            if mem is not None:
+                mem.append(rendered)
+            methods[page_idx] = "nla-trove-article-ocr"
+            reported[page_idx] = True
+            report_page(page_idx)
+            report_progress(1, page_idx)
+            log_cb(f"Trove OCR: used article-level OCR for source page {source_page} ({article_count} article sections).")
+            return True
+        except Exception as trove_ex:
+            log_cb(f"Trove OCR: article-level OCR was unavailable for source page {source_page}; using visual scan fallback. ({trove_ex})")
+            return False
+
+    def make_visible_rendered_page_path(source_page):
+        source_dir = os.path.dirname(path) or "."
+        base_name = os.path.splitext(os.path.basename(path))[0]
+        safe_base = re.sub(r"[^A-Za-z0-9._-]+", "_", base_name).strip("._-") or "document"
+        prefix = f"chronicle_temp_{safe_base}_page_{source_page}_"
+        fd, rendered_path = mkstemp_fn(prefix=prefix, suffix=".png", dir=source_dir)
+        os.close(fd)
+        return rendered_path
+
+    def process_scanned_image_only_page_with_pro(page_idx, request_model):
+        source_page = selected_page_indices[page_idx] + 1
+        log_cb(
+            f"[Gemini Image] Source page {source_page} is an image-only scanned PDF page. "
+            f"Rendering it as a visible PNG beside the PDF before requesting {normalize_model_name(request_model)}."
+        )
+        image_bytes = build_page_png_bytes(page_idx)
+        rendered_path = make_visible_rendered_page_path(source_page)
+        with open(rendered_path, "wb") as rendered_fh:
+            rendered_fh.write(image_bytes)
+        log_cb(f"[Gemini Image] Visible rendered page: {rendered_path}")
+        image_prompt = (
+            f"{prompt}\n\n"
+            "SCANNED IMAGE-ONLY PDF PAGE MODE:\n"
+            f"- This is source page {source_page} rendered from a scanned image-only PDF.\n"
+            "- Read the entire visible page image, not just the title block or decorative heading.\n"
+            "- Transcribe all visible tables, dates, columns, stamps, marginalia, signatures, annotations, and body text.\n"
+            "- Preserve the document's reading order. Do not summarize. Do not stop after the cover/title area.\n"
+            "- If the page contains multiple logical forms or diary entries on one physical image, include them all.\n"
+        )
+        cache_key = build_request_cache_key_fn(
+            request_model,
+            image_prompt,
+            "pdf-scanned-image-page",
+            f"{page_idx}:{hashlib.sha256(image_bytes).hexdigest()}",
+        )
+        stream_rest_available = bool(resolve_gemini_rest_api_key())
+
+        def _gemini_scanned_image_request():
+            transport_label = "streaming inline REST" if stream_rest_available else "inline REST"
+            log_cb(
+                f"[Gemini Image] Requesting full-page scanned image output for source page {source_page} "
+                f"via {transport_label} on {normalize_model_name(request_model)}."
+            )
+            if stream_rest_available:
+                response = stream_gemini_inline_image_rest_text(request_model, image_bytes, image_prompt, "image/png")
+            else:
+                response = generate_gemini_inline_image_rest(request_model, image_bytes, image_prompt, "image/png")
+
+            def _cleanup_rendered_page():
+                try:
+                    remove_fn(rendered_path)
+                except Exception as cleanup_ex:
+                    log_cb(f"Warning: could not remove visible rendered page temp file {rendered_path}: {cleanup_ex}")
+
+            return response, _cleanup_rendered_page
+
+        try:
+            generated = stream_with_cache_fn(cache_key, _gemini_scanned_image_request, out, fmt, f_obj, mem, log_cb, pause_cb=pause_cb)
+            generated_len = len(generated or "")
+            log_cb(f"[Gemini Image] Full-page scanned image returned {generated_len} character(s).")
+        except Exception:
+            try:
+                remove_fn(rendered_path)
+            except Exception:
+                pass
+            raise
+        finally:
+            try:
+                if exists_fn(rendered_path):
+                    remove_fn(rendered_path)
+            except Exception:
+                pass
+        methods[page_idx] = "pro-scanned-page-image"
+
+    def process_dense_newspaper_page_with_pro_tiles(page_idx, request_model):
+        source_page = selected_page_indices[page_idx] + 1
+        tile_count = get_dense_newspaper_tile_count(page_idx)
+        log_cb(
+            f"[Gemini Image] Rendering source page {source_page} as "
+            f"{tile_count} newspaper strips before upload via {normalize_model_name(request_model)}."
+        )
+        for tile_idx in range(tile_count):
+            tile_num = tile_idx + 1
+            image_name = f"chronicle_page_{source_page}_strip_{tile_num}.png"
+            image_bytes = build_page_tile_png_bytes(page_idx, tile_idx, tile_count)
+            tile_prompt = (
+                "OCR this historical newspaper image strip. "
+                f"It is source page {source_page}, strip {tile_num} of {tile_count} in left-to-right order. "
+                "Transcribe as much visible text as possible. Preserve headings and item boundaries. "
+                "Read each column from top to bottom before moving to the next column. "
+                "Do not summarize. This is a dense newspaper strip, not a cover page. "
+                "Return plain text only."
+            )
+            tile_key = build_request_cache_key_fn(
+                request_model,
+                tile_prompt,
+                "pdf-newspaper-pro-image-strip",
+                f"{page_idx}:{tile_idx}:{hashlib.sha256(image_bytes).hexdigest()}",
+            )
+            stream_rest_available = bool(resolve_gemini_rest_api_key()) and fmt in ("html", "epub")
+
+            def _gemini_tile_request(image_name=image_name, image_bytes=image_bytes, tile_prompt=tile_prompt, tile_num=tile_num):
+                transport_label = "streaming inline REST" if stream_rest_available else "inline REST"
+                log_cb(
+                    f"[Gemini Image] Requesting dense newspaper strip {tile_num}/{tile_count} "
+                    f"for source page {source_page} via {transport_label} on {normalize_model_name(request_model)}."
+                )
+                if stream_rest_available:
+                    response = PrecleanStream(
+                        stream_plain_newspaper_ocr_as_html(
+                            stream_gemini_inline_image_rest_text(request_model, image_bytes, tile_prompt, "image/png"),
+                            source_page,
+                            tile_num,
+                        )
+                    )
+                else:
+                    raw_text = generate_gemini_inline_image_rest(request_model, image_bytes, tile_prompt, "image/png")
+                    response = raw_text
+                return response, lambda: None
+
+            last_tile_ex = None
+            max_attempts = 1 if stream_rest_available else 2
+            for attempt in range(max_attempts):
+                try:
+                    generated = stream_with_cache_fn(tile_key, _gemini_tile_request, out, fmt, f_obj, mem, log_cb, pause_cb=pause_cb)
+                    break
+                except Exception as tile_ex:
+                    last_tile_ex = tile_ex
+                    if attempt + 1 < max_attempts:
+                        log_cb(
+                            f"[Gemini Image] Dense newspaper strip {tile_num}/{tile_count} failed: {tile_ex}. "
+                            "Retrying once with Gemini Pro."
+                        )
+                    else:
+                        raise last_tile_ex
+            generated_len = len(generated or "")
+            log_cb(
+                f"[Gemini Image] Dense newspaper strip {tile_num}/{tile_count} "
+                f"returned {generated_len} character(s)."
+            )
+        methods[page_idx] = "pro-image-strips"
 
     while curr < total:
         if pause_cb:
@@ -622,6 +1719,20 @@ def process_pdf(
             ),
             remaining,
         )
+        if is_dense_newspaper_pdf() and resolve_dense_newspaper_strip_model():
+            chunk = 1
+        use_local_ocr, local_ocr_metrics = should_use_dense_newspaper_local_ocr(curr)
+        if use_local_ocr:
+            process_dense_newspaper_local_ocr_page(curr, local_ocr_metrics)
+            curr += 1
+            if curr > 0 and curr % 2 == 0:
+                gc.collect()
+            continue
+        if not (is_dense_newspaper_pdf() and resolve_dense_newspaper_strip_model()) and process_nla_trove_article_ocr_page(curr):
+            curr += 1
+            if curr > 0 and curr % 2 == 0:
+                gc.collect()
+            continue
         if process_text_fast_path(curr):
             curr += 1
             if curr > 0 and curr % 2 == 0:
@@ -634,10 +1745,24 @@ def process_pdf(
             end = min(curr + chunk, total)
             tmp_pdf = None
             pdf_name = f"chronicle_pdf_{selected_page_indices[curr] + 1}_{selected_page_indices[end - 1] + 1}.pdf"
-            pdf_bytes = build_pdf_slice_bytes(curr, end)
-            pdf_fingerprint = hashlib.sha256(pdf_bytes).hexdigest()
+            dense_newspaper_strip_model = resolve_dense_newspaper_strip_model() if is_dense_newspaper_pdf() and chunk == 1 else None
+            scanned_image_model = None
+            if not dense_newspaper_strip_model:
+                use_scanned_image, scanned_image_metrics = should_use_scanned_image_only_page(curr, chunk)
+                if use_scanned_image:
+                    scanned_image_model = normalize_model_name(model)
+                    log_cb(
+                        f"[PDF Heuristic] Image-only scanned page detected on source page {selected_page_indices[curr] + 1} "
+                        f"({scanned_image_metrics['chars']} text-layer characters, "
+                        f"{(file_size_mb / max(1, total_document_pages)):.2f} MB/page). "
+                        "Using rendered image transport instead of Gemini PDF upload."
+                    )
+            pdf_bytes = None
+            pdf_fingerprint = None
             try:
                 if "claude" in model:
+                    pdf_bytes = build_pdf_slice_bytes(curr, end)
+                    pdf_fingerprint = hashlib.sha256(pdf_bytes).hexdigest()
                     cache_key = build_request_cache_key_fn(model, prompt, "pdf-vision", f"{curr}:{end}:{pdf_fingerprint}")
 
                     def _claude_pdf_request():
@@ -687,6 +1812,8 @@ def process_pdf(
                         pause_cb=pause_cb,
                     )
                 elif "gpt" in model:
+                    pdf_bytes = build_pdf_slice_bytes(curr, end)
+                    pdf_fingerprint = hashlib.sha256(pdf_bytes).hexdigest()
                     payload = build_payload_fn(model, prompt, mime="application/pdf", file_bytes=pdf_bytes)
                     cache_key = build_request_cache_key_fn(model, prompt, "pdf-vision", f"{curr}:{end}:{pdf_fingerprint}")
                     stream_with_cache_fn(
@@ -700,21 +1827,79 @@ def process_pdf(
                         pause_cb=pause_cb,
                     )
                 else:
+                    if dense_newspaper_strip_model:
+                        if normalize_model_name(dense_newspaper_strip_model) != normalize_model_name(model):
+                            log_cb(
+                                f"[Auto Engine] Routing dense newspaper page {selected_page_indices[curr] + 1} "
+                                f"directly to {normalize_model_name(dense_newspaper_strip_model)} image strips "
+                                f"to avoid fragile PDF slice rebuilding."
+                            )
+                        process_dense_newspaper_page_with_pro_tiles(curr, dense_newspaper_strip_model)
+                        success = True
+                        report_page(curr)
+                        report_progress(1, curr)
+                        curr += 1
+                        if curr > 0 and curr % 2 == 0:
+                            gc.collect()
+                        continue
+                    if scanned_image_model:
+                        process_scanned_image_only_page_with_pro(curr, scanned_image_model)
+                        success = True
+                        report_page(curr)
+                        report_progress(1, curr)
+                        curr += 1
+                        if curr > 0 and curr % 2 == 0:
+                            gc.collect()
+                        continue
+                    pdf_bytes = build_pdf_slice_bytes(curr, end)
+                    pdf_fingerprint = hashlib.sha256(pdf_bytes).hexdigest()
                     cache_key = build_request_cache_key_fn(model, prompt, "pdf-upload", f"{curr}:{end}:{pdf_fingerprint}")
 
                     def _gemini_pdf_request():
+                        if dense_newspaper_strip_model:
+                            image_name = f"chronicle_page_{selected_page_indices[curr] + 1}.png"
+                            image_bytes = build_page_png_bytes(curr)
+                            uploaded = upload_gemini_image_slice(image_name, image_bytes)
+                            log_cb(
+                                f"[Gemini Image] Requesting dense newspaper page output for source page "
+                                f"{selected_page_indices[curr] + 1} via {normalize_model_name(dense_newspaper_strip_model)}."
+                            )
+                            response = stream_gemini_file_rest_text(
+                                dense_newspaper_strip_model,
+                                uploaded,
+                                prompt,
+                                "image/png",
+                            )
+                            if response is None:
+                                response = generate_gemini_nonstream(dense_newspaper_strip_model, [uploaded, prompt])
+
+                            def _cleanup_upload():
+                                cleanup_gemini_upload(uploaded)
+
+                            return response, _cleanup_upload
                         uploaded = upload_gemini_pdf_slice(pdf_name, pdf_bytes)
                         log_cb(
                             f"[Gemini PDF] Requesting model output for pages "
                             f"{selected_page_indices[curr] + 1}-{selected_page_indices[end - 1] + 1} via {normalize_model_name(model)}."
                         )
-                        response = generate_retry_fn(client, model, [uploaded, prompt], log_cb=log_cb)
+                        if is_dense_newspaper_pdf() and "gemini-2.5-pro" in normalize_model_name(model).lower():
+                            log_cb(
+                                "[Gemini PDF] Dense newspaper Pro request is using bounded REST streaming when available "
+                                "so a silent stream cannot stall the run."
+                            )
+                            response = stream_gemini_file_rest_text(
+                                model,
+                                uploaded,
+                                prompt,
+                                "application/pdf",
+                            )
+                            if response is None:
+                                response = generate_gemini_nonstream(model, [uploaded, prompt])
+                        else:
+                            response = generate_retry_fn(client, model, [uploaded, prompt], log_cb=log_cb)
 
                         def _cleanup_upload():
-                            try:
-                                client.files.delete(name=uploaded.name)
-                            except Exception as cleanup_ex:
-                                log_cb(f"Warning: could not delete temporary Gemini upload {uploaded.name}: {cleanup_ex}")
+                            cleanup_gemini_upload(uploaded)
 
                         return response, _cleanup_upload
 
@@ -747,6 +1932,16 @@ def process_pdf(
                 for idx in range(curr, end):
                     penalties[idx] += 0.14
                 cleanup_temp_pdf(tmp_pdf)
+                if (
+                    allow_text_layer_fallback
+                    and (dense_newspaper_strip_model or (is_dense_newspaper_pdf() and chunk == 1 and not openai_pdf_fallback))
+                ):
+                    emit_dense_newspaper_text_layer_fallback(curr, ex)
+                    success = True
+                    curr += 1
+                    if curr > 0 and curr % 2 == 0:
+                        gc.collect()
+                    continue
                 if chunk > 1 and remaining > 1 and not openai_pdf_fallback:
                     log_cb("[Gearshift Triggered] Reducing PDF chunk size after a chunk failure.")
                     chunk = max(1, chunk // 2)
@@ -780,13 +1975,20 @@ def process_pdf(
                                     f"[Gemini PDF] Requesting escalated model output for source page "
                                     f"{selected_page_indices[curr] + 1} via {normalize_model_name(auto_escalation_model)}."
                                 )
-                                response = generate_retry_fn(client, auto_escalation_model, [uploaded, prompt], log_cb=log_cb)
+                                if "gemini-2.5-pro" in normalize_model_name(auto_escalation_model).lower():
+                                    response = stream_gemini_file_rest_text(
+                                        auto_escalation_model,
+                                        uploaded,
+                                        prompt,
+                                        "application/pdf",
+                                    )
+                                    if response is None:
+                                        response = generate_gemini_nonstream(auto_escalation_model, [uploaded, prompt])
+                                else:
+                                    response = generate_retry_fn(client, auto_escalation_model, [uploaded, prompt], log_cb=log_cb)
 
                                 def _cleanup_upload():
-                                    try:
-                                        client.files.delete(name=uploaded.name)
-                                    except Exception as cleanup_ex:
-                                        log_cb(f"Warning: could not delete temporary Gemini upload {uploaded.name}: {cleanup_ex}")
+                                    cleanup_gemini_upload(uploaded)
 
                                 return response, _cleanup_upload
 
@@ -860,13 +2062,20 @@ def process_pdf(
                                         f"[Gemini PDF] Requesting dense-page recovery output for source page "
                                         f"{selected_page_indices[curr] + 1} via {normalize_model_name(model)}."
                                     )
-                                    response = generate_retry_fn(client, model, [uploaded, dense_prompt], log_cb=log_cb)
+                                    if "gemini-2.5-pro" in normalize_model_name(model).lower():
+                                        response = stream_gemini_file_rest_text(
+                                            model,
+                                            uploaded,
+                                            dense_prompt,
+                                            "application/pdf",
+                                        )
+                                        if response is None:
+                                            response = generate_gemini_nonstream(model, [uploaded, dense_prompt])
+                                    else:
+                                        response = generate_retry_fn(client, model, [uploaded, dense_prompt], log_cb=log_cb)
 
                                     def _cleanup_upload():
-                                        try:
-                                            client.files.delete(name=uploaded.name)
-                                        except Exception as cleanup_ex:
-                                            log_cb(f"Warning: could not delete temporary Gemini upload {uploaded.name}: {cleanup_ex}")
+                                        cleanup_gemini_upload(uploaded)
 
                                     return response, _cleanup_upload
 
@@ -894,6 +2103,11 @@ def process_pdf(
                             log_cb(f"[FAIL-SAFE] Dense-page recheck failed on page {selected_page_indices[curr] + 1}: {retry_ex}")
                         finally:
                             cleanup_temp_pdf(retry_tmp_pdf)
+                    if not allow_text_layer_fallback:
+                        raise RuntimeError(
+                            "PDF vision/model processing failed and PDF text-layer emergency fallback is disabled. "
+                            "Enable the user-controlled emergency text-layer fallback to recover raw embedded text."
+                        ) from ex
                     source_page_num = selected_page_indices[curr] + 1
                     log_cb(f"[FAIL-SAFE] Page {source_page_num} vision failed. Extracting raw text layer.")
                     txt = reader.pages[selected_page_indices[curr]].extract_text() or "[Unreadable Image Layer]"
@@ -949,5 +2163,8 @@ def process_pdf(
                     methods[curr] = "text-layer-fallback"
                     success = True
                     report_page(curr)
-                    report_progress(1)
+                    report_progress(1, curr)
                     curr += 1
+    return {
+        "used_dense_newspaper_local_ocr": used_dense_newspaper_local_ocr,
+    }

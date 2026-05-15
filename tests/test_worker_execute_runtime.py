@@ -6,6 +6,8 @@ from chronicle_app.services.worker_execute_runtime import (
     dispatch_processing_for_job,
     log_image_quality_if_needed,
     process_job_content,
+    should_skip_pdf_textlayer_audit_for_output,
+    should_skip_pdf_textlayer_audit_for_source,
 )
 
 
@@ -25,13 +27,13 @@ class WorkerExecuteRuntimeTest(unittest.TestCase):
         logs = []
         self.assertTrue(log_image_quality_if_needed(
             enabled=True,
-            ext='.png',
-            path='/tmp/a.png',
-            file_name='a.png',
+            ext='.heic',
+            path='/tmp/a.heic',
+            file_name='a.heic',
             assess_image_file_quality_fn=lambda path: (7.5, 'clear'),
             log_cb=logs.append,
         ))
-        self.assertIn('[Quality] a.png: 7.5/10 - clear', logs[0])
+        self.assertIn('[Quality] a.heic: 7.5/10 - clear', logs[0])
 
     def test_build_page_progress_callback_updates_and_logs(self):
         logs = []
@@ -180,11 +182,146 @@ class WorkerExecuteRuntimeTest(unittest.TestCase):
                 process_pptx_fn=lambda *args, **kwargs: None,
                 process_epub_fn=lambda *args, **kwargs: None,
                 process_img_fn=lambda *args, **kwargs: None,
+                process_rendered_document_fn=lambda *args, **kwargs: None,
                 process_text_fn=lambda *args, **kwargs: None,
             )
 
         self.assertEqual(captured["text"], "first page\nsecond page\n")
 
+    def test_process_job_content_skips_redundant_nla_newspaper_textlayer_audit(self):
+        logs = []
+        memory = []
+
+        nla_output = (
+            "<section><p>National Library of Australia</p>"
+            "<p>http://nla.gov.au/nla.news-page971274</p>"
+            + ("<p>OCR backed newspaper line.</p>" * 6000)
+            + "</section>"
+        )
+
+        def process_pdf(*args, **kwargs):
+            args[7].append(nla_output)
+            kwargs["page_progress_cb"](1, 1, 1)
+
+        calls = []
+
+        result = process_job_content(
+            '.pdf',
+            cfg={'page_confidence_scoring': False, 'doc_profile': 'newspaper'},
+            path='/tmp/ocr-backed-newspaper.pdf',
+            file_name='ocr-backed-newspaper.pdf',
+            temp_path='/tmp/nla.news-issue108507.html.tmp',
+            fmt='html',
+            prompt='prompt',
+            model='gemini-2.5-pro',
+            client=object(),
+            file_obj=None,
+            memory=memory,
+            processing_log=logs.append,
+            pause_cb=lambda: None,
+            page_scope='',
+            describe_quality_score_fn=lambda score, method: f'{method}:{score:.1f}',
+            assess_image_file_quality_fn=lambda path: None,
+            update_progress_state_fn=lambda done, total: done,
+            should_log_page_progress_fn=lambda done, total: False,
+            refresh_progress_fn=lambda: None,
+            needs_pdf_audit=True,
+            append_pdf_audit_appendix_if_needed_fn=lambda **kwargs: calls.append("audit"),
+            run_pdf_textlayer_audit_fn=lambda path, text: None,
+            render_audit_appendix_fn=lambda fmt, title, body: body,
+            append_generated_text_fn=lambda fmt, file_obj, memory, text: memory.append(text),
+            coverage_warn_threshold=0.9,
+            coverage_append_full_threshold=0.7,
+            process_pdf_fn=process_pdf,
+            process_pptx_fn=lambda *args, **kwargs: None,
+            process_epub_fn=lambda *args, **kwargs: None,
+            process_img_fn=lambda *args, **kwargs: None,
+            process_rendered_document_fn=lambda *args, **kwargs: None,
+            process_text_fn=lambda *args, **kwargs: None,
+        )
+
+        self.assertEqual(result, nla_output)
+        self.assertEqual(calls, [])
+        self.assertTrue(any("Skipping redundant PDF text-layer audit" in line for line in logs))
+
+    def test_process_job_content_skips_pdf_audit_from_processor_metadata(self):
+        logs = []
+        memory = ["plain OCR output without an NLA marker"]
+        calls = []
+
+        def process_pdf(*args, **kwargs):
+            args[7].append("plain OCR output without an NLA marker")
+            kwargs["page_progress_cb"](1, 1, 1)
+            return {"used_dense_newspaper_local_ocr": True}
+
+        result = process_job_content(
+            '.pdf',
+            cfg={'page_confidence_scoring': False, 'doc_profile': 'newspaper'},
+            path='/tmp/ocr-backed-newspaper.pdf',
+            file_name='ocr-backed-newspaper.pdf',
+            temp_path='/tmp/nla.news-issue108507.html.tmp',
+            fmt='html',
+            prompt='prompt',
+            model='gemini-2.5-pro',
+            client=object(),
+            file_obj=None,
+            memory=memory,
+            processing_log=logs.append,
+            pause_cb=lambda: None,
+            page_scope='',
+            describe_quality_score_fn=lambda score, method: f'{method}:{score:.1f}',
+            assess_image_file_quality_fn=lambda path: None,
+            update_progress_state_fn=lambda done, total: done,
+            should_log_page_progress_fn=lambda done, total: False,
+            refresh_progress_fn=lambda: None,
+            needs_pdf_audit=True,
+            append_pdf_audit_appendix_if_needed_fn=lambda **kwargs: calls.append("audit"),
+            run_pdf_textlayer_audit_fn=lambda path, text: None,
+            render_audit_appendix_fn=lambda fmt, title, body: body,
+            append_generated_text_fn=lambda fmt, file_obj, memory, text: memory.append(text),
+            coverage_warn_threshold=0.9,
+            coverage_append_full_threshold=0.7,
+            process_pdf_fn=process_pdf,
+            process_pptx_fn=lambda *args, **kwargs: None,
+            process_epub_fn=lambda *args, **kwargs: None,
+            process_img_fn=lambda *args, **kwargs: None,
+            process_rendered_document_fn=lambda *args, **kwargs: None,
+            process_text_fn=lambda *args, **kwargs: None,
+        )
+
+        self.assertEqual(result, "plain OCR output without an NLA marker")
+        self.assertEqual(calls, [])
+        self.assertTrue(any("local OCR text layer page by page" in line for line in logs))
+
+    def test_nla_newspaper_audit_skip_requires_newspaper_profile(self):
+        extracted = (
+            "<p>National Library of Australia</p>"
+            "<p>http://nla.gov.au/nla.news-page971274</p>"
+            + ("<p>OCR line.</p>" * 9000)
+        )
+
+        self.assertTrue(should_skip_pdf_textlayer_audit_for_output(
+            ext=".pdf",
+            cfg={"doc_profile": "newspaper"},
+            extracted_text=extracted,
+        ))
+        self.assertFalse(should_skip_pdf_textlayer_audit_for_output(
+            ext=".pdf",
+            cfg={"doc_profile": "legal"},
+            extracted_text=extracted,
+        ))
+
+    def test_nla_newspaper_source_audit_skip_requires_newspaper_profile(self):
+        self.assertTrue(should_skip_pdf_textlayer_audit_for_source(
+            ext=".pdf",
+            cfg={"doc_profile": "newspaper"},
+            path="/tmp/nla.news-issue108507.pdf",
+        ))
+        self.assertFalse(should_skip_pdf_textlayer_audit_for_source(
+            ext=".pdf",
+            cfg={"doc_profile": "legal"},
+            path="/tmp/nla.news-issue108507.pdf",
+        ))
 
     def test_process_job_content_runs_pdf_callbacks_and_audit(self):
         calls = []
@@ -231,6 +368,7 @@ class WorkerExecuteRuntimeTest(unittest.TestCase):
             process_pptx_fn=lambda *args, **kwargs: None,
             process_epub_fn=lambda *args, **kwargs: None,
             process_img_fn=lambda *args, **kwargs: None,
+            process_rendered_document_fn=lambda *args, **kwargs: None,
             process_text_fn=lambda *args, **kwargs: None,
         )
 
@@ -252,7 +390,7 @@ class WorkerExecuteRuntimeTest(unittest.TestCase):
             client=None, path='a', temp_path='b', fmt='html', prompt='p', model='m', file_obj=None, memory=[],
             processing_log=lambda msg: None, pause_cb=lambda: None, confidence_cb='conf', page_progress_cb='page', page_scope='1-2',
             auto_escalation_model='gemini-2.5-pro',
-            process_pdf_fn=mark('pdf'), process_pptx_fn=mark('pptx'), process_epub_fn=mark('epub'), process_img_fn=mark('img'), process_text_fn=mark('text'),
+            process_pdf_fn=mark('pdf'), process_pptx_fn=mark('pptx'), process_epub_fn=mark('epub'), process_img_fn=mark('img'), process_rendered_document_fn=mark('render'), process_text_fn=mark('text'),
         )
         dispatch_processing_for_job(
             '.epub',
@@ -260,13 +398,31 @@ class WorkerExecuteRuntimeTest(unittest.TestCase):
             client=None, path='a', temp_path='b', fmt='html', prompt='p', model='m', file_obj=None, memory=[],
             processing_log=lambda msg: None, pause_cb=lambda: None, confidence_cb='conf', page_progress_cb='page', page_scope='1-2',
             auto_escalation_model=None,
-            process_pdf_fn=mark('pdf'), process_pptx_fn=mark('pptx'), process_epub_fn=mark('epub'), process_img_fn=mark('img'), process_text_fn=mark('text'),
+            process_pdf_fn=mark('pdf'), process_pptx_fn=mark('pptx'), process_epub_fn=mark('epub'), process_img_fn=mark('img'), process_rendered_document_fn=mark('render'), process_text_fn=mark('text'),
+        )
+        dispatch_processing_for_job(
+            '.heic',
+            job_cfg={'doc_profile': 'standard'},
+            client=None, path='a', temp_path='b', fmt='html', prompt='p', model='m', file_obj=None, memory=[],
+            processing_log=lambda msg: None, pause_cb=lambda: None, confidence_cb='conf', page_progress_cb='page', page_scope='1-2',
+            auto_escalation_model=None,
+            process_pdf_fn=mark('pdf'), process_pptx_fn=mark('pptx'), process_epub_fn=mark('epub'), process_img_fn=mark('img'), process_rendered_document_fn=mark('render'), process_text_fn=mark('text'),
+        )
+        dispatch_processing_for_job(
+            '.svg',
+            job_cfg={'doc_profile': 'standard'},
+            client=None, path='a', temp_path='b', fmt='html', prompt='p', model='m', file_obj=None, memory=[],
+            processing_log=lambda msg: None, pause_cb=lambda: None, confidence_cb='conf', page_progress_cb='page', page_scope='1-2',
+            auto_escalation_model=None,
+            process_pdf_fn=mark('pdf'), process_pptx_fn=mark('pptx'), process_epub_fn=mark('epub'), process_img_fn=mark('img'), process_rendered_document_fn=mark('render'), process_text_fn=mark('text'),
         )
         self.assertEqual(calls[0][0], 'pdf')
         self.assertEqual(calls[0][1]['page_scope'], '1-2')
         self.assertEqual(calls[0][1]['doc_profile'], 'legal')
         self.assertEqual(calls[0][1]['auto_escalation_model'], 'gemini-2.5-pro')
         self.assertEqual(calls[1][0], 'epub')
+        self.assertEqual(calls[2][0], 'img')
+        self.assertEqual(calls[3][0], 'render')
 
 
 if __name__ == '__main__':

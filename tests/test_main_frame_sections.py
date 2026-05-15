@@ -139,11 +139,13 @@ class MainFrameSectionsTest(unittest.TestCase):
             bind=lambda widget, name: binds.append(name),
         )
         self.assertEqual(section['btn_run_preflight'].name, 'Run Document Preflight')
+        self.assertEqual(section['btn_first_pages_trial'].name, 'First 5 Pages Trial')
         self.assertEqual(section['preflight_summary'].name, 'Document Preflight Summary')
         self.assertEqual(section['btn_start'].name, 'Start Reading')
         self.assertIn('run_option', binds)
         self.assertIn('schedule', binds)
         self.assertIn('run_preflight', binds)
+        self.assertIn('first_pages_trial', binds)
 
 
 if __name__ == '__main__':

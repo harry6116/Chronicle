@@ -40,6 +40,24 @@ If your priority is "recover the hard document as faithfully and accessibly as p
 
 Chronicle aims to produce review-ready output and reduce manual cleanup, but human review is still required before final reliance.
 
+### Rough Processing Time Guide
+
+The timings below are only estimates. They vary with internet upload speed, provider load, API quota, local disk speed, page size, scan quality, output format, selected preset, and optional cleanup settings.
+
+| Source type | Why it changes runtime | Rough expectation |
+| --- | --- | --- |
+| Clean office files, TXT/MD/CSV, simple DOCX | Chronicle can usually use existing structure or text | Often seconds to a few minutes |
+| Clean born-digital PDFs | Embedded text is available, but tables and headings may still need repair | Usually a few minutes for short files; longer for large reports |
+| Degraded scanned PDFs | Pages may need visual reading instead of simple text extraction | Several minutes for short files; longer if every page is hard |
+| War diaries, archival records, forms, ledgers | Stamps, marginalia, repeated headers, handwriting, tables, and page damage add work | Short files can take minutes; large batches can take much longer |
+| Books and long-form prose scans | Chronicle tries to preserve paragraph continuity and avoid false breaks | Large books can run for a long time, especially from poor scans |
+| Comics, manga, and graphic novels | Chronicle reads panel order, balloons, captions, visible SFX, and meaningful visual context | Usually slower than plain OCR on the same page count |
+| Historical newspapers | Large broadsheet pages, dense columns, ads, and degraded OCR may require page strips | Dense newspaper issues can take 10-15+ minutes even at modest page counts |
+
+For example, a 14-page historical newspaper PDF may behave more like a much larger document if each page is a full broadsheet with thousands of words, advertisements, and many narrow columns. Chronicle may split those pages into visual strips and send them through deeper model reading so the final output is reviewable rather than a raw OCR dump.
+
+When Chronicle release notes mention NLA newspaper fixes, NLA means the [National Library of Australia](https://www.nla.gov.au/). Many Australian historical newspaper examples come from [Trove](https://trove.nla.gov.au/), which is created and maintained by the National Library of Australia.
+
 For a short product summary focused specifically on hard-document workflows, see [public/WHY_CHRONICLE.md](public/WHY_CHRONICLE.md).
 
 It is designed for:

@@ -184,13 +184,20 @@ class AppFilesTest(unittest.TestCase):
         ])
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            path = write_processing_log(tmpdir, "build-123", ["line one", "line two"], time_module=fake_time)
+            fake_gemini_key = "AI" + "za" + ("1" * 35)
+            path = write_processing_log(
+                tmpdir,
+                "build-123",
+                ["line one", f"api_key={fake_gemini_key}"],
+                time_module=fake_time,
+            )
             self.assertTrue(path.endswith("chronicle_processing_log_20260318_093000.txt"))
             with open(path, "r", encoding="utf-8") as fh:
                 content = fh.read()
             self.assertIn("Build: build-123", content)
             self.assertIn("line one", content)
-            self.assertIn("line two", content)
+            self.assertIn("api_key=[redacted]", content)
+            self.assertNotIn("AIza", content)
 
     def test_resolve_runtime_crash_log_path_uses_os_specific_locations(self):
         windows_path = resolve_runtime_crash_log_path(

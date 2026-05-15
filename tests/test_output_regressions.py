@@ -1,3 +1,4 @@
+import time
 import unittest
 
 from chronicle_core import (
@@ -11,6 +12,7 @@ from chronicle_core import (
     sanitize_model_output,
     should_flag_handwriting_audit,
 )
+from chronicle_app.config import PROFILE_CHOICES
 from chronicle_app.services.prompting import enforce_archival_heading_structure
 from tools.audit_handwriting_outputs import audit_file
 
@@ -128,6 +130,55 @@ class OutputRegressionTest(unittest.TestCase):
         self.assertEqual(cleaned.count("<p>First paragraph.</p>"), 1)
         self.assertEqual(cleaned.count("<p>Second paragraph.</p>"), 1)
 
+    def test_html_sanitizer_dedupes_large_repeated_paragraph_blocks_without_regex_spin(self):
+        block = "".join(f"<p>OCR newspaper paragraph {idx:02d}.</p>" for idx in range(6))
+        raw = "<section>" + (block * 200) + "<p>Tail paragraph.</p></section>"
+
+        started = time.monotonic()
+        cleaned = sanitize_model_output(raw, "html", "newspaper")
+        elapsed = time.monotonic() - started
+
+        self.assertLess(elapsed, 1.0)
+        self.assertEqual(cleaned.count("OCR newspaper paragraph 01."), 1)
+        self.assertIn("<p>Tail paragraph.</p>", cleaned)
+
+    def test_sanitize_model_output_removes_internal_chronicle_labels_for_every_profile(self):
+        raw_html = """[[CHRONICLE_PROGRESS_STATE::abc]]
+<section data-source-page="4" data-strip="3">
+<h2>Source page 4, strip 3</h2>
+<h2>Source page 5</h2>
+<p>[Gemini Image] Requesting dense newspaper strip 1/4.</p>
+<p><strong>Chronicle Note:</strong> internal notice.</p>
+<p>Real document text.</p>
+</section>"""
+        banned = ("CHRONICLE", "Chronicle Note", "Source page", "strip 3", "data-strip", "data-source-page", "Gemini Image")
+
+        for profile, _label in PROFILE_CHOICES:
+            with self.subTest(profile=profile):
+                cleaned = sanitize_model_output(raw_html, "html", profile)
+                for marker in banned:
+                    self.assertNotIn(marker, cleaned)
+                self.assertIn("<h2>Page 5</h2>", cleaned)
+                self.assertIn("Real document text.", cleaned)
+
+    def test_sanitize_model_output_removes_internal_plain_text_labels_for_every_profile(self):
+        raw = """[[CHRONICLE_PROGRESS_STATE::abc]]
+[CHRONICLE AUDIT FLAG: internal audit.]
+[Auto Engine] Routing detail.
+Source page 2, strip 1
+Source page 3, text layer fallback
+Real document text."""
+
+        for profile, _label in PROFILE_CHOICES:
+            with self.subTest(profile=profile):
+                cleaned = sanitize_model_output(raw, "txt", profile)
+                self.assertNotIn("CHRONICLE", cleaned)
+                self.assertNotIn("Auto Engine", cleaned)
+                self.assertNotIn("Source page", cleaned)
+                self.assertNotIn("strip 1", cleaned)
+                self.assertIn("Page 3", cleaned)
+                self.assertIn("Real document text.", cleaned)
+
     def test_html_sanitizer_strips_placeholder_and_empty_source_images(self):
         raw = (
             "<figure>"
@@ -184,6 +235,17 @@ class OutputRegressionTest(unittest.TestCase):
         self.assertEqual(cleaned.count('aria-label="Table of Contents"'), 1)
         self.assertIn('<a href="#heading-1">Fresh Title</a>', cleaned)
         self.assertNotIn('href="#stale"', cleaned)
+
+    def test_html_normalizer_bypasses_expensive_rebuild_for_large_outputs(self):
+        body = "<main id=\"content\" role=\"main\">" + (
+            "<p>This is a stable paragraph with dialogue and text.</p>\n" * 5000
+        ) + "</main>"
+
+        cleaned = normalize_streamed_html_document(f"<!DOCTYPE html><html><body>{body}</body></html>")
+
+        self.assertIn("<main", cleaned)
+        self.assertIn("stable paragraph", cleaned)
+        self.assertNotIn('aria-label="Table of Contents"', cleaned)
 
     def test_html_normalizer_caps_large_toc_to_higher_level_unique_headings(self):
         headings = []
@@ -702,10 +764,10 @@ class OutputRegressionTest(unittest.TestCase):
         cleaned = apply_newspaper_html_safety_fallback(raw, "html", "newspaper", max_chars=200)
 
         self.assertTrue(cleaned.lstrip().startswith("<!DOCTYPE html>"))
-        self.assertIn('<main id="content" role="main"><div class="chronicle-audit-note"', cleaned)
+        self.assertIn('<main id="content" role="main"><div class="audit-note"', cleaned)
 
     def test_newspaper_html_safety_fallback_moves_existing_leading_notice_inside_document(self):
-        raw = """<div class="chronicle-audit-note" role="note" aria-label="Newspaper Safety Fallback"><p><strong>Chronicle Note:</strong> Newspaper safety fallback was applied to keep this reading output stable. Layout has been simplified to plain semantic blocks.</p></div>
+        raw = """<div class="audit-note" role="note" aria-label="Newspaper Safety Fallback"><p><strong>Note:</strong> Newspaper safety fallback was applied to keep this reading output stable. Layout has been simplified to plain semantic blocks.</p></div>
 <!DOCTYPE html>
 <html lang="und" dir="auto">
 <head><meta charset="utf-8"><title>News</title></head>
@@ -717,8 +779,8 @@ class OutputRegressionTest(unittest.TestCase):
         cleaned = apply_newspaper_html_safety_fallback(raw, "html", "newspaper", max_chars=10_000)
 
         self.assertTrue(cleaned.lstrip().startswith("<!DOCTYPE html>"))
-        self.assertIn('<main id="content" role="main"><div class="chronicle-audit-note"', cleaned)
-        self.assertNotIn('<div class="chronicle-audit-note" role="note" aria-label="Newspaper Safety Fallback"><p><strong>Chronicle Note:</strong>', cleaned.split("<!DOCTYPE html>", 1)[0])
+        self.assertIn('<main id="content" role="main"><div class="audit-note"', cleaned)
+        self.assertNotIn('<div class="audit-note" role="note" aria-label="Newspaper Safety Fallback"><p><strong>Note:</strong>', cleaned.split("<!DOCTYPE html>", 1)[0])
 
     def test_source_attribution_footer_is_recovered_from_pdf_signals(self):
         class _FakePage:
@@ -1913,8 +1975,8 @@ To ITALY
         flagged = apply_handwriting_audit_flag(doc, "html", "archival", whole_document=True)
 
         self.assertIn('aria-label="Transcription Audit Flag"', flagged)
-        self.assertIn(".chronicle-audit-note", flagged)
-        self.assertIn("<strong>Chronicle Note:</strong>", flagged)
+        self.assertIn(".audit-note", flagged)
+        self.assertIn("<strong>Note:</strong>", flagged)
         self.assertLess(flagged.index('aria-label="Transcription Audit Flag"'), flagged.index("<p>word"))
 
     def test_handwriting_audit_prepends_plain_text_warning(self):
@@ -1922,7 +1984,7 @@ To ITALY
 
         flagged = apply_handwriting_audit_flag(content, "txt", "archival", whole_document=True)
 
-        self.assertTrue(flagged.startswith("[CHRONICLE AUDIT FLAG:"))
+        self.assertTrue(flagged.startswith("[Audit flag:"))
 
     def test_html_normalizer_promotes_leading_index_section_to_h1(self):
         raw = """<!DOCTYPE html>

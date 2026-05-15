@@ -1,6 +1,7 @@
 import time
 
 DEFAULT_CLAUDE_MODEL = "claude-sonnet-4-20250514"
+GEMINI_FILE_POLL_TIMEOUT_MS = 30_000
 LEGACY_MODEL_ALIASES = {
     "claude-3-5-sonnet-20241022": DEFAULT_CLAUDE_MODEL,
 }
@@ -83,7 +84,10 @@ def get_pdf_chunk_pages(model_name, doc_profile, total_pages, *, file_size_mb=No
             avg_page_mb = float(file_size_mb) / max(1, int(total_pages))
         except (TypeError, ValueError):
             avg_page_mb = None
-    if total_pages >= 30 and profile == "newspaper":
+    periodical_profiles = {"newspaper", "modern_newspaper", "magazine"}
+    if profile in periodical_profiles and avg_page_mb is not None and avg_page_mb >= 0.9:
+        return 1
+    if total_pages >= 30 and profile in periodical_profiles:
         if "claude" in model or "gpt" in model:
             return 1
         if "gemini-2.5-pro" in model:
@@ -93,8 +97,6 @@ def get_pdf_chunk_pages(model_name, doc_profile, total_pages, *, file_size_mb=No
             return 1
         if "gemini-2.5-pro" in model and total_pages >= 60:
             return 2
-    if profile == "newspaper" and avg_page_mb is not None and avg_page_mb >= 0.9:
-        return 1
     if profile == "comic":
         return 1
     return 2
@@ -112,6 +114,16 @@ def wait_for_gemini_upload_ready(
 ):
     start = time_fn()
     current = uploaded
+
+    def get_uploaded_file(name):
+        try:
+            return client.files.get(
+                name=name,
+                config={"http_options": {"timeout": GEMINI_FILE_POLL_TIMEOUT_MS}},
+            )
+        except TypeError:
+            return client.files.get(name=name)
+
     while True:
         state = getattr(getattr(current, "state", None), "name", "")
         if state == "ACTIVE":
@@ -121,7 +133,7 @@ def wait_for_gemini_upload_ready(
         if log_cb:
             log_cb(f"[Upload Wait] Waiting for Gemini file to become ACTIVE: {getattr(current, 'name', 'unknown')}")
         sleep_fn(poll_sec)
-        current = client.files.get(name=current.name)
+        current = get_uploaded_file(current.name)
 
 
 def get_model_tradeoff_text(model_name):
@@ -145,16 +157,18 @@ def get_processing_speed_warning(profile_key, model_name):
         "office": "Warning: Reports / Business Files can take longer when Chronicle reconstructs headings, lists, and damaged tables for accessible output.",
         "government": "Warning: Government Reports / Records can take longer on dense tables, appendices, and repeated headers or footers.",
         "letters": "Warning: Letters / Correspondence can slow down when Chronicle is preserving routing lines, annotations, and sign-off structure faithfully.",
-        "newspaper": "Warning: Newspapers can be much slower, especially on long scanned PDFs and dense multi-column layouts.",
+        "newspaper": "Warning: Historical Newspapers can be much slower, especially on long scanned PDFs, degraded OCR, and dense multi-column layouts.",
+        "modern_newspaper": "Warning: Modern Newspapers / E-Papers can be slower on long editions with dense article cards, photos, ads, continuations, and tables.",
         "book": "Warning: Books / Novels can take longer on scanned PDFs because Chronicle tries to preserve paragraph continuity across page turns.",
         "archival": "Warning: Archives / Historical can take noticeably longer on handwriting, ledgers, and degraded pages.",
-        "handwritten": "Warning: Handwritten Letters / Notes / Diaries can be slow because Chronicle reads them conservatively and avoids guessing unclear words.",
+        "handwritten": "Warning: Handwritten Notes / Personal Diaries can be slow because Chronicle reads them conservatively and avoids guessing unclear words.",
         "medical": "Warning: Medical Records / Clinical Handwriting can be slow because Chronicle treats abbreviations, uncertain handwriting, and medication-like shorthand conservatively.",
         "military": "Warning: Military Records can take longer on dense metadata, chronology, and marginal notes.",
         "academic": "Warning: Academic / Research can be much slower because Chronicle reads dense references, equations, and note structure more conservatively.",
         "manual": "Warning: Manuals / Procedures can take longer on long manuals, dense tables, and diagram-heavy pages.",
         "forms": "Warning: Forms / Checklists can take longer on checkbox-heavy pages and dense field grids.",
         "brochure": "Warning: Brochures / Catalogues can take longer when Chronicle reconstructs multi-panel reading order and product grids.",
+        "magazine": "Warning: Magazines / Periodicals can be much slower on dense layouts, reviews, advertisements, captions, pull quotes, and repeated section furniture.",
         "comic": "Warning: Comics / Manga / Graphic Novels can be slow because Chronicle reads panel order, balloons, captions, sound effects, and image descriptions page by page.",
         "slides": "Warning: Slides / Presentations can take longer when Chronicle separates slide titles, bullets, diagrams, and repeated template furniture.",
         "legal": "Warning: Legal / Contracts / Laws can take longer because Chronicle reads clause hierarchy, cross-references, and dense tables more conservatively.",
@@ -166,6 +180,46 @@ def get_processing_speed_warning(profile_key, model_name):
     if "claude" in model or "gpt" in model:
         return "Warning: This engine is slower than Chronicle's fastest Gemini path on large visual batches."
     return ""
+
+
+def estimate_run_effort(profile_key, model_name, total_units, *, file_size_mb=None):
+    profile = str(profile_key or "").lower()
+    model = normalize_model_name(model_name).lower()
+    try:
+        units = max(0, int(total_units or 0))
+    except (TypeError, ValueError):
+        units = 0
+    heavy_profile = profile in {
+        "academic",
+        "archival",
+        "book",
+        "comic",
+        "handwritten",
+        "legal",
+        "magazine",
+        "medical",
+        "military",
+        "modern_newspaper",
+        "newspaper",
+    }
+    score = units
+    if heavy_profile:
+        score += 8
+    if model == "gemini-2.5-pro" or "claude" in model or "gpt" in model:
+        score += 6
+    if file_size_mb is not None:
+        try:
+            if float(file_size_mb) >= 100:
+                score += 10
+        except (TypeError, ValueError):
+            pass
+    if score >= 70:
+        return "very long"
+    if score >= 25:
+        return "long"
+    if score >= 8:
+        return "medium"
+    return "small"
 
 
 def build_profile_selection_summary(profile_key, current_model_name, *, profile_label_map, profile_presets):
@@ -191,13 +245,15 @@ def build_profile_selection_summary(profile_key, current_model_name, *, profile_
         "slides": "Slides / Presentations favor compact presentation structure, bullet order, and chart-aware narration.",
         "flyer": "Flyers / Posters favor strong short-form hierarchy so dates, places, and calls-to-action stay easy to hear.",
         "brochure": "Brochures / Catalogues favor panel reconstruction, feature grouping, and clean product or service summaries.",
+        "modern_newspaper": "Modern Newspapers / E-Papers favor article boundaries, bylines, timestamps, section labels, captions, ads, continuations, and contemporary news page furniture.",
+        "magazine": "Magazines / Periodicals favor feature boundaries, captions, sidebars, reviews, interviews, advertisements, pull quotes, and repeated-section cleanup.",
         "comic": "Comics / Manga / Graphic Novels favor panel order, speech balloons, captions, sound effects, and accessible art descriptions.",
         "book": "Books / Novels favor long-form paragraph continuity, chapter structure, and scanned-page reading order.",
-        "newspaper": "Newspapers favor the slowest, most careful engine on dense layouts.",
+        "newspaper": "Historical Newspapers favor dense OCR and old press-layout recovery without confusing them for modern e-paper editions.",
         "academic": "Academic / Research favors careful handling of citations, equations, footnotes, and scholarly structure.",
-        "transcript": "Transcripts / Dialogue favor speaker turns, dialogue flow, and script-like pacing.",
+        "transcript": "Scripts / Dialogue / Transcripts favor speaker turns, script cues, dialogue flow, and page-reference fidelity.",
         "poetry": "Poetry / Verse favors preserving stanza shape, line breaks, and indentation.",
-        "handwritten": "Handwritten Letters / Notes / Diaries favor conservative reading with strong uncertainty tagging instead of guessed cleanups.",
+        "handwritten": "Handwritten Notes / Personal Diaries favor conservative reading with strong uncertainty tagging instead of guessed cleanups.",
         "archival": "Archives / Historical favor high-fidelity reading of historical handwriting and ledger structure.",
         "medical": "Medical Records / Clinical Handwriting favors conservative transcription, explicit uncertainty tags, and exact preservation of clinical abbreviations.",
         "military": "Military Records benefit from deeper reading on dense metadata, chronology, and marginal notes.",

@@ -19,6 +19,13 @@ except ImportError:  # pragma: no cover - optional dependency in lightweight tes
     fitz = None
 
 
+MAX_FULL_DOCUMENT_HTML_NORMALIZATION_CHARS = 200_000
+
+
+def _should_skip_expensive_full_html_normalization(body):
+    return len(str(body or "")) > MAX_FULL_DOCUMENT_HTML_NORMALIZATION_CHARS
+
+
 def clean_text_artifacts(text):
     if not text:
         return ""
@@ -193,6 +200,29 @@ def get_newspaper_profile_rules(format_type):
         "- Preserve dateline punctuation/spacing exactly as printed.\n"
         "- Preserve OCR ambiguities verbatim; do not auto-correct names or tokens.\n"
         "- Do not insert line-break mimicry tags into headings."
+    )
+
+
+def get_modern_newspaper_profile_rules(format_type):
+    table_rule = (
+        "Rebuild sports boxes, election results, market tables, listings, and data panels into valid HTML tables when the row/column relationships are clear."
+        if format_type in ("html", "epub")
+        else "Rebuild sports boxes, election results, market tables, listings, and data panels into plain-text rows and columns with stable cell alignment."
+    )
+    return (
+        "MODERN NEWSPAPER / E-PAPER RULES:\n"
+        "- Treat the source as a contemporary newspaper, e-paper, or print-edition PDF, not a historical OCR newspaper scan and not a magazine feature layout.\n"
+        "- Segment pages into masthead, section label, article, brief, live-update block, editorial/opinion piece, photo/caption, advertisement, sponsored content, index/teaser, puzzle, weather, sport, and table regions before transcription.\n"
+        "- Article Boundaries: Preserve headlines, decks/subheads, bylines, wire/source labels, datelines, timestamps, corrections, section tags, and article breaks. Do not merge adjacent briefs or teasers into the main story.\n"
+        "- Reading Order: Follow modern news hierarchy first, then columns within each story. Do not read straight across unrelated article cards, sidebars, ad blocks, or teaser modules.\n"
+        "- Continuations and Jumps: Preserve visible `continued from`, `continued on`, jump-line, page-reference, and web-link cues. Join continuations only when the source explicitly marks the relationship.\n"
+        "- Digital Furniture: Preserve meaningful publication metadata, issue/date/section labels, captions, correction notes, and source URLs. Suppress repeated navigation chrome, subscription prompts, sharing widgets, and template boilerplate when they are not document content.\n"
+        "- Advertisements and Sponsored Content: Keep advertisements, sponsored posts, advertorial labels, and public notices as distinct sections when readable. Never interleave them into nearby reporting.\n"
+        f"- Data Panels: {table_rule}\n"
+        "- Photo Packages: Keep captions, credits, and cutlines attached to the nearest image. Describe meaningful news photos when image descriptions are enabled.\n"
+        "- Modern Typography: Preserve contemporary punctuation, capitalization, acronyms, names, URLs, and social handles exactly unless the global punctuation toggle explicitly allows spacing-only cleanup.\n"
+        "- HTML Simplicity: Output clean semantic article/section blocks. Do not recreate the newspaper as a visual facsimile, CSS grid, absolute-positioned layout, or image map.\n"
+        "- Magazine Boundary: If the page behaves like a long-form magazine feature with contents-page furniture, reviews, pull quotes, and feature packages, keep the content faithful but do not invent magazine-only issue structure."
     )
 
 
@@ -505,21 +535,100 @@ def _strip_repeated_periodical_running_head_h1s(body: str, document_title: str =
 def _dedupe_adjacent_html_paragraph_blocks(text: str) -> str:
     if not text:
         return text
-    cleaned = text
-    paragraph_pattern = r"(?:<p\b[^>]*>.*?</p>\s*)"
+    paragraph_re = re.compile(r"<p\b[^>]*>.*?</p>\s*", flags=re.IGNORECASE | re.DOTALL)
+    tokens = []
+    pos = 0
+    for match in paragraph_re.finditer(text):
+        if match.start() > pos:
+            tokens.append(("text", text[pos:match.start()]))
+        tokens.append(("p", match.group(0)))
+        pos = match.end()
+    if pos < len(text):
+        tokens.append(("text", text[pos:]))
+    if not any(kind == "p" for kind, _value in tokens):
+        return text
+
     for window in range(6, 0, -1):
-        pattern = rf"({paragraph_pattern}{{{window}}})\s*\1"
-        previous = None
-        while previous != cleaned:
-            previous = cleaned
-            cleaned = re.sub(pattern, r"\1", cleaned, flags=re.IGNORECASE | re.DOTALL)
+        changed = True
+        while changed:
+            changed = False
+            result = []
+            idx = 0
+            while idx < len(tokens):
+                block = tokens[idx:idx + window]
+                next_block = tokens[idx + window:idx + (window * 2)]
+                if (
+                    len(block) == window
+                    and len(next_block) == window
+                    and all(kind == "p" for kind, _value in block)
+                    and block == next_block
+                ):
+                    result.extend(block)
+                    idx += window * 2
+                    changed = True
+                    continue
+                result.append(tokens[idx])
+                idx += 1
+            tokens = result
+    return "".join(value for _kind, value in tokens)
+
+
+def strip_internal_chronicle_output_labels(text_content, format_type):
+    if not text_content:
+        return text_content
+    fmt = str(format_type or "").lower()
+    cleaned = str(text_content)
+    internal_label_pattern = (
+        r"(?:Auto\s+Engine|PDF\s+Heuristic|Gemini(?:\s+PDF|\s+Image|\s+Pro)?|"
+        r"FAIL-SAFE|Gearshift|Rate\s+Limit|Throttle|Cache|Progress|Resume|NETWORK\s+STALL\s+ALERT)"
+    )
+    cleaned = re.sub(r"\[\[CHRONICLE_PROGRESS_STATE::[^\]]*\]\]\s*", "", cleaned)
+    cleaned = re.sub(rf"(?im)^\s*\[\s*{internal_label_pattern}\s*\][^\n]*(?:\n|$)", "", cleaned)
+    cleaned = re.sub(r"(?i)\bChronicle Note:\s*", "Note: ", cleaned)
+    cleaned = re.sub(r"(?i)\[CHRONICLE NOTE:\s*", "[Note: ", cleaned)
+    cleaned = re.sub(r"(?i)\[CHRONICLE AUDIT FLAG:\s*", "[Audit flag: ", cleaned)
+
+    if fmt in ("html", "epub"):
+        cleaned = re.sub(
+            rf"<(?:p|li|div|section|article|aside|h[1-6])\b[^>]*>\s*\[\s*{internal_label_pattern}\s*\][^<]*(?:<br\s*/?>\s*)?</(?:p|li|div|section|article|aside|h[1-6])>\s*",
+            "",
+            cleaned,
+            flags=re.IGNORECASE,
+        )
+        cleaned = re.sub(r"\sdata-strip=(['\"]).*?\1", "", cleaned, flags=re.IGNORECASE | re.DOTALL)
+        cleaned = re.sub(r"\sdata-source-page=(['\"]).*?\1", "", cleaned, flags=re.IGNORECASE | re.DOTALL)
+        cleaned = re.sub(r"\sclass=(['\"])chronicle-[^'\"]*\1", "", cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(
+            r"<h([1-6])\b([^>]*)>\s*Source\s+page\s+(\d+)\s*,\s*(?:strip|stripe)\s+\d+\s*</h\1>\s*",
+            "",
+            cleaned,
+            flags=re.IGNORECASE,
+        )
+        cleaned = re.sub(
+            r"<h([1-6])\b([^>]*)>\s*Source\s+page\s+(\d+)(?:\s*,\s*text\s+layer\s+fallback)?\s*</h\1>",
+            r"<h\1\2>Page \3</h\1>",
+            cleaned,
+            flags=re.IGNORECASE,
+        )
+        cleaned = re.sub(
+            r"\b(?:Source\s+page\s+\d+\s*,\s*)?(?:strip|stripe)\s+\d+\b",
+            "",
+            cleaned,
+            flags=re.IGNORECASE,
+        )
+        cleaned = re.sub(r"\btext\s+layer\s+fallback\b", "", cleaned, flags=re.IGNORECASE)
+    else:
+        cleaned = re.sub(r"(?im)^\s*Source\s+page\s+\d+\s*,\s*(?:strip|stripe)\s+\d+\s*$", "", cleaned)
+        cleaned = re.sub(r"(?im)^\s*Source\s+page\s+(\d+)(?:\s*,\s*text\s+layer\s+fallback)?\s*$", r"Page \1", cleaned)
+        cleaned = re.sub(r"\btext\s+layer\s+fallback\b", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
     return cleaned
 
 
 def sanitize_model_output(text_content, format_type, doc_profile=None, preserve_original_page_numbers=False):
     if not text_content:
         return ""
-    cleaned = text_content
+    cleaned = strip_internal_chronicle_output_labels(text_content, format_type)
     cleaned = re.sub(
         r"(?is)\bI am unable to provide a transcription because the image is completely blank\.?\b",
         "",
@@ -589,7 +698,7 @@ def sanitize_model_output(text_content, format_type, doc_profile=None, preserve_
         cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
         if str(doc_profile or "").lower() == "book":
             cleaned = _apply_book_plain_text_cleanup(cleaned, bool(preserve_original_page_numbers))
-    return cleaned
+    return strip_internal_chronicle_output_labels(cleaned, format_type)
 
 
 def apply_output_integrity_contract(text_content, format_type, doc_profile=None):
@@ -626,71 +735,10 @@ def apply_modern_currency(html_text: str) -> str:
     return cleaned
 
 
-def apply_expanded_abbreviations(html_text: str) -> str:
-    if not html_text:
-        return ""
-    cleaned = html_text
-    replacements = (
-        (r"\bCoy\b\.?", "Company"),
-        (r"\b(?:Bn|Battn)\b\.?", "Battalion"),
-        (r"\bRegt\b\.?", "Regiment"),
-        (r"\bBde\b\.?", "Brigade"),
-        (r"\bDiv\b\.?", "Division"),
-        (r"\bAdjt\b\.?", "Adjutant"),
-        (r"\b(?:Lieut|Lt)\b\.?", "Lieutenant"),
-        (r"\bCapt\b\.?", "Captain"),
-        (r"\b(?:Sgt|Sergt)\b\.?", "Sergeant"),
-        (r"\bCpl\b\.?", "Corporal"),
-        (r"\b(?:L/Cpl|Lce Cpl)\b\.?", "Lance Corporal"),
-        (r"\bPte\b\.?", "Private"),
-        (r"\bNCO\b\.?", "Non-Commissioned Officer"),
-        (r"\bO\.?C\b\.?", "Officer Commanding"),
-        (r"\bC\.?O\b\.?", "Commanding Officer"),
-        (r"\bG\.?O\.?C\b\.?", "General Officer Commanding"),
-        (r"\bA\.?I\.?F\b\.?", "Australian Imperial Force"),
-        (r"\bB\.?E\.?F\b\.?", "British Expeditionary Force"),
-        (r"\bArty\b\.?", "Artillery"),
-        (r"\bBty\b\.?", "Battery"),
-        (r"\bCav\b\.?", "Cavalry"),
-        (r"\bInf\b\.?", "Infantry"),
-        (r"\bEngrs\b\.?", "Engineers"),
-        (r"\b(?:Fd Amb|F\.?A)\b\.?", "Field Ambulance"),
-        (r"\bC\.?C\.?S\b\.?", "Casualty Clearing Station"),
-        (r"\bM\.?O\b\.?", "Medical Officer"),
-        (r"\bR\.?M\.?O\b\.?", "Regimental Medical Officer"),
-        (r"\bQ\.?M\b\.?", "Quartermaster"),
-        (r"\bM\.?G\.?C\b\.?", "Machine Gun Corps"),
-        (r"\bT\.?M\.?B\b\.?", "Trench Mortar Battery"),
-        (r"\bK\.?I\.?A\b\.?", "Killed in Action"),
-        (r"\bW\.?I\.?A\b\.?", "Wounded in Action"),
-        (r"\bAbt\b\.?", "Abteilung"),
-        (r"\b(?:Kp|Komp)\b\.?", "Kompanie"),
-        (r"\bRgt\b\.?", "Regiment"),
-        (r"\b(?:Batl|Btl)\b\.?", "Bataillon"),
-        (r"\bUffz\b\.?", "Unteroffizier"),
-        (r"\bGefr\b\.?", "Gefreiter"),
-        (r"\bFeldw\b\.?", "Feldwebel"),
-        (r"\bHptm\b\.?", "Hauptmann"),
-        (r"\bObstlt\b\.?", "Oberstleutnant"),
-        (r"\bOHL\b\.?", "Oberste Heeresleitung"),
-        (r"\bArtl\b\.?", "Artillerie"),
-        (r"\bCie\b\.?", "Compagnie"),
-        (r"\b(?:Bat|Btn)\b\.?", "Bataillon"),
-        (r"\b(?:Régt|RI)\b\.?", "Régiment d'Infanterie"),
-        (r"\bGQG\b\.?", "Grand Quartier Général"),
-        (r"\bAdj\b\.?", "Adjudant"),
-        (r"\bCne\b\.?", "Capitaine"),
-        (r"\bCmdt\b\.?", "Commandant"),
-        (r"\bGén\b\.?", "Général"),
-        (r"\bSdt\b\.?", "Soldat"),
-        (r"\bGov\b\.?", "Governor"),
-        (r"\bHon\b\.?", "Honourable"),
-        (r"\bBros\b\.?", "Brothers"),
-    )
-    for pattern, replacement in replacements:
-        cleaned = re.sub(pattern, replacement, cleaned, flags=re.IGNORECASE)
-    cleaned = re.sub(r"\bSt\.\s+(?=(?:John|George)\b)", "Saint ", cleaned, flags=re.IGNORECASE)
-    return cleaned
+def apply_expanded_abbreviations(html_text: str, doc_profile=None) -> str:
+    from chronicle_app.services.abbreviations import expand_abbreviations
+
+    return expand_abbreviations(html_text, doc_profile=doc_profile)
 
 
 def _inject_html_toc(text_content):
@@ -867,17 +915,17 @@ def _inject_html_toc(text_content):
 def build_newspaper_safety_notice(format_type):
     if format_type == "html":
         return (
-            '<div class="chronicle-audit-note" role="note" aria-label="Newspaper Safety Fallback">'
-            "<p><strong>Chronicle Note:</strong> Newspaper safety fallback was applied to keep this reading output stable. "
+            '<div class="audit-note" role="note" aria-label="Newspaper Safety Fallback">'
+            "<p><strong>Note:</strong> Newspaper safety fallback was applied to keep this reading output stable. "
             "Layout has been simplified to plain semantic blocks.</p></div>"
         )
     if format_type == "epub":
         return (
-            '<div class="chronicle-audit-note" role="note" aria-label="Newspaper Safety Fallback">'
-            "<p><strong>Chronicle Note:</strong> Newspaper safety fallback simplified this page to plain semantic blocks.</p></div>"
+            '<div class="audit-note" role="note" aria-label="Newspaper Safety Fallback">'
+            "<p><strong>Note:</strong> Newspaper safety fallback simplified this page to plain semantic blocks.</p></div>"
         )
     if format_type in ("txt", "md"):
-        return "[CHRONICLE NOTE: Newspaper safety fallback simplified this page to keep the reading output stable.]\n\n"
+        return "[Note: Newspaper safety fallback simplified this page to keep the reading output stable.]\n\n"
     return ""
 
 
@@ -1171,7 +1219,7 @@ def apply_handwriting_audit_flag(text_content, format_type, doc_profile, whole_d
 
     if format_type == "html":
         style_block = (
-            ".chronicle-audit-note {"
+            ".audit-note {"
             " margin: 0 0 1rem;"
             " padding: 0.85rem 1rem;"
             " border-left: 4px solid #94a3b8;"
@@ -1179,12 +1227,12 @@ def apply_handwriting_audit_flag(text_content, format_type, doc_profile, whole_d
             " color: var(--text);"
             " border-radius: 8px;"
             "}"
-            ".chronicle-audit-note p { margin: 0; }"
-            ".chronicle-audit-note strong { font-weight: 700; }"
+            ".audit-note p { margin: 0; }"
+            ".audit-note strong { font-weight: 700; }"
         )
         warning = (
-            '<div class="chronicle-audit-note" role="note" aria-label="Transcription Audit Flag">'
-            "<p><strong>Chronicle Note:</strong> This handwritten document was transcribed with high fluency "
+            '<div class="audit-note" role="note" aria-label="Transcription Audit Flag">'
+            "<p><strong>Note:</strong> This handwritten document was transcribed with high fluency "
             "and no uncertainty markers. Please be aware that automated systems may silently guess degraded cursive.</p>"
             "</div>"
         )
@@ -1198,7 +1246,7 @@ def apply_handwriting_audit_flag(text_content, format_type, doc_profile, whole_d
                 flags=re.IGNORECASE,
                 count=1,
             )
-            if ".chronicle-audit-note" not in flagged:
+            if ".audit-note" not in flagged:
                 if "</style>" in flagged:
                     flagged = flagged.replace("</style>", style_block + "\n</style>", 1)
                 elif "</head>" in flagged:
@@ -1218,8 +1266,8 @@ def apply_handwriting_audit_flag(text_content, format_type, doc_profile, whole_d
 
     if format_type == "epub":
         warning = (
-            '<div class="chronicle-audit-note" role="note" aria-label="Transcription Audit Flag">'
-            "<p><strong>Chronicle Note:</strong> This handwritten document was transcribed with high fluency "
+            '<div class="audit-note" role="note" aria-label="Transcription Audit Flag">'
+            "<p><strong>Note:</strong> This handwritten document was transcribed with high fluency "
             "and no uncertainty markers. Please review for potential automated guesses in degraded cursive.</p>"
             "</div>"
         )
@@ -1228,8 +1276,8 @@ def apply_handwriting_audit_flag(text_content, format_type, doc_profile, whole_d
         return warning + "\n" + text_content
 
     if format_type in ("txt", "md"):
-        warning = "[CHRONICLE AUDIT FLAG: Suspiciously fluent handwriting transcription. Review for potential automated guesses.]\n\n"
-        if text_content.startswith("[CHRONICLE AUDIT FLAG:"):
+        warning = "[Audit flag: Suspiciously fluent handwriting transcription. Review for potential automated guesses.]\n\n"
+        if text_content.startswith("[Audit flag:"):
             return text_content
         return warning + text_content
 
@@ -4097,6 +4145,9 @@ def normalize_streamed_html_document(full_html):
         inner = re.sub(r"</main>\s*", "", inner, flags=re.IGNORECASE)
         body = body[:main_open.start()] + outer_open + inner + outer_close + body[main_closes[-1].end():]
 
+    if _should_skip_expensive_full_html_normalization(body):
+        return f"{prefix}\n{body.strip()}\n{suffix}"
+
     def _flatten_heading_breaks(match):
         level = match.group(1)
         attrs = match.group(2) or ""
@@ -4334,7 +4385,7 @@ table {{ width: 100%; border-collapse: collapse; margin: 1rem 0; }}
 th, td {{ border: 1px solid var(--rule); padding: 0.55rem 0.6rem; vertical-align: top; text-align: left; }}
 th {{ background: #eef3f8; }}
 pre {{ white-space: pre-wrap; background: #f1f5f9; padding: 0.75rem; border-radius: 8px; overflow-x: auto; }}
-.chronicle-audit-note {{
+.audit-note {{
   margin: 0 0 1rem;
   padding: 0.85rem 1rem;
   border-left: 4px solid #94a3b8;
@@ -4342,8 +4393,8 @@ pre {{ white-space: pre-wrap; background: #f1f5f9; padding: 0.75rem; border-radi
   color: var(--text);
   border-radius: 8px;
 }}
-.chronicle-audit-note p {{ margin: 0; }}
-.chronicle-audit-note strong {{ font-weight: 700; }}
+.audit-note p {{ margin: 0; }}
+.audit-note strong {{ font-weight: 700; }}
 </style>
 </head>
 <body>

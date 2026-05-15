@@ -3,6 +3,7 @@ import unittest
 from chronicle_app.services.runtime_policies import (
     DEFAULT_CLAUDE_MODEL,
     build_profile_selection_summary,
+    estimate_run_effort,
     get_model_vendor,
     get_pdf_chunk_pages,
     get_preferred_profile_model,
@@ -16,12 +17,25 @@ from chronicle_app.config import PROFILE_PRESETS
 class RuntimePoliciesTest(unittest.TestCase):
     def test_get_processing_speed_warning_flags_slow_profiles_and_models(self):
         self.assertIn("much slower", get_processing_speed_warning("newspaper", "gemini-2.5-pro"))
+        self.assertIn("Modern Newspapers", get_processing_speed_warning("modern_newspaper", "gemini-2.5-pro"))
         self.assertIn("slowest option", get_processing_speed_warning("standard", "gemini-2.5-pro"))
         self.assertEqual(get_processing_speed_warning("standard", "gemini-2.5-flash"), "")
+
+    def test_estimate_run_effort_flags_heavy_periodical_work(self):
+        self.assertEqual(estimate_run_effort("standard", "gemini-2.5-flash", 2), "small")
+        self.assertEqual(estimate_run_effort("magazine", "gemini-2.5-pro", 20), "long")
+        self.assertEqual(estimate_run_effort("legal", "gemini-2.5-pro", 80), "very long")
 
     def test_get_pdf_chunk_pages_uses_single_page_slices_for_dense_newspapers(self):
         self.assertEqual(get_pdf_chunk_pages("gemini-2.5-pro", "newspaper", 8, file_size_mb=8.9), 1)
         self.assertEqual(get_pdf_chunk_pages("gemini-2.5-pro", "newspaper", 8, file_size_mb=4.0), 2)
+        self.assertEqual(get_pdf_chunk_pages("gemini-2.5-pro", "newspaper", 36, file_size_mb=35.4), 1)
+
+    def test_get_pdf_chunk_pages_uses_newspaper_like_policy_for_magazines(self):
+        self.assertEqual(get_pdf_chunk_pages("gemini-2.5-pro", "magazine", 8, file_size_mb=8.9), 1)
+        self.assertEqual(get_pdf_chunk_pages("gemini-2.5-pro", "magazine", 36), 2)
+        self.assertEqual(get_pdf_chunk_pages("gemini-2.5-pro", "modern_newspaper", 8, file_size_mb=8.9), 1)
+        self.assertEqual(get_pdf_chunk_pages("gemini-2.5-pro", "modern_newspaper", 36), 2)
 
     def test_get_pdf_chunk_pages_uses_single_page_slices_for_comics(self):
         self.assertEqual(get_pdf_chunk_pages("gemini-2.5-pro", "comic", 24), 1)
@@ -56,6 +70,30 @@ class RuntimePoliciesTest(unittest.TestCase):
         self.assertTrue(settings["preserve_original_page_numbers"])
         self.assertTrue(settings["merge_files"])
         self.assertFalse(settings["modernize_punctuation"])
+
+    def test_magazine_profile_defaults_favor_dense_periodical_recovery(self):
+        settings = PROFILE_PRESETS["magazine"]
+        self.assertEqual(settings["model_name"], "gemini-2.5-pro")
+        self.assertTrue(settings["image_descriptions"])
+        self.assertTrue(settings["preserve_original_page_numbers"])
+        self.assertFalse(settings["merge_files"])
+
+    def test_modern_newspaper_profile_defaults_avoid_historical_transforms(self):
+        settings = PROFILE_PRESETS["modern_newspaper"]
+        self.assertEqual(settings["model_name"], "gemini-2.5-pro")
+        self.assertTrue(settings["image_descriptions"])
+        self.assertTrue(settings["preserve_original_page_numbers"])
+        self.assertTrue(settings["modernize_punctuation"])
+        self.assertFalse(settings["unit_conversion"])
+        self.assertFalse(settings["abbrev_expansion"])
+
+    def test_transcript_profile_defaults_favor_script_fidelity(self):
+        settings = PROFILE_PRESETS["transcript"]
+        self.assertEqual(settings["model_name"], "gemini-2.5-pro")
+        self.assertFalse(settings["image_descriptions"])
+        self.assertTrue(settings["preserve_original_page_numbers"])
+        self.assertTrue(settings["modernize_punctuation"])
+        self.assertFalse(settings["abbrev_expansion"])
 
     def test_build_profile_selection_summary_includes_speed_warning_when_needed(self):
         summary = build_profile_selection_summary(

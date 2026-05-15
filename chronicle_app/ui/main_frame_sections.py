@@ -123,6 +123,14 @@ def build_settings_section(panel, *, cfg, profile_choices, get_pdf_page_items_fn
     bind(btn_run_preflight, 'run_preflight')
     preflight_row.Add(btn_run_preflight, 0, wx.ALL, 5)
 
+    btn_first_pages_trial = wx.Button(panel, label='First 5 Pages Trial')
+    btn_first_pages_trial.SetName('First 5 Pages Trial')
+    btn_first_pages_trial.SetToolTip(
+        'Set the selected queued PDF task, or all queued PDF tasks if nothing is selected, to pages 1-5 so you can test settings before a full run.'
+    )
+    bind(btn_first_pages_trial, 'first_pages_trial')
+    preflight_row.Add(btn_first_pages_trial, 0, wx.ALL, 5)
+
     preflight_summary = wx.StaticText(
         panel,
         label='Preflight ready. Select a queued file and run preflight to see what Chronicle detects before extraction starts.',
@@ -278,6 +286,7 @@ def build_settings_section(panel, *, cfg, profile_choices, get_pdf_page_items_fn
         'opts': opts,
         'preflight_row': preflight_row,
         'btn_run_preflight': btn_run_preflight,
+        'btn_first_pages_trial': btn_first_pages_trial,
         'preflight_summary': preflight_summary,
         'choice_recursive': choice_recursive,
         'dest_choice': dest_choice,
@@ -310,12 +319,12 @@ def build_progress_section(panel):
 
 
 def build_log_section(panel, *, save_log_handler):
-    log_label = wx.StaticText(panel, label='Processing Log (engine output only):')
+    log_label = wx.StaticText(panel, label='Processing Log:')
     log_label.SetName('Processing Log Label')
 
     log_ctrl = wx.TextCtrl(panel, style=wx.TE_MULTILINE | wx.TE_READONLY | wx.TE_RICH2)
     log_ctrl.SetName('Processing Log Window')
-    log_ctrl.SetToolTip('Shows the reading log, including progress updates and engine messages.')
+    log_ctrl.SetToolTip('Shows readable scan progress, provider waits, recovery steps, and save status.')
     log_ctrl.SetMinSize((-1, 180))
 
     log_actions = wx.BoxSizer(wx.HORIZONTAL)
