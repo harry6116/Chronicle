@@ -1,6 +1,6 @@
-# Chronicle 1.0.2
+# Chronicle 1.1.1
 
-Chronicle 1.0.2 improves PDF extraction reliability, accessibility, security, and packaging. This test build also keeps Private Offline Mode available for clean sensitive documents through a user-managed local Ollama setup.
+Chronicle 1.1.1 improves PDF extraction reliability, accessibility, security, and packaging. This release also keeps Private Offline Mode available for clean sensitive documents through a user-managed local Ollama setup.
 
 Private Offline Mode no longer ships as a large Chronicle-hosted offline pack. Release packaging now creates and publishes only the Mac and Windows app downloads, while Chronicle guides users to install Ollama locally and run `ollama pull qwen2.5vl:7b` when they want offline processing.
 
@@ -47,7 +47,7 @@ After an offline extraction completes, Chronicle stops its bundled local backend
 
 Current offline testing favors `qwen2.5vl:7b` as the local vision-language model users should install through Ollama. Accuracy remains under active validation and should be treated as a secure offline option for clean sensitive PDFs, not a replacement for top-tier online extraction on the hardest scans.
 
-Additional local candidates were also checked during this round. A 12B Gemma vision model completed the private-document acceptance set, but it did not improve the overall grade and was substantially slower while increasing the model footprint. An 11B Llama vision candidate was rejected for this package because it failed to load reliably in the local Ollama runtime path. A similarly sized Qwen 3-VL 8B candidate was also tested; it was much slower under Chronicle's current local runtime contract and did not produce reliable final document content at the normal output budget. For this 1.0.2 test build, Qwen 2.5-VL 7B remains the best balance of included size, speed, and emergency offline usability.
+Additional local candidates were also checked during this round. A 12B Gemma vision model completed the private-document acceptance set, but it did not improve the overall grade and was substantially slower while increasing the model footprint. An 11B Llama vision candidate was rejected for this package because it failed to load reliably in the local Ollama runtime path. A similarly sized Qwen 3-VL 8B candidate was also tested; it was much slower under Chronicle's current local runtime contract and did not produce reliable final document content at the normal output budget. For this release, Qwen 2.5-VL 7B remains the best balance of included size, speed, and emergency offline usability.
 
 Private Offline Mode includes an accessibility-first prompt contract and output guardrails. Offline HTML outputs are expected to preserve logical reading order, use semantic headings, paragraphs, lists, and tables where helpful, and avoid visual-only structure. If the local model echoes prompt instructions, returns unusable output for a text-backed PDF, invents remote image sources, or emits interactive form controls for a scanned document, Chronicle cleans or replaces that output before saving. Blank-form controls are represented as readable text markers such as checkbox, radio button, and text-field states rather than inaccessible pseudo-web forms.
 
