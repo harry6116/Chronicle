@@ -8,6 +8,7 @@ Key public docs:
 - `CHRONICLE_ONE_PAGE.md`
 - `CHRONICLE_BLURBS.md`
 - `LICENSING_OVERVIEW_DRAFT.md`
+- `../user/PRIVATE_OFFLINE_MODE.md`
 
 Use these files for:
 
@@ -15,5 +16,6 @@ Use these files for:
 - demo/support material
 - public repo positioning drafts
 - short-form copy reuse
+- public guidance on when Private Offline Mode is appropriate
 
 For user-facing setup and usage guidance, see `docs/user/`.

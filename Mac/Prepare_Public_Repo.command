@@ -3,6 +3,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+SNAPSHOT_DIR="$ROOT_DIR/artifacts/public_repo_stage/Chronicle"
+MANIFEST_PATH="$SNAPSHOT_DIR/PUBLIC_REPO_MANIFEST.txt"
 cd "$ROOT_DIR"
 clear
 
@@ -17,10 +19,10 @@ echo "This rebuilds the curated public snapshot only."
 echo "It does not push anything."
 echo ""
 
-python3 tools/prepare_public_repo_snapshot.py --clean
-
-SNAPSHOT_DIR="$ROOT_DIR/artifacts/public_repo_stage/Chronicle"
-MANIFEST_PATH="$SNAPSHOT_DIR/PUBLIC_REPO_MANIFEST.txt"
+python3 tools/prepare_public_repo_snapshot.py \
+  --repo-root "$ROOT_DIR" \
+  --output "$SNAPSHOT_DIR" \
+  --clean
 
 echo ""
 echo "Snapshot ready:"

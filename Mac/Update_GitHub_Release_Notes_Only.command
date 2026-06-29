@@ -4,16 +4,14 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 DEFAULT_PUBLIC_REPO_DIR="${CHRONICLE_PUBLIC_REPO_DIR:-$HOME/Documents/Chronicle Public Repo}"
-DEFAULT_TAG="v1.0.5"
-DEFAULT_NOTES_BASENAME="RELEASE_NOTES_CURRENT.md"
+. "$SCRIPT_DIR/release_helpers.sh"
 
 derive_release_title() {
-  local tag="${1#v}"
-  printf 'Chronicle %s' "$tag"
+  release_title_from_tag "$1"
 }
 
 derive_release_notes_file() {
-  printf '%s/docs/github_rollout/%s' "$ROOT_DIR" "$DEFAULT_NOTES_BASENAME"
+  release_notes_file "$ROOT_DIR"
 }
 
 seed_release_notes_file_if_missing() {
@@ -30,8 +28,9 @@ Write release notes here.
 EOF
 }
 
+DEFAULT_NOTES_FILE="$(derive_release_notes_file)"
+DEFAULT_TAG="$(release_tag_from_notes "$DEFAULT_NOTES_FILE")"
 DEFAULT_TITLE="$(derive_release_title "$DEFAULT_TAG")"
-DEFAULT_NOTES_FILE="$(derive_release_notes_file "$DEFAULT_TAG")"
 
 clear
 echo "--- CHRONICLE GITHUB RELEASE NOTES ONLY ---"
@@ -71,7 +70,7 @@ read -r -p "Tag [$DEFAULT_TAG]: " TAG
 TAG="${TAG:-$DEFAULT_TAG}"
 
 SUGGESTED_TITLE="$(derive_release_title "$TAG")"
-SUGGESTED_NOTES_FILE="$(derive_release_notes_file "$TAG")"
+SUGGESTED_NOTES_FILE="$(derive_release_notes_file)"
 
 read -r -p "Release title [$SUGGESTED_TITLE]: " TITLE
 TITLE="${TITLE:-$SUGGESTED_TITLE}"

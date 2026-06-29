@@ -1,5 +1,7 @@
 import wx
 
+from chronicle_app.services.offline_prompting import OFFLINE_PRIVATE_MODE_SUITABILITY
+
 
 def build_queue_action_section(panel, *, bind, set_button_icon):
     queue_actions_label = wx.StaticText(panel, label="Quick Actions")
@@ -72,9 +74,10 @@ def build_settings_section(panel, *, cfg, profile_choices, get_pdf_page_items_fn
     run_settings_label = wx.StaticText(panel, label='Extraction Settings')
     run_settings_label.SetName('Extraction Settings Label')
 
-    top = wx.FlexGridSizer(1, 4, 10, 10)
+    top = wx.FlexGridSizer(0, 6, 10, 10)
     top.AddGrowableCol(1, 1)
     top.AddGrowableCol(3, 1)
+    top.AddGrowableCol(5, 1)
     top.Add(wx.StaticText(panel, label='Document Preset:'), 0, wx.ALIGN_CENTER_VERTICAL)
     choice_profile = wx.Choice(panel, choices=[label for _, label in profile_choices])
     choice_profile.SetName('Document Preset Picker')
@@ -89,6 +92,19 @@ def build_settings_section(panel, *, cfg, profile_choices, get_pdf_page_items_fn
     choice_profile.SetSelection(profile_index)
     bind(choice_profile, 'profile_choice')
     top.Add(choice_profile, 1, wx.EXPAND)
+
+    top.Add(wx.StaticText(panel, label='Processing Mode:'), 0, wx.ALIGN_CENTER_VERTICAL)
+    processing_mode_choice = wx.Choice(panel, choices=['Online AI Mode', 'Private Offline Mode'])
+    processing_mode_choice.SetName('Processing Mode Selector')
+    processing_mode_choice.SetToolTip(
+        'Choose Online AI Mode for Chronicle’s normal Gemini, Claude, or GPT processing. '
+        'Choose Private Offline Mode for sensitive documents such as bank statements, medical forms, legal paperwork, invoices, receipts, tax records, and identity-like documents. '
+        'Private Offline Mode keeps documents on this computer using Chronicle’s installed local model. '
+        f'{OFFLINE_PRIVATE_MODE_SUITABILITY}'
+    )
+    processing_mode_choice.SetSelection(1 if str(cfg.get('model_override', '') or '').startswith('chronicle-offline') else 0)
+    bind(processing_mode_choice, 'processing_mode')
+    top.Add(processing_mode_choice, 1, wx.EXPAND)
 
     top.Add(wx.StaticText(panel, label='Output Format for Next Run:'), 0, wx.ALIGN_CENTER_VERTICAL)
     format_choice = wx.Choice(panel, choices=['HTML', 'TXT', 'DOCX', 'MD', 'PDF', 'JSON', 'CSV', 'EPUB'])
@@ -179,6 +195,15 @@ def build_settings_section(panel, *, cfg, profile_choices, get_pdf_page_items_fn
     run_page_numbers_choice.SetSelection(1 if bool(cfg.get('preserve_original_page_numbers', False)) else 0)
     runtime_opts.Add(run_page_numbers_choice, 1, wx.EXPAND)
 
+    runtime_opts.Add(wx.StaticText(panel, label='Page Links:'), 0, wx.ALIGN_CENTER_VERTICAL)
+    run_page_links_choice = wx.Choice(panel, choices=['Add page jump links', 'Do not add page jump links'])
+    run_page_links_choice.SetName('Page Navigation Links Mode')
+    run_page_links_choice.SetToolTip(
+        'Choose whether HTML outputs should add a page navigation landmark with links to each extracted PDF page.'
+    )
+    run_page_links_choice.SetSelection(0 if bool(cfg.get('page_navigation_links', True)) else 1)
+    runtime_opts.Add(run_page_links_choice, 1, wx.EXPAND)
+
     runtime_opts.Add(wx.StaticText(panel, label='Seamless Merge:'), 0, wx.ALIGN_CENTER_VERTICAL)
     run_merge_choice = wx.Choice(panel, choices=['Save each source as its own output', 'Merge selected sources into one continuous output'])
     run_merge_choice.SetName('Seamless Merge Mode')
@@ -209,7 +234,7 @@ def build_settings_section(panel, *, cfg, profile_choices, get_pdf_page_items_fn
 
     run_merge_choice.SetSelection(1 if bool(cfg.get('merge_files', False)) else 0)
 
-    for ctrl in (run_translate_choice, run_punct_choice, run_units_choice, run_abbrev_choice, run_images_choice, run_page_numbers_choice, run_merge_choice, run_largeprint_choice):
+    for ctrl in (run_translate_choice, run_punct_choice, run_units_choice, run_abbrev_choice, run_images_choice, run_page_numbers_choice, run_page_links_choice, run_merge_choice, run_largeprint_choice):
         bind(ctrl, 'run_option')
 
     opts = wx.FlexGridSizer(0, 4, 8, 8)
@@ -268,6 +293,7 @@ def build_settings_section(panel, *, cfg, profile_choices, get_pdf_page_items_fn
     return {
         'run_settings_label': run_settings_label,
         'top': top,
+        'processing_mode_choice': processing_mode_choice,
         'format_choice': format_choice,
         'apply_settings_row': apply_settings_row,
         'btn_apply_settings': btn_apply_settings,
@@ -278,6 +304,7 @@ def build_settings_section(panel, *, cfg, profile_choices, get_pdf_page_items_fn
         'run_abbrev_choice': run_abbrev_choice,
         'run_images_choice': run_images_choice,
         'run_page_numbers_choice': run_page_numbers_choice,
+        'run_page_links_choice': run_page_links_choice,
         'run_merge_choice': run_merge_choice,
         'lbl_run_largeprint': lbl_run_largeprint,
         'run_largeprint_choice': run_largeprint_choice,

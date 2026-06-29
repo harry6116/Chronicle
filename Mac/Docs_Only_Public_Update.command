@@ -5,6 +5,10 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 SNAPSHOT_DIR="$ROOT_DIR/artifacts/public_repo_stage/Chronicle"
 DEFAULT_PUBLIC_REPO_DIR="${CHRONICLE_PUBLIC_REPO_DIR:-$HOME/Documents/Chronicle Public Repo}"
+. "$SCRIPT_DIR/release_helpers.sh"
+RELEASE_NOTES_FILE="$(release_notes_file "$ROOT_DIR")"
+RELEASE_VERSION="$(release_version_from_notes "$RELEASE_NOTES_FILE")"
+DEFAULT_COMMIT_MESSAGE="Public docs refresh for Chronicle $RELEASE_VERSION"
 
 clear
 echo "--- CHRONICLE DOCS-ONLY PUBLIC UPDATE ---"
@@ -23,7 +27,10 @@ fi
 echo "Preparing fresh public snapshot from:"
 echo "  $ROOT_DIR"
 echo ""
-python3 "$ROOT_DIR/tools/prepare_public_repo_snapshot.py" --clean
+python3 "$ROOT_DIR/tools/prepare_public_repo_snapshot.py" \
+  --repo-root "$ROOT_DIR" \
+  --output "$SNAPSHOT_DIR" \
+  --clean
 
 if [[ ! -d "$SNAPSHOT_DIR" ]]; then
   echo "ERROR: Public snapshot was not created:"
@@ -93,12 +100,12 @@ fi
 
 echo ""
 echo "Enter a public repo commit summary for this docs/minor rollout:"
+echo "Press Enter to use:"
+echo "  $DEFAULT_COMMIT_MESSAGE"
 read -r commit_message
 
 if [[ -z "${commit_message// }" ]]; then
-  echo "ERROR: Commit summary cannot be empty."
-  read -r -p "Press Enter to close..."
-  exit 1
+  commit_message="$DEFAULT_COMMIT_MESSAGE"
 fi
 
 git commit -m "$commit_message"

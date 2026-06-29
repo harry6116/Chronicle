@@ -5,16 +5,14 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 DEFAULT_PUBLIC_REPO_DIR="${CHRONICLE_PUBLIC_REPO_DIR:-$HOME/Documents/Chronicle Public Repo}"
 DEFAULT_ASSET_DIR="${CHRONICLE_RELEASE_ASSET_DIR:-$HOME/Documents/Chronicle Release Apps}"
-DEFAULT_TAG="v1.0.5"
-DEFAULT_NOTES_BASENAME="RELEASE_NOTES_CURRENT.md"
+. "$SCRIPT_DIR/release_helpers.sh"
 
 derive_release_title() {
-  local tag="${1#v}"
-  printf 'Chronicle %s' "$tag"
+  release_title_from_tag "$1"
 }
 
 derive_release_notes_file() {
-  printf '%s/docs/github_rollout/%s' "$ROOT_DIR" "$DEFAULT_NOTES_BASENAME"
+  release_notes_file "$ROOT_DIR"
 }
 
 derive_mac_asset_path() {
@@ -43,15 +41,49 @@ Write release notes here.
 EOF
 }
 
+DEFAULT_NOTES_FILE="$(derive_release_notes_file)"
+DEFAULT_TAG="$(release_tag_from_notes "$DEFAULT_NOTES_FILE")"
 DEFAULT_TITLE="$(derive_release_title "$DEFAULT_TAG")"
 DEFAULT_MAC_ASSET="$(derive_mac_asset_path "$DEFAULT_TAG")"
 DEFAULT_WINDOWS_ASSET="$(derive_windows_asset_path "$DEFAULT_TAG")"
-DEFAULT_NOTES_FILE="$(derive_release_notes_file "$DEFAULT_TAG")"
+GITHUB_RELEASE_ASSET_SIZE_LIMIT_BYTES=2147483648
 
-clear
+asset_size_bytes() {
+  stat -f %z "$1"
+}
+
+format_asset_size() {
+  python3 - "$1" <<'PY'
+import sys
+
+size = int(sys.argv[1])
+gib = size / (1024 ** 3)
+print(f"{size} bytes ({gib:.2f} GiB)")
+PY
+}
+
+check_release_asset_size() {
+  local asset_path="$1"
+  local label="$2"
+  local size_bytes
+
+  size_bytes="$(asset_size_bytes "$asset_path")"
+  if (( size_bytes >= GITHUB_RELEASE_ASSET_SIZE_LIMIT_BYTES )); then
+    echo "ERROR: $label is too large for a GitHub release asset:"
+    echo "  $asset_path"
+    echo "  Size: $(format_asset_size "$size_bytes")"
+    echo "GitHub release assets must be smaller than 2147483648 bytes (2 GiB)."
+    echo "Publish the release notes without this ZIP, or move the installer payload to another hosting path."
+    read -r -p "Press Enter to close..."
+    exit 1
+  fi
+}
+
+clear 2>/dev/null || true
 echo "--- CHRONICLE GITHUB RELEASE PUBLISHER ---"
 echo "This creates or updates a GitHub release using the GitHub CLI."
-echo "It is intended for large ZIP assets that the web uploader may reject."
+echo "It uploads only the Mac and Windows app ZIPs."
+echo "Private Offline Mode now uses the user's existing Ollama installation; no offline pack is uploaded."
 echo "It is NOT the right script for docs-only public repo updates."
 echo "This script does NOT create a git commit and will NOT ask for a commit message."
 echo "It reads the release body from a notes file."
@@ -82,7 +114,7 @@ TAG="${TAG:-$DEFAULT_TAG}"
 SUGGESTED_TITLE="$(derive_release_title "$TAG")"
 SUGGESTED_MAC_ASSET="$(derive_mac_asset_path "$TAG")"
 SUGGESTED_WINDOWS_ASSET="$(derive_windows_asset_path "$TAG")"
-SUGGESTED_NOTES_FILE="$(derive_release_notes_file "$TAG")"
+SUGGESTED_NOTES_FILE="$(derive_release_notes_file)"
 
 read -r -p "Release title [$SUGGESTED_TITLE]: " TITLE
 TITLE="${TITLE:-$SUGGESTED_TITLE}"
@@ -116,6 +148,9 @@ if [[ ! -f "$WINDOWS_ASSET" ]]; then
   read -r -p "Press Enter to close..."
   exit 1
 fi
+
+check_release_asset_size "$MAC_ASSET" "Mac asset"
+check_release_asset_size "$WINDOWS_ASSET" "Windows asset"
 
 if [[ ! -f "$NOTES_FILE" ]]; then
   seed_release_notes_file_if_missing "$NOTES_FILE" "$TAG"
@@ -164,12 +199,12 @@ done
 
 if gh release view "$TAG" --repo "$REPO_SLUG" >/dev/null 2>&1; then
   echo ""
-  echo "Release already exists. Uploading assets with clobber enabled..."
+  echo "Release already exists. Uploading app assets with clobber enabled..."
   gh release upload "$TAG" "$MAC_ASSET" "$WINDOWS_ASSET" --repo "$REPO_SLUG" --clobber
   gh release edit "$TAG" --repo "$REPO_SLUG" --title "$TITLE" --notes-file "$NOTES_FILE"
 else
   echo ""
-  echo "Creating new release and uploading large assets..."
+  echo "Creating new release and uploading app assets..."
   gh release create "$TAG" "$MAC_ASSET" "$WINDOWS_ASSET" \
     --repo "$REPO_SLUG" \
     --title "$TITLE" \

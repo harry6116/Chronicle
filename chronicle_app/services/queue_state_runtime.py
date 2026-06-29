@@ -52,16 +52,23 @@ def refresh_queue_work_unit_estimates(queue, *, normalize_row_settings_fn, estim
         row["_work_units"] = estimate_path_work_units_fn(row_path, settings=settings)
 
 
-def get_run_unit_totals(queue, *, current_processing_index, current_file_page_done, terminal_statuses):
+def get_run_unit_totals(
+    queue,
+    *,
+    current_processing_index,
+    current_file_page_done,
+    terminal_statuses,
+    completed_statuses=("Done", "Skipped", "Unsupported"),
+):
     total_units = 0
     completed_units = 0
     processing_index = current_processing_index if 0 <= current_processing_index < len(queue) else -1
-    terminal = set(terminal_statuses)
+    completed = set(completed_statuses or ())
     for idx, row in enumerate(queue):
         units = max(1, int(row.get("_work_units", 1) or 1))
         total_units += units
         status = str(row.get("status", "Queued"))
-        if status in terminal:
+        if status in completed:
             completed_units += units
         elif idx == processing_index:
             completed_units += max(0, min(units, int(current_file_page_done or 0)))
@@ -192,7 +199,7 @@ def build_progress_summary(
         )
     return (
         f"Progress {completed_units} of {total_units} work units ({pct}%). "
-        f"Files complete: {terminal} of {total}. Processing: {processing}. Queued: {queued}. Paused: {paused}. "
+        f"Files done: {done} of {total}. Resolved: {terminal} of {total}. Processing: {processing}. Queued: {queued}. Paused: {paused}. "
         f"Done: {done}. Review: {review}. Stopped: {stopped}. Errors: {errors}.{page_detail}"
     )
 

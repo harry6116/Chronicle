@@ -13,10 +13,18 @@ Chronicle is built and documented for 64-bit desktop systems only. Linux and mob
 
 ## Minimum vs Recommended at a Glance
 
-For most users:
+For online provider mode:
 
 - Minimum: 8 GB RAM, 64-bit dual-core CPU, stable internet, and at least 5 GB free disk space
 - Recommended: 16 GB RAM or more, modern 4+ core CPU, SSD storage, and at least 20 GB free space
+
+For Private Offline Mode after installing the optional offline components:
+
+- Constrained/emergency: 8 GB RAM may work for very small, clean, short-document offline runs, but users should expect slower performance or swapping
+- Recommended: 16 GB RAM or more for regular offline use
+- Comfortable: 24-32 GB RAM for repeated offline batches, larger PDFs, or long sessions
+- Disk: at least 12 GB free for the offline components plus working room
+- Recommended disk: 20 GB or more free SSD space
 
 For larger extraction jobs:
 
@@ -35,9 +43,9 @@ For larger extraction jobs:
 | --- | --- | --- |
 | Operating system | macOS 12+ or Windows 10+ | Latest supported macOS / Windows 11 |
 | CPU | 64-bit dual-core | Modern 4+ core CPU |
-| RAM | 8 GB | 16 GB+ |
-| Storage free space | 5 GB | 20 GB+ SSD |
-| Network | Stable internet | Low-latency reliable broadband |
+| RAM | 8 GB for online mode; 8 GB offline is constrained/emergency-only | 16 GB+; 24-32 GB for comfortable repeated offline work |
+| Storage free space | 5 GB for Chronicle; additional space for the local Ollama model | 20 GB+ SSD |
+| Network | Stable internet for online providers; not required for Private Offline Mode | Low-latency reliable broadband for online mode |
 
 ## Source Mode Requirements
 
@@ -51,12 +59,14 @@ For larger extraction jobs:
 - Windows packaged builds are produced as `Chronicle.exe`
 - End users should prefer packaged builds over source mode whenever possible
 - Frozen app users do not need to install Python separately
+- Private Offline Mode requires a user-managed Ollama installation with `qwen2.5vl:7b` installed
 
 ## Accessibility and Runtime Expectations
 
 - Chronicle is designed for desktop screen-reader workflows, including VoiceOver on macOS and NVDA/JAWS validation targets on Windows
-- A reliable internet connection is required because extraction work is sent to the selected provider API
-- At least one supported provider API key is required before extraction can run
+- A reliable internet connection is required for online provider mode because extraction work is sent to the selected provider API
+- At least one supported provider API key is required for online extraction
+- If no API keys are configured, Chronicle can still run Private Offline Mode after Ollama is installed and `ollama pull qwen2.5vl:7b` has completed
 
 ## Workload Guidance
 
@@ -65,6 +75,8 @@ For larger extraction jobs:
 | Small batches (text/docs) | 8 GB | Suitable for light extraction |
 | Mixed medium batches | 16 GB | Better stability and throughput |
 | Large PDFs / long sessions / merge-heavy | 16-32 GB | Strongly recommended for comfort |
+| Private Offline Mode, short clean PDFs | 16 GB recommended; 8 GB emergency-only | Best for modern typed PDFs and sensitive forms |
+| Private Offline Mode, repeated batches | 16-32 GB | Keep queues small on lower-memory systems |
 
 ## Low-Memory Operation
 
@@ -74,6 +86,14 @@ Chronicle includes low-memory controls for constrained systems:
 - Keep queue sizes smaller.
 - Avoid large merge jobs on low-RAM machines.
 - Use memory telemetry when diagnosing long-run usage.
+- In Private Offline Mode, prefer short documents, HTML or TXT output, and one job at a time on 8 GB systems.
+- Close other heavy apps before starting offline scans on constrained machines.
+
+Chronicle keeps offline requests conservative by default:
+
+- one parallel offline request at a time
+- small PDF page batches instead of one huge local model request
+- temporary rendered PDF page images are cleaned after the offline request completes
 
 ## Temp Files and Working Space
 
@@ -85,6 +105,7 @@ Chronicle uses temporary working files during extraction, and user-visible temp 
 - Successful runs remove the sidecar automatically after final save.
 - Failed or interrupted runs may leave the sidecar behind intentionally for recovery/review.
 - Keep enough free disk space for source files, final outputs, processing logs, and temporary progress files during long or merge-heavy runs.
+- Private Offline Mode also needs working space for temporary rendered page images and local model runtime files. Keep at least 12 GB free, and prefer 20 GB or more.
 
 ## API and Provider Requirements
 
@@ -93,6 +114,8 @@ At least one valid API key is required:
 - Gemini (`gemini`)
 - Claude (`claude`)
 - OpenAI (`openai`)
+
+This requirement applies to online provider mode. Private Offline Mode can run without API keys when the packaged offline model/runtime is included.
 
 Operational guidance:
 

@@ -11,6 +11,8 @@ PUBLIC_DOC_ROOTS = [
     REPO_ROOT / "docs",
 ]
 
+PUBLIC_RELEASE_NOTES = REPO_ROOT / "docs/github_rollout/RELEASE_NOTES_CURRENT.md"
+
 PRIVATE_PATH_PATTERNS = [
     re.compile(r"/Users/[^`\s)>\]]+"),
     re.compile(r"\\Users\\(?!<you>)[^`\s)>\]]+", re.IGNORECASE),
@@ -18,6 +20,31 @@ PRIVATE_PATH_PATTERNS = [
     re.compile(r"\bfile://", re.IGNORECASE),
     re.compile(r"/private/[^`\s)>\]]+"),
     re.compile(r"/var/folders/[^`\s)>\]]+"),
+]
+
+RELEASE_NOTES_PRIVATE_PATTERNS = [
+    re.compile(r"/Users/", re.IGNORECASE),
+    re.compile(r"\bmichaelsmac\b", re.IGNORECASE),
+    re.compile(r"\bcurrent workspace\b", re.IGNORECASE),
+    re.compile(r"\bworkspace (?:app )?copy\b", re.IGNORECASE),
+    re.compile(r"\bDesktop (?:app )?copy\b", re.IGNORECASE),
+    re.compile(r"/Applications/Chronicle\.app", re.IGNORECASE),
+    re.compile(r"\bdist/Chronicle\.app\b", re.IGNORECASE),
+    re.compile(r"\bMac/build\.command\b", re.IGNORECASE),
+    re.compile(r"\bembedded build stamp\b", re.IGNORECASE),
+    re.compile(r"\bbuild stamp:\s*`?\d{4}-\d{2}-\d{2}", re.IGNORECASE),
+    re.compile(r"\blocal conversion workspace\b", re.IGNORECASE),
+    re.compile(r"\blocal live benchmark pack\b", re.IGNORECASE),
+    re.compile(r"\btemporary local scanner installs\b", re.IGNORECASE),
+    re.compile(r"\.html\.bak\b", re.IGNORECASE),
+    re.compile(r"\bChronicle_Source_\d{4}-\d{2}-\d{2}\.zip\b", re.IGNORECASE),
+    re.compile(r"\bsource archive\b", re.IGNORECASE),
+    re.compile(r"\bstate of directories\b", re.IGNORECASE),
+    re.compile(r"\bstate of (?:the )?directories\b", re.IGNORECASE),
+    re.compile(r"\bchronicle_app/", re.IGNORECASE),
+    re.compile(r"\bchronicle_core\.py\b", re.IGNORECASE),
+    re.compile(r"\bchronicle_runtime\.py\b", re.IGNORECASE),
+    re.compile(r"\bprocess_pdf\(", re.IGNORECASE),
 ]
 
 
@@ -58,6 +85,20 @@ class PublicDocsSecurityTest(unittest.TestCase):
             leaks,
             [],
             "Public-facing docs must not expose private paths; move them to internal docs.",
+        )
+
+    def test_current_release_notes_are_public_copy_not_internal_handoff(self):
+        text = PUBLIC_RELEASE_NOTES.read_text(encoding="utf-8", errors="ignore")
+        leaks = []
+        for pattern in RELEASE_NOTES_PRIVATE_PATTERNS:
+            for match in pattern.finditer(text):
+                line = text.count("\n", 0, match.start()) + 1
+                leaks.append(f"{PUBLIC_RELEASE_NOTES.relative_to(REPO_ROOT)}:{line}: {match.group(0)}")
+
+        self.assertEqual(
+            leaks,
+            [],
+            "Current release notes are public-facing copy; do not include local build/deployment state, private paths, source archives, or internal implementation handoff details.",
         )
 
 

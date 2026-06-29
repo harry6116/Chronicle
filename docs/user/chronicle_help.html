@@ -157,7 +157,7 @@
     <header role="banner" aria-labelledby="page-title">
       <h1 id="page-title">Chronicle Help Guide</h1>
       <p><strong>Scope:</strong> complete usage, menus, dialogs, accessibility behavior, document profiles, automatic reading-engine behavior, queue logic, device import workflows, output formats, troubleshooting, and build guidance.</p>
-      <p><strong>Last Updated:</strong> March 21, 2026 (accessibility remediation and preset expansion refresh)</p>
+      <p><strong>Last Updated:</strong> June 7, 2026 (Private Offline Mode guidance and requirements refresh)</p>
     </header>
 
     <div class="grid">
@@ -166,6 +166,7 @@
         <ul>
           <li><a href="#overview">1. Overview</a></li>
           <li><a href="#privacy">2. Privacy and API Keys</a></li>
+          <li><a href="#private-offline">Private Offline Mode</a></li>
           <li><a href="#quickstart">3. Quick Start</a></li>
           <li><a href="#ui">4. Interface Walkthrough</a></li>
           <li><a href="#models">5. Automatic Reading Engine and Best Use</a></li>
@@ -283,6 +284,54 @@
           <div class="warning">
             <p>Do not process sensitive records on an account tier that does not meet your confidentiality requirements.</p>
           </div>
+          <p class="top-link"><a href="#page-title">Back to top</a></p>
+        </section>
+
+        <section id="private-offline" aria-labelledby="private-offline-title">
+          <h2 id="private-offline-title">Private Offline Mode</h2>
+          <p>Private Offline Mode lets Chronicle attempt extraction on the local computer without uploading the document to an online provider. It is intended for sensitive documents, internet outages, and emergency scans where a possible accessible result is better than no result.</p>
+          <p>Private Offline Mode is included in the packaged Chronicle app. End users do not need to install Python, Ollama, model files, or separate dependencies.</p>
+          <h3>Best offline candidates</h3>
+          <ul>
+            <li>Clean modern typed PDFs.</li>
+            <li>Bank statements, transaction summaries, invoices, receipts, tax records, and account notices.</li>
+            <li>Typed medical forms and claim forms.</li>
+            <li>Typed legal forms, contracts, notices, regulations, and compliance documents.</li>
+            <li>Government forms with clear labels and checkboxes.</li>
+            <li>Simple manuals, operation guides, letters, memos, and short reports.</li>
+          </ul>
+          <h3>Use offline with care</h3>
+          <ul>
+            <li>Moderately complex tables.</li>
+            <li>Forms with many repeated labels, boxes, or checkbox states.</li>
+            <li>Dense legal pages where numbering and clause structure must be checked.</li>
+            <li>Simple academic articles and manuals with light diagrams.</li>
+          </ul>
+          <p>Verify numbers, names, dates, totals, checkbox states, and table relationships before relying on offline output.</p>
+          <h3>Avoid offline when possible</h3>
+          <ul>
+            <li>Degraded handwriting, cursive diaries, faded scans, skewed pages, or torn pages.</li>
+            <li>Historical newspapers, magazines, comics, manga, and graphic novels.</li>
+            <li>Long books where paragraph continuity across many pages matters.</li>
+            <li>Equation-heavy papers, complex charts, maps, technical diagrams, and detailed visual descriptions.</li>
+            <li>Public accessibility remediation where final legal or WCAG sign-off is required.</li>
+          </ul>
+          <h3>Advantages and limitations</h3>
+          <ul>
+            <li>Advantages: documents stay local, no internet is required, provider quotas do not block emergency work, and Chronicle still applies semantic accessibility cleanup.</li>
+            <li>Limitations: offline accuracy is not equal to the strongest online Gemini path on hard documents, local RAM/disk/CPU resources are used, and human review remains required.</li>
+          </ul>
+          <h3>Current validation</h3>
+          <p>Current 1.0.2 testing favors the included <code>qwen2.5vl:7b</code> local model pack. The full 13-case offline suite averaged 99.43, with 12/13 cases emergency-usable and 11/13 in the private A range. The modern typed PDF cases reached 4/4 A+.</p>
+          <p>The one persistent miss was a handwriting-heavy war-diary cover page that produced too little text to count as emergency-usable. That is why Private Offline Mode is described as best for clean, text-based PDFs and simple sensitive documents, not for handwriting, dense images, historical newspapers, comics, magazines, or layout-heavy scans.</p>
+          <h3>Local model comparison</h3>
+          <ul>
+            <li><code>qwen2.5vl:7b</code>: about 6.0 GB locally; best tested balance of package size, speed, and emergency offline usability.</li>
+            <li><code>qwen3-vl:8b</code>: about 6.1 GB locally, but much slower under Chronicle's current offline runtime contract and unreliable at the normal output budget.</li>
+            <li>12B-class vision candidates increased package size without improving the overall grade enough to justify the footprint.</li>
+            <li>An 11B Llama vision candidate did not load reliably in the local Ollama runtime path.</li>
+          </ul>
+          <p>See <code>docs/user/PRIVATE_OFFLINE_MODE.md</code> for the full offline guide.</p>
           <p class="top-link"><a href="#page-title">Back to top</a></p>
         </section>
 
@@ -805,23 +854,23 @@
               </tr>
               <tr>
                 <th scope="row">Memory (RAM)</th>
-                <td>8 GB</td>
-                <td>16 GB+ for large PDFs, merge-heavy runs, and multi-hour batches</td>
+                <td>8 GB for online mode; offline use at 8 GB is constrained/emergency-only for very small clean files</td>
+                <td>16 GB+ for regular use; 24-32 GB for repeated offline batches, large PDFs, merge-heavy runs, and multi-hour sessions</td>
               </tr>
               <tr>
                 <th scope="row">Storage</th>
-                <td>5 GB free</td>
-                <td>20 GB+ free SSD space for scans, temp files, and outputs</td>
+                <td>5 GB free for online-only use; 12 GB free for packaged Private Offline Mode</td>
+                <td>20 GB+ free SSD space for app package, scans, temp files, local offline working files, and outputs</td>
               </tr>
               <tr>
                 <th scope="row">Network</th>
-                <td>Stable internet for provider API calls</td>
-                <td>Low-latency, reliable broadband with minimal dropouts</td>
+                <td>Stable internet for online provider API calls; not required for Private Offline Mode</td>
+                <td>Low-latency, reliable broadband with minimal dropouts for online mode</td>
               </tr>
               <tr>
                 <th scope="row">API access</th>
-                <td>At least one valid provider key (Gemini/Claude/OpenAI)</td>
-                <td>Paid API tier for higher quotas and stronger privacy controls</td>
+                <td>At least one valid provider key for online mode; no key required for packaged Private Offline Mode</td>
+                <td>Paid API tier for higher quotas and stronger privacy controls when using online providers</td>
               </tr>
             </tbody>
           </table>
@@ -830,7 +879,10 @@
             <li>Enable <strong>Low-Memory Mode</strong> in Preferences for constrained devices.</li>
             <li>Prefer non-merge runs and smaller queue batches.</li>
             <li>For very large PDFs, disable optional diagnostic features if stability is the priority.</li>
+            <li>For Private Offline Mode on 8 GB systems, prefer short clean documents, HTML or TXT output, and one job at a time.</li>
+            <li>Close other heavy apps before starting offline scans on constrained machines.</li>
           </ul>
+          <p>Offline processing is kept conservative by default: one parallel offline request at a time and small PDF page batches rather than one huge local model request.</p>
           <div class="warning">
             <p>Free API tiers are suitable for testing, but production workloads should generally use paid tiers for throughput and policy stability.</p>
           </div>

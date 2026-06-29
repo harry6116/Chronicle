@@ -25,11 +25,29 @@ def should_reject_transformed_content(raw_content, transformed_content, *, fmt, 
     return ratio < min_visible_ratio
 
 
-def save_pdf(path, content, large_print=False, *, fpdf_cls, sanitize_latin1_fn):
+def _set_pdf_metadata(pdf, *, title="Chronicle PDF Output"):
+    metadata = {
+        "set_title": title,
+        "set_author": "Chronicle",
+        "set_creator": "Chronicle",
+        "set_subject": "Untagged PDF output. For best accessibility, use Chronicle HTML, DOCX, or EPUB output.",
+        "set_keywords": "untagged PDF, accessibility review, Chronicle",
+    }
+    for method_name, value in metadata.items():
+        method = getattr(pdf, method_name, None)
+        if callable(method):
+            try:
+                method(value)
+            except Exception:
+                pass
+
+
+def save_pdf(path, content, large_print=False, *, fpdf_cls, sanitize_latin1_fn, title="Chronicle PDF Output"):
     pdf = fpdf_cls()
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.set_font("Helvetica", size=18 if large_print else 11)
+    _set_pdf_metadata(pdf, title=title)
     try:
         pdf.write_html(content)
         pdf.output(path)
@@ -182,7 +200,7 @@ def dispatch_save(
     if fmt == "docx":
         save_docx_fn(path, content)
     elif fmt == "pdf":
-        save_pdf_fn(path, content, cfg.get("large_print", False))
+        save_pdf_fn(path, content, cfg.get("large_print", False), title=title)
     elif fmt == "json":
         cleaned = content.strip()[7:-3].strip() if content.strip().startswith("```json") else content.strip()
         try:

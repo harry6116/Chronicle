@@ -4,6 +4,7 @@ from chronicle_app.services.adaptive_engine_routing import (
     select_execution_model_for_job,
     should_use_automatic_engine,
 )
+from chronicle_app.services.runtime_policies import OFFLINE_PRIVATE_MODEL
 
 
 class _FakePage:
@@ -20,6 +21,21 @@ class _FakeReader:
 
 
 class AdaptiveEngineRoutingTest(unittest.TestCase):
+    def test_private_offline_mode_never_auto_routes_to_online_engine(self):
+        result = select_execution_model_for_job(
+            "/tmp/private.pdf",
+            ".pdf",
+            {"doc_profile": "forms", "model_override": OFFLINE_PRIVATE_MODEL},
+            OFFLINE_PRIVATE_MODEL,
+            pdf_reader_factory=lambda path: _FakeReader(["Private form text " * 120]),
+            normalize_pdf_page_scope_text_fn=lambda scope: "",
+            parse_pdf_page_scope_spec_fn=lambda scope, total: list(range(total)),
+        )
+
+        self.assertEqual(result["model_name"], OFFLINE_PRIVATE_MODEL)
+        self.assertEqual(result["difficulty"], "offline")
+        self.assertIn("local model pack", result["routing_reason"])
+
     def test_manual_override_disables_automatic_routing(self):
         result = select_execution_model_for_job(
             "/tmp/a.pdf",

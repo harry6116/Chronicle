@@ -2,7 +2,7 @@
 
 Chronicle is an accessibility-first document recovery tool for difficult real-world material: archival scans, war diaries, laws and regulations, academic journals, tables, handwriting, newspapers, forms, office reports, government records, long-form books, comics, manga, graphic novels, and mixed-format batches.
 
-Last Updated: April 16, 2026
+Last Updated: June 7, 2026
 
 ## Current Release State
 
@@ -139,6 +139,52 @@ Current provider guidance:
 - OpenAI remains available, but Chronicle does not yet use OpenAI's newer dedicated PDF file-input route. Inside Chronicle, OpenAI PDF handling should therefore be treated as a fallback path rather than the preferred PDF engine.
 - Automatic engine selection now skips providers whose API keys are missing instead of trying to use them anyway.
 - Live-provider note: Chronicle depends on online AI providers, so occasional provider-side demand spikes can still cause temporary `503`, `UNAVAILABLE`, quota, or retry events even when Chronicle itself is behaving correctly. When that happens, rerunning later is often the right first check before treating the result as a Chronicle regression.
+
+### Private Offline Mode
+
+Private Offline Mode is Chronicle's local-only fallback for sensitive documents and internet outages. Chronicle can download and install the offline components from inside the app, so end users do not need to find model files, install Ollama, open a separate download page, or manage segmented downloads themselves.
+
+Users who already run Ollama can instead choose **File > Use Existing Ollama**. Chronicle checks the local Ollama service and looks for the required model, `qwen2.5vl:7b`. If the model is missing, Chronicle shows the exact command:
+
+```bash
+ollama pull qwen2.5vl:7b
+```
+
+When the Ollama command-line tool is available, Chronicle can also ask Ollama to pull the model from inside the app.
+
+Use Private Offline Mode when a document should stay on the computer or when an emergency scan is better than no scan at all. It works best on clear modern typed material:
+
+- clean modern typed PDFs
+- bank statements, transaction summaries, invoices, receipts, and account notices
+- typed medical forms and claim forms
+- typed legal forms, contracts, notices, and regulations
+- government forms with clear labels and checkboxes
+- tax records and identity-like forms
+- simple product manuals, operation guides, letters, memos, and short reports
+
+Use extra care offline with moderately complex tables, dense legal numbering, medical/insurance forms, simple academic articles, and manuals with light diagrams. Verify numbers, names, dates, totals, checkbox states, and table relationships before relying on the result.
+
+Avoid offline mode when the document needs the strongest visual reasoning: degraded handwriting, faded or damaged scans, historical newspapers, magazines, comics, manga, graphic novels, long books, equation-heavy papers, complex charts, maps, technical diagrams, and public accessibility-remediation work that requires final compliance sign-off.
+
+Advantages:
+
+- documents stay local
+- no internet connection is required
+- provider quotas and outages do not block emergency extraction
+- Private Offline Mode uses the user's local Ollama installation
+- users can enable offline processing by installing Ollama and running `ollama pull qwen2.5vl:7b`
+- Chronicle still applies accessibility cleanup, semantic HTML wrapping, form-control normalization, and prompt/reasoning leakage safeguards
+
+Disadvantages:
+
+- offline accuracy is not equal to the best online Gemini path on hard documents
+- it uses local RAM, disk, and CPU/GPU resources
+- it is not the right default for difficult scans or complex visual layouts
+- human review is required before legal, medical, financial, or accessibility reliance
+
+Current 1.0.2 validation favors `qwen2.5vl:7b` for the optional offline model pack. The full 13-case offline suite averaged 99.43, with 12/13 cases emergency-usable and 11/13 in the private A range; the modern typed PDF benchmark reached 4/4 A+ cases.
+
+Other local model candidates were checked. `qwen3-vl:8b` is similarly sized but was slower and unreliable at Chronicle's normal offline output budget. Larger 12B-class candidates did not improve the grade enough to justify the package footprint, and an 11B Llama vision candidate did not load reliably in the local Ollama runtime path. See the full offline guide in `docs/user/PRIVATE_OFFLINE_MODE.md`.
 
 ### Accessibility-First GUI Features
 
@@ -401,8 +447,10 @@ Chronicle currently supports 64-bit desktop builds on macOS 12+ and Windows 10+.
 
 Practical guidance:
 
-- Minimum: 8 GB RAM, dual-core CPU, stable internet, and 5 GB free storage
-- Recommended: 16 GB RAM or more, modern 4+ core CPU, SSD storage, and 20 GB free space
+- Online minimum: 8 GB RAM, dual-core CPU, stable internet, and 5 GB free storage
+- Online recommended: 16 GB RAM or more, modern 4+ core CPU, SSD storage, and 20 GB free space
+- Private Offline Mode constrained/emergency floor: 8 GB RAM may work for very small clean documents, but users should expect slower performance or swapping
+- Private Offline Mode recommended: 16 GB RAM or more, modern 4+ core CPU, SSD storage, and 20 GB free space
 - Heavy workloads: 16-32 GB RAM is strongly recommended for large PDFs, long sessions, and merge-heavy runs
 
 See the full requirements guide in `docs/user/SYSTEM_REQUIREMENTS.md`.

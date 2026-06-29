@@ -6,9 +6,11 @@ rem Documents only. No automatic copy-back of dist. Use this when the shared
 rem folder is too slow or unreliable for returning the packaged app.
 
 set "MAC_SHARED_ROOT=\\Mac\Home\Documents"
-set "MAC_SOURCE=%MAC_SHARED_ROOT%\Chronicle windows Beta"
+set "MAC_SOURCE=%MAC_SHARED_ROOT%\Chronicle"
+if not "%CHRONICLE_MAC_SOURCE%"=="" set "MAC_SOURCE=%CHRONICLE_MAC_SOURCE%"
 set "WIN_INTERNAL_ROOT=%USERPROFILE%\Documents"
-set "WIN_WORKTREE=%WIN_INTERNAL_ROOT%\Chronicle windows Beta"
+set "WIN_WORKTREE=%WIN_INTERNAL_ROOT%\Chronicle"
+if not "%CHRONICLE_WIN_WORKTREE%"=="" set "WIN_WORKTREE=%CHRONICLE_WIN_WORKTREE%"
 set "TRACE_LOG=%WIN_WORKTREE%\SYNC_AND_BUILD_ONLY_TRACE.txt"
 
 echo ==================================================
@@ -31,6 +33,7 @@ mkdir "%WIN_WORKTREE%" 2>nul
     echo Chronicle VM Sync And Build Only Trace
     echo Mac source: %MAC_SOURCE%
     echo Windows build: %WIN_WORKTREE%
+    echo Private Offline Mode: user-managed Ollama; run ollama pull qwen2.5vl:7b on the target machine.
     echo.
 )
 
@@ -57,10 +60,12 @@ if not exist "%WIN_WORKTREE%\build_windows.bat" (
 
 echo [2/2] Building from internal Windows Documents...
 >> "%TRACE_LOG%" echo [2/2] Building from internal Windows Documents...
+set "CHRONICLE_SYNC_TRACE_LOG=%TRACE_LOG%"
 pushd "%WIN_WORKTREE%" || exit /b 5
 call "%WIN_WORKTREE%\build_windows.bat"
 set "BUILD_EXIT=%ERRORLEVEL%"
 popd
+set "CHRONICLE_SYNC_TRACE_LOG="
 >> "%TRACE_LOG%" echo build exit code: %BUILD_EXIT%
 
 echo.
@@ -87,6 +92,8 @@ if not "%BUILD_EXIT%"=="0" (
     exit /b %BUILD_EXIT%
 )
 
+echo Private Offline Mode will use user-managed Ollama on the target machine.
+>> "%TRACE_LOG%" echo Private Offline Mode uses user-managed Ollama.
 echo Build finished successfully.
 echo You can now copy the finished dist folder or a packaged artifact manually.
 pause

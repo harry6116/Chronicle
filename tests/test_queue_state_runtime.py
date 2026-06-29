@@ -72,7 +72,7 @@ class QueueStateRuntimeTest(unittest.TestCase):
         self.assertEqual(queue[0]["_work_units"], 4)
         self.assertEqual(queue[1]["_work_units"], 1)
 
-    def test_get_run_unit_totals_counts_terminal_and_processing_progress(self):
+    def test_get_run_unit_totals_counts_done_and_processing_progress(self):
         queue = [
             {"status": "Done", "_work_units": 3},
             {"status": "Processing", "_work_units": 5},
@@ -87,6 +87,35 @@ class QueueStateRuntimeTest(unittest.TestCase):
         )
 
         self.assertEqual(totals, (10, 5))
+
+    def test_get_run_unit_totals_keeps_errored_pdf_at_actual_page_progress(self):
+        queue = [{"status": "Error", "_work_units": 12}]
+
+        totals = get_run_unit_totals(
+            queue,
+            current_processing_index=0,
+            current_file_page_done=2,
+            terminal_statuses={"Done", "Error", "Stopped"},
+        )
+
+        self.assertEqual(totals, (12, 2))
+
+    def test_progress_summary_does_not_report_errored_pdf_as_completed_work(self):
+        queue = [{"status": "Error", "_work_units": 12}]
+
+        summary = build_progress_summary(
+            queue,
+            current_processing_index=0,
+            current_file_ordinal=1,
+            current_file_page_total=12,
+            current_file_page_done=2,
+            terminal_statuses={"Done", "Error", "Stopped"},
+        )
+
+        self.assertIn("Progress 2 of 12 work units (16%).", summary)
+        self.assertIn("Files done: 0 of 1.", summary)
+        self.assertIn("Resolved: 1 of 1.", summary)
+        self.assertIn("Errors: 1.", summary)
 
     def test_should_log_page_progress_and_status_echo_follow_noise_rules(self):
         self.assertTrue(should_log_page_progress(1, 10))

@@ -200,6 +200,14 @@ Real document text."""
         self.assertNotIn('src=""', cleaned)
         self.assertIn("Still useful.", cleaned)
 
+    def test_html_sanitizer_normalizes_image_notes_to_descriptions(self):
+        raw = "<p>[Image: A meter showing a glucose reading.]</p>"
+
+        cleaned = sanitize_model_output(raw, "html")
+
+        self.assertIn("[Image Description: A meter showing a glucose reading.]", cleaned)
+        self.assertNotIn("[Image:", cleaned)
+
     def test_html_normalizer_generates_toc_and_heading_ids_inside_main(self):
         raw = """<main id="content" role="main">
 <h1>Document Title</h1>

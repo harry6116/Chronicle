@@ -1,4 +1,5 @@
 import gc
+import concurrent.futures
 import html
 import io
 import json
@@ -12,12 +13,16 @@ import base64
 import re
 import threading
 import time
+import urllib.error
 import urllib.request
 
 from chronicle_app.services.processing_runtime import CLAUDE_FILES_API_BETA
 from chronicle_app.services.processing_runtime import GEMINI_GENERATE_TIMEOUT_MS
 from chronicle_app.services.processing_runtime import PrecleanStream
 from chronicle_app.services.nla_newspaper import contains_nla_ocr_marker
+from chronicle_app.services.pdf_page_boundaries import ensure_source_page_boundary
+from chronicle_app.services.pdf_page_boundaries import output_format_keeps_page_boundaries
+from chronicle_app.services.pdf_rendering import PdfPageRenderer
 from chronicle_app.services.runtime_policies import normalize_model_name
 from chronicle_app.services.runtime_policies import wait_for_gemini_upload_ready
 
@@ -26,12 +31,15 @@ OPENAI_PDF_BASE64_FALLBACK_REASON = "OpenAI PDF direct upload is not available i
 CLAUDE_PDF_FILES_API_FALLBACK_REASON = "Claude Files API is unavailable for this PDF slice. Falling back to inline PDF mode."
 GEMINI_FILE_UPLOAD_TIMEOUT_MS = 300_000
 GEMINI_FILE_DELETE_TIMEOUT_MS = 30_000
-GEMINI_NONSTREAM_WALL_TIMEOUT_SEC = 180.0
+GEMINI_NONSTREAM_WALL_TIMEOUT_SEC = 420.0
 GEMINI_NONSTREAM_PROGRESS_LOG_SEC = 30.0
 DENSE_NEWSPAPER_DEFAULT_TILE_COUNT = 2
 DENSE_NEWSPAPER_MAX_TILE_COUNT = 4
+DENSE_NEWSPAPER_MAX_PARALLEL_STRIPS = 2
 DENSE_NEWSPAPER_TILE_OVERLAP_RATIO = 0.025
 DENSE_NEWSPAPER_LOCAL_OCR_MIN_CHARS = 8000
+DENSE_NEWSPAPER_MIN_STRIP_VISIBLE_CHARS = 120
+SCANNED_IMAGE_MAX_PARALLEL_PAGES = 2
 NLA_LOCAL_OCR_FAST_PATH_ENV = "CHRONICLE_NLA_LOCAL_OCR_FAST_PATH"
 NLA_TROVE_ARTICLE_OCR_ENV = "CHRONICLE_NLA_TROVE_ARTICLE_OCR"
 PDF_TEXT_FAST_PATH_ENV = "CHRONICLE_PDF_TEXT_FAST_PATH"
@@ -67,6 +75,12 @@ except ImportError:  # pragma: no cover - optional in lightweight test environme
 
 def _gemini_http_options(timeout_ms):
     return {"http_options": {"timeout": timeout_ms}}
+
+
+def _format_source_page_span(start_page, end_page, total_pages):
+    if start_page == end_page:
+        return f"page {start_page} of {total_pages} pages"
+    return f"pages {start_page}-{end_page} of {total_pages} pages"
 
 
 def process_pdf(
@@ -140,6 +154,17 @@ def process_pdf(
                 "Using smaller PDF slices to avoid long upload stalls."
             )
 
+    def emit_page_output(page_idx, text):
+        source_page = selected_page_indices[page_idx] + 1
+        rendered = ensure_source_page_boundary(text, source_page, fmt=fmt)
+        if f_obj is not None and hasattr(f_obj, "write"):
+            f_obj.write(rendered)
+            if hasattr(f_obj, "flush"):
+                f_obj.flush()
+        if mem is not None:
+            mem.append(rendered)
+        return rendered
+
     def is_dense_newspaper_pdf():
         if "HISTORICAL NEWSPAPER RULES" not in prompt:
             return False
@@ -160,88 +185,20 @@ def process_pdf(
             return normalize_model_name(auto_escalation_model)
         return None
 
-    def build_pdf_slice_bytes(start, end):
-        writer = pdf_writer_cls()
-        for idx in range(start, end):
-            writer.add_page(reader.pages[selected_page_indices[idx]])
-        buffer = io.BytesIO()
-        writer.write(buffer)
-        return buffer.getvalue()
-
-    def build_page_png_bytes(page_idx):
-        if fitz is None:
-            raise RuntimeError("PyMuPDF is unavailable for scanned PDF image rendering.")
-        last_error = None
-        for zoom in (1.8, 1.45, 1.2):
-            doc = None
-            try:
-                doc = fitz.open(path)
-                page = doc.load_page(selected_page_indices[page_idx])
-                pix = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom), alpha=False, colorspace=fitz.csRGB)
-                image_bytes = pix.tobytes("png")
-                if image_bytes:
-                    return image_bytes
-            except Exception as render_ex:
-                last_error = render_ex
-            finally:
-                if doc is not None:
-                    try:
-                        doc.close()
-                    except Exception:
-                        pass
-        raise RuntimeError(f"Could not render scanned PDF page image: {last_error}")
-
-    def get_dense_newspaper_tile_count(page_idx):
-        if fitz is None:
-            return DENSE_NEWSPAPER_DEFAULT_TILE_COUNT
-        doc = None
-        try:
-            doc = fitz.open(path)
-            page = doc.load_page(selected_page_indices[page_idx])
-            width = float(getattr(page.rect, "width", 0) or 0)
-            if width >= 1800:
-                return DENSE_NEWSPAPER_MAX_TILE_COUNT
-            if width >= 1450:
-                return 3
-            return DENSE_NEWSPAPER_DEFAULT_TILE_COUNT
-        except Exception:
-            return DENSE_NEWSPAPER_DEFAULT_TILE_COUNT
-        finally:
-            if doc is not None:
-                try:
-                    doc.close()
-                except Exception:
-                    pass
-
-    def build_page_tile_png_bytes(page_idx, tile_idx, tile_count):
-        if fitz is None:
-            raise RuntimeError("PyMuPDF is unavailable for dense newspaper image rendering.")
-        last_error = None
-        zooms = (1.7, 1.45, 1.2) if tile_count <= 2 else (2.0, 1.7, 1.45)
-        for zoom in zooms:
-            doc = None
-            try:
-                doc = fitz.open(path)
-                page = doc.load_page(selected_page_indices[page_idx])
-                rect = page.rect
-                overlap = rect.width * DENSE_NEWSPAPER_TILE_OVERLAP_RATIO
-                tile_width = rect.width / tile_count
-                x0 = max(rect.x0, rect.x0 + tile_idx * tile_width - (overlap if tile_idx else 0))
-                x1 = min(rect.x1, rect.x0 + (tile_idx + 1) * tile_width + (overlap if tile_idx < tile_count - 1 else 0))
-                clip = fitz.Rect(x0, rect.y0, x1, rect.y1)
-                pix = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom), clip=clip, alpha=False, colorspace=fitz.csRGB)
-                image_bytes = pix.tobytes("png")
-                if image_bytes:
-                    return image_bytes
-            except Exception as render_ex:
-                last_error = render_ex
-            finally:
-                if doc is not None:
-                    try:
-                        doc.close()
-                    except Exception:
-                        pass
-        raise RuntimeError(f"Could not render dense newspaper page strip: {last_error}")
+    page_renderer = PdfPageRenderer(
+        path=path,
+        reader=reader,
+        selected_page_indices=selected_page_indices,
+        pdf_writer_cls=pdf_writer_cls,
+        fitz_module=fitz,
+        dense_newspaper_default_tile_count=DENSE_NEWSPAPER_DEFAULT_TILE_COUNT,
+        dense_newspaper_max_tile_count=DENSE_NEWSPAPER_MAX_TILE_COUNT,
+        dense_newspaper_tile_overlap_ratio=DENSE_NEWSPAPER_TILE_OVERLAP_RATIO,
+    )
+    build_pdf_slice_bytes = page_renderer.build_pdf_slice_bytes
+    build_page_png_bytes = page_renderer.build_page_png_bytes
+    get_dense_newspaper_tile_count = page_renderer.get_dense_newspaper_tile_count
+    build_page_tile_png_bytes = page_renderer.build_page_tile_png_bytes
 
     def get_page_text_metrics(page_idx):
         try:
@@ -522,20 +479,28 @@ def process_pdf(
                     payload = build_payload_fn(request_model, request_prompt, mime="application/pdf", file_bytes=pdf_bytes)
                     return generate_retry_fn(client, request_model, payload, log_cb=log_cb)
 
-            stream_with_cache_fn(cache_key, _claude_pdf_request, out, fmt, f_obj, mem, log_cb, pause_cb=pause_cb)
+            local_memory = []
+            generated = stream_with_cache_fn(cache_key, _claude_pdf_request, out, fmt, None, local_memory, log_cb, pause_cb=pause_cb)
+            if generated is None and local_memory:
+                generated = "".join(str(part) for part in local_memory)
+            emit_page_output(page_idx, generated or "")
             return
         if "gpt" in request_model:
             payload = build_payload_fn(request_model, request_prompt, mime="application/pdf", file_bytes=pdf_bytes)
-            stream_with_cache_fn(
+            local_memory = []
+            generated = stream_with_cache_fn(
                 cache_key,
                 lambda: generate_retry_fn(client, request_model, payload, log_cb=log_cb),
                 out,
                 fmt,
-                f_obj,
-                mem,
+                None,
+                local_memory,
                 log_cb,
                 pause_cb=pause_cb,
             )
+            if generated is None and local_memory:
+                generated = "".join(str(part) for part in local_memory)
+            emit_page_output(page_idx, generated or "")
             return
 
         def _gemini_pdf_request():
@@ -547,7 +512,11 @@ def process_pdf(
 
             return response, _cleanup_upload
 
-        stream_with_cache_fn(cache_key, _gemini_pdf_request, out, fmt, f_obj, mem, log_cb, pause_cb=pause_cb)
+        local_memory = []
+        generated = stream_with_cache_fn(cache_key, _gemini_pdf_request, out, fmt, None, local_memory, log_cb, pause_cb=pause_cb)
+        if generated is None and local_memory:
+            generated = "".join(str(part) for part in local_memory)
+        emit_page_output(page_idx, generated or "")
 
     def process_text_fast_path(page_idx):
         nonlocal text_fast_path_logged
@@ -861,12 +830,7 @@ def process_pdf(
         else:
             direct_output = page_text.rstrip() + "\n\n"
 
-        if f_obj is not None:
-            f_obj.write(direct_output)
-            if hasattr(f_obj, "flush"):
-                f_obj.flush()
-        if mem is not None:
-            mem.append(direct_output)
+        emit_page_output(page_idx, direct_output)
         methods[page_idx] = "text-layer-fast"
         report_page(page_idx)
         report_progress(1, page_idx)
@@ -1085,112 +1049,72 @@ def process_pdf(
     def post_gemini_rest_generate(model_key, payload, api_key, error_prefix):
         body = json.dumps(payload).encode("utf-8")
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_key}:generateContent"
+        request = urllib.request.Request(
+            url,
+            data=body,
+            headers={
+                "Content-Type": "application/json",
+                "x-goog-api-key": api_key,
+            },
+            method="POST",
+        )
         try:
-            completed = subprocess.run(
-                [
-                    "/usr/bin/curl",
-                    "--silent",
-                    "--show-error",
-                    "--fail-with-body",
-                    "--http1.1",
-                    "--noproxy",
-                    "*",
-                    "--connect-timeout",
-                    "30",
-                    "--max-time",
-                    str(int(GEMINI_NONSTREAM_WALL_TIMEOUT_SEC)),
-                    "-H",
-                    "Content-Type: application/json",
-                    "-H",
-                    f"x-goog-api-key: {api_key}",
-                    "--data-binary",
-                    "@-",
-                    url,
-                ],
-                input=body,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                check=False,
-                timeout=GEMINI_NONSTREAM_WALL_TIMEOUT_SEC + 10.0,
-            )
-        except subprocess.TimeoutExpired as timeout_ex:
-            raise TimeoutError(f"{error_prefix}: curl timed out after {timeout_ex.timeout:.0f}s.") from timeout_ex
-        if completed.returncode != 0:
-            stdout_text = completed.stdout.decode("utf-8", errors="replace").strip()
-            stderr_text = completed.stderr.decode("utf-8", errors="replace").strip()
-            detail = stdout_text or stderr_text or f"curl exited {completed.returncode}"
-            raise RuntimeError(f"{error_prefix}: {detail}")
-        return completed.stdout
+            # Fixed Google HTTPS endpoint; see static security tests.
+            with urllib.request.urlopen(request, timeout=GEMINI_NONSTREAM_WALL_TIMEOUT_SEC) as response:  # nosec B310
+                return response.read()
+        except TimeoutError as timeout_ex:
+            raise TimeoutError(
+                f"{error_prefix}: request timed out after {GEMINI_NONSTREAM_WALL_TIMEOUT_SEC:.0f}s."
+            ) from timeout_ex
+        except urllib.error.HTTPError as http_ex:
+            detail = http_ex.read().decode("utf-8", errors="replace").strip() or str(http_ex)
+            raise RuntimeError(f"{error_prefix}: {detail}") from http_ex
+        except urllib.error.URLError as url_ex:
+            raise RuntimeError(f"{error_prefix}: {url_ex.reason}") from url_ex
 
     def iter_gemini_rest_stream_text(model_key, payload, api_key, error_prefix):
         body = json.dumps(payload).encode("utf-8")
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_key}:streamGenerateContent?alt=sse"
-        proc = subprocess.Popen(
-            [
-                "/usr/bin/curl",
-                "--silent",
-                "--show-error",
-                "--fail-with-body",
-                "--no-buffer",
-                "--http1.1",
-                "--noproxy",
-                "*",
-                "--connect-timeout",
-                "30",
-                "--max-time",
-                str(int(GEMINI_NONSTREAM_WALL_TIMEOUT_SEC)),
-                "-H",
-                "Content-Type: application/json",
-                "-H",
-                f"x-goog-api-key: {api_key}",
-                "--data-binary",
-                "@-",
-                url,
-            ],
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+        request = urllib.request.Request(
+            url,
+            data=body,
+            headers={
+                "Content-Type": "application/json",
+                "x-goog-api-key": api_key,
+            },
+            method="POST",
         )
         try:
-            proc.stdin.write(body)
-            proc.stdin.close()
-        except Exception:
-            try:
-                proc.kill()
-            except Exception:
-                pass
-            raise
-        try:
-            for raw_line in iter(proc.stdout.readline, b""):
-                line = raw_line.decode("utf-8", errors="replace").strip()
-                if not line or not line.startswith("data:"):
-                    continue
-                payload_text = line[5:].strip()
-                if not payload_text or payload_text == "[DONE]":
-                    continue
-                data = json.loads(payload_text)
-                if "error" in data:
-                    message = data.get("error", {}).get("message") or data["error"]
-                    raise RuntimeError(f"{error_prefix}: {message}")
-                parts = (
-                    data.get("candidates", [{}])[0]
-                    .get("content", {})
-                    .get("parts", [])
-                )
-                text = "".join(part.get("text", "") for part in parts if isinstance(part, dict))
-                if text:
-                    yield text
-            stderr_text = proc.stderr.read().decode("utf-8", errors="replace").strip()
-            return_code = proc.wait(timeout=5)
-            if return_code != 0:
-                detail = stderr_text or f"curl exited {return_code}"
-                raise RuntimeError(f"{error_prefix}: {detail}")
-        finally:
-            if proc.poll() is None:
-                try:
-                    proc.kill()
-                except Exception:
-                    pass
+            # Fixed Google HTTPS endpoint; see static security tests.
+            with urllib.request.urlopen(request, timeout=GEMINI_NONSTREAM_WALL_TIMEOUT_SEC) as response:  # nosec B310
+                for raw_line in response:
+                    line = raw_line.decode("utf-8", errors="replace").strip()
+                    if not line or not line.startswith("data:"):
+                        continue
+                    payload_text = line[5:].strip()
+                    if not payload_text or payload_text == "[DONE]":
+                        continue
+                    data = json.loads(payload_text)
+                    if "error" in data:
+                        message = data.get("error", {}).get("message") or data["error"]
+                        raise RuntimeError(f"{error_prefix}: {message}")
+                    parts = (
+                        data.get("candidates", [{}])[0]
+                        .get("content", {})
+                        .get("parts", [])
+                    )
+                    text = "".join(part.get("text", "") for part in parts if isinstance(part, dict))
+                    if text:
+                        yield text
+        except TimeoutError as timeout_ex:
+            raise TimeoutError(
+                f"{error_prefix}: request timed out after {GEMINI_NONSTREAM_WALL_TIMEOUT_SEC:.0f}s."
+            ) from timeout_ex
+        except urllib.error.HTTPError as http_ex:
+            detail = http_ex.read().decode("utf-8", errors="replace").strip() or str(http_ex)
+            raise RuntimeError(f"{error_prefix}: {detail}") from http_ex
+        except urllib.error.URLError as url_ex:
+            raise RuntimeError(f"{error_prefix}: {url_ex.reason}") from url_ex
 
     def generate_gemini_file_rest(request_model, uploaded, text_prompt, mime_type):
         api_key = resolve_gemini_rest_api_key()
@@ -1423,6 +1347,13 @@ def process_pdf(
         fragments.append("</section>")
         return "\n".join(fragments)
 
+    def dense_newspaper_visible_chars(rendered_text, source_page):
+        visible = re.sub(r"<[^>]+>", " ", str(rendered_text or ""))
+        visible = html.unescape(visible)
+        visible = re.sub(r"\bPage\s+%s\b" % re.escape(str(source_page)), " ", visible, flags=re.IGNORECASE)
+        visible = re.sub(r"\s+", " ", visible).strip()
+        return len(visible)
+
     def render_newspaper_ocr_line_as_html(line):
         compact = re.sub(r"\s+", " ", line or "").strip()
         if not compact:
@@ -1572,7 +1503,7 @@ def process_pdf(
         os.close(fd)
         return rendered_path
 
-    def process_scanned_image_only_page_with_pro(page_idx, request_model):
+    def process_scanned_image_only_page_with_pro(page_idx, request_model, *, write_directly=True):
         source_page = selected_page_indices[page_idx] + 1
         log_cb(
             f"[Gemini Image] Source page {source_page} is an image-only scanned PDF page. "
@@ -1620,7 +1551,19 @@ def process_pdf(
             return response, _cleanup_rendered_page
 
         try:
-            generated = stream_with_cache_fn(cache_key, _gemini_scanned_image_request, out, fmt, f_obj, mem, log_cb, pause_cb=pause_cb)
+            local_memory = []
+            generated = stream_with_cache_fn(
+                cache_key,
+                _gemini_scanned_image_request,
+                out,
+                fmt,
+                None,
+                local_memory,
+                log_cb,
+                pause_cb=pause_cb,
+            )
+            if generated is None and local_memory:
+                generated = "".join(str(part) for part in local_memory)
             generated_len = len(generated or "")
             log_cb(f"[Gemini Image] Full-page scanned image returned {generated_len} character(s).")
         except Exception:
@@ -1636,15 +1579,67 @@ def process_pdf(
             except Exception:
                 pass
         methods[page_idx] = "pro-scanned-page-image"
+        if write_directly:
+            emit_page_output(page_idx, generated or "")
+        return page_idx, generated or ""
+
+    def process_scanned_image_only_pages_with_pro(start_idx, request_model):
+        if pause_cb:
+            pause_cb()
+        stream_rest_available = bool(resolve_gemini_rest_api_key())
+        if not stream_rest_available:
+            process_scanned_image_only_page_with_pro(start_idx, request_model, write_directly=True)
+            return 1
+        page_indices = [start_idx]
+        lookahead = start_idx + 1
+        while len(page_indices) < SCANNED_IMAGE_MAX_PARALLEL_PAGES and lookahead < total:
+            eligible, _metrics = should_use_scanned_image_only_page(lookahead, 1)
+            if not eligible:
+                break
+            page_indices.append(lookahead)
+            lookahead += 1
+        if len(page_indices) <= 1:
+            process_scanned_image_only_page_with_pro(start_idx, request_model, write_directly=True)
+            return 1
+        source_pages = [selected_page_indices[idx] + 1 for idx in page_indices]
+        log_cb(
+            f"[Gemini Image] Processing {len(page_indices)} image-only scanned PDF pages in parallel "
+            f"({source_pages[0]}-{source_pages[-1]}), then writing them in source order."
+        )
+        results = {}
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=len(page_indices),
+            thread_name_prefix="chronicle-scanned-page",
+        ) as executor:
+            futures = [
+                executor.submit(process_scanned_image_only_page_with_pro, page_idx, request_model, write_directly=False)
+                for page_idx in page_indices
+            ]
+            for future in concurrent.futures.as_completed(futures):
+                page_idx, generated = future.result()
+                results[page_idx] = generated
+        for page_idx in page_indices:
+            generated = results.get(page_idx, "")
+            if not generated:
+                continue
+            emit_page_output(page_idx, generated)
+        return len(page_indices)
 
     def process_dense_newspaper_page_with_pro_tiles(page_idx, request_model):
         source_page = selected_page_indices[page_idx] + 1
         tile_count = get_dense_newspaper_tile_count(page_idx)
+        stream_rest_available = bool(resolve_gemini_rest_api_key()) and fmt in ("html", "epub")
         log_cb(
             f"[Gemini Image] Rendering source page {source_page} as "
             f"{tile_count} newspaper strips before upload via {normalize_model_name(request_model)}."
         )
-        for tile_idx in range(tile_count):
+        if stream_rest_available and tile_count > 1:
+            log_cb(
+                f"[Gemini Image] Processing up to {min(tile_count, DENSE_NEWSPAPER_MAX_PARALLEL_STRIPS)} "
+                "newspaper strips in parallel for this page."
+            )
+
+        def process_one_tile(tile_idx, *, write_directly):
             tile_num = tile_idx + 1
             image_name = f"chronicle_page_{source_page}_strip_{tile_num}.png"
             image_bytes = build_page_tile_png_bytes(page_idx, tile_idx, tile_count)
@@ -1662,7 +1657,6 @@ def process_pdf(
                 "pdf-newspaper-pro-image-strip",
                 f"{page_idx}:{tile_idx}:{hashlib.sha256(image_bytes).hexdigest()}",
             )
-            stream_rest_available = bool(resolve_gemini_rest_api_key()) and fmt in ("html", "epub")
 
             def _gemini_tile_request(image_name=image_name, image_bytes=image_bytes, tile_prompt=tile_prompt, tile_num=tile_num):
                 transport_label = "streaming inline REST" if stream_rest_available else "inline REST"
@@ -1685,9 +1679,21 @@ def process_pdf(
 
             last_tile_ex = None
             max_attempts = 1 if stream_rest_available else 2
+            local_memory = []
             for attempt in range(max_attempts):
                 try:
-                    generated = stream_with_cache_fn(tile_key, _gemini_tile_request, out, fmt, f_obj, mem, log_cb, pause_cb=pause_cb)
+                    generated = stream_with_cache_fn(
+                        tile_key,
+                        _gemini_tile_request,
+                        out,
+                        fmt,
+                        None,
+                        local_memory,
+                        log_cb,
+                        pause_cb=pause_cb,
+                    )
+                    if generated is None and local_memory:
+                        generated = "".join(str(part) for part in local_memory)
                     break
                 except Exception as tile_ex:
                     last_tile_ex = tile_ex
@@ -1699,10 +1705,54 @@ def process_pdf(
                     else:
                         raise last_tile_ex
             generated_len = len(generated or "")
+            visible_len = dense_newspaper_visible_chars(generated, source_page)
+            if visible_len < DENSE_NEWSPAPER_MIN_STRIP_VISIBLE_CHARS:
+                raise RuntimeError(
+                    f"Gemini dense newspaper strip {tile_num}/{tile_count} returned too little readable text "
+                    f"({visible_len} visible character(s))."
+                )
             log_cb(
                 f"[Gemini Image] Dense newspaper strip {tile_num}/{tile_count} "
                 f"returned {generated_len} character(s)."
             )
+            if write_directly:
+                if tile_idx == 0:
+                    emit_page_output(page_idx, generated or "")
+                else:
+                    if f_obj is not None and hasattr(f_obj, "write"):
+                        f_obj.write(generated or "")
+                        if hasattr(f_obj, "flush"):
+                            f_obj.flush()
+                    if mem is not None:
+                        mem.append(generated or "")
+            return tile_idx, generated or ""
+
+        if stream_rest_available and tile_count > 1:
+            results = ["" for _ in range(tile_count)]
+            max_workers = min(tile_count, DENSE_NEWSPAPER_MAX_PARALLEL_STRIPS)
+            with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="chronicle-newspaper-strip") as executor:
+                futures = [
+                    executor.submit(process_one_tile, tile_idx, write_directly=False)
+                    for tile_idx in range(tile_count)
+                ]
+                for future in concurrent.futures.as_completed(futures):
+                    tile_idx, generated = future.result()
+                    results[tile_idx] = generated
+            for tile_idx, generated in enumerate(results):
+                if not generated:
+                    continue
+                if tile_idx == 0:
+                    emit_page_output(page_idx, generated)
+                else:
+                    if f_obj is not None and hasattr(f_obj, "write"):
+                        f_obj.write(generated)
+                        if hasattr(f_obj, "flush"):
+                            f_obj.flush()
+                    if mem is not None:
+                        mem.append(generated)
+        else:
+            for tile_idx in range(tile_count):
+                process_one_tile(tile_idx, write_directly=True)
         methods[page_idx] = "pro-image-strips"
 
     while curr < total:
@@ -1719,6 +1769,8 @@ def process_pdf(
             ),
             remaining,
         )
+        if output_format_keeps_page_boundaries(fmt):
+            chunk = 1
         if is_dense_newspaper_pdf() and resolve_dense_newspaper_strip_model():
             chunk = 1
         use_local_ocr, local_ocr_metrics = should_use_dense_newspaper_local_ocr(curr)
@@ -1801,31 +1853,39 @@ def process_pdf(
                             payload = build_payload_fn(model, prompt, mime="application/pdf", file_bytes=pdf_bytes)
                             return generate_retry_fn(client, model, payload, log_cb=log_cb)
 
-                    stream_with_cache_fn(
+                    local_memory = []
+                    generated = stream_with_cache_fn(
                         cache_key,
                         _claude_pdf_request,
                         out,
                         fmt,
-                        f_obj,
-                        mem,
+                        None,
+                        local_memory,
                         log_cb,
                         pause_cb=pause_cb,
                     )
+                    if generated is None and local_memory:
+                        generated = "".join(str(part) for part in local_memory)
+                    emit_page_output(curr, generated or "")
                 elif "gpt" in model:
                     pdf_bytes = build_pdf_slice_bytes(curr, end)
                     pdf_fingerprint = hashlib.sha256(pdf_bytes).hexdigest()
                     payload = build_payload_fn(model, prompt, mime="application/pdf", file_bytes=pdf_bytes)
                     cache_key = build_request_cache_key_fn(model, prompt, "pdf-vision", f"{curr}:{end}:{pdf_fingerprint}")
-                    stream_with_cache_fn(
+                    local_memory = []
+                    generated = stream_with_cache_fn(
                         cache_key,
                         lambda: generate_retry_fn(client, model, payload, log_cb=log_cb),
                         out,
                         fmt,
-                        f_obj,
-                        mem,
+                        None,
+                        local_memory,
                         log_cb,
                         pause_cb=pause_cb,
                     )
+                    if generated is None and local_memory:
+                        generated = "".join(str(part) for part in local_memory)
+                    emit_page_output(curr, generated or "")
                 else:
                     if dense_newspaper_strip_model:
                         if normalize_model_name(dense_newspaper_strip_model) != normalize_model_name(model):
@@ -1843,11 +1903,12 @@ def process_pdf(
                             gc.collect()
                         continue
                     if scanned_image_model:
-                        process_scanned_image_only_page_with_pro(curr, scanned_image_model)
+                        processed_pages = process_scanned_image_only_pages_with_pro(curr, scanned_image_model)
                         success = True
-                        report_page(curr)
-                        report_progress(1, curr)
-                        curr += 1
+                        for processed_idx in range(curr, curr + processed_pages):
+                            report_page(processed_idx)
+                            report_progress(1, processed_idx)
+                        curr += processed_pages
                         if curr > 0 and curr % 2 == 0:
                             gc.collect()
                         continue
@@ -1878,9 +1939,13 @@ def process_pdf(
 
                             return response, _cleanup_upload
                         uploaded = upload_gemini_pdf_slice(pdf_name, pdf_bytes)
+                        page_span = _format_source_page_span(
+                            selected_page_indices[curr] + 1,
+                            selected_page_indices[end - 1] + 1,
+                            total_document_pages,
+                        )
                         log_cb(
-                            f"[Gemini PDF] Requesting model output for pages "
-                            f"{selected_page_indices[curr] + 1}-{selected_page_indices[end - 1] + 1} via {normalize_model_name(model)}."
+                            f"[Gemini PDF] Requesting model output for {page_span} via {normalize_model_name(model)}."
                         )
                         if is_dense_newspaper_pdf() and "gemini-2.5-pro" in normalize_model_name(model).lower():
                             log_cb(
@@ -1903,7 +1968,11 @@ def process_pdf(
 
                         return response, _cleanup_upload
 
-                    stream_with_cache_fn(cache_key, _gemini_pdf_request, out, fmt, f_obj, mem, log_cb, pause_cb=pause_cb)
+                    local_memory = []
+                    generated = stream_with_cache_fn(cache_key, _gemini_pdf_request, out, fmt, None, local_memory, log_cb, pause_cb=pause_cb)
+                    if generated is None and local_memory:
+                        generated = "".join(str(part) for part in local_memory)
+                    emit_page_output(curr, generated or "")
                 success = True
                 for idx in range(curr, end):
                     report_page(idx)
@@ -1992,16 +2061,20 @@ def process_pdf(
 
                                 return response, _cleanup_upload
 
-                            stream_with_cache_fn(
+                            local_memory = []
+                            generated = stream_with_cache_fn(
                                 dense_key,
                                 _gemini_auto_escalation_request,
                                 out,
                                 fmt,
-                                f_obj,
-                                mem,
+                                None,
+                                local_memory,
                                 log_cb,
                                 pause_cb=pause_cb,
                             )
+                            if generated is None and local_memory:
+                                generated = "".join(str(part) for part in local_memory)
+                            emit_page_output(curr, generated or "")
                             penalties[curr] += 0.08
                             methods[curr] = "auto-escalated"
                             escalated_pages.add(curr)
@@ -2038,16 +2111,20 @@ def process_pdf(
                                     "pdf-dense",
                                     f"{curr}:{hashlib.sha256(retry_pdf_bytes).hexdigest()}",
                                 )
-                                stream_with_cache_fn(
+                                local_memory = []
+                                generated = stream_with_cache_fn(
                                     dense_key,
                                     lambda: generate_retry_fn(client, model, payload, log_cb=log_cb),
                                     out,
                                     fmt,
-                                    f_obj,
-                                    mem,
+                                    None,
+                                    local_memory,
                                     log_cb,
                                     pause_cb=pause_cb,
                                 )
+                                if generated is None and local_memory:
+                                    generated = "".join(str(part) for part in local_memory)
+                                emit_page_output(curr, generated or "")
                             else:
                                 dense_key = build_request_cache_key_fn(
                                     model,
@@ -2079,16 +2156,20 @@ def process_pdf(
 
                                     return response, _cleanup_upload
 
-                                stream_with_cache_fn(
+                                local_memory = []
+                                generated = stream_with_cache_fn(
                                     dense_key,
                                     _gemini_dense_request,
                                     out,
                                     fmt,
-                                    f_obj,
-                                    mem,
+                                    None,
+                                    local_memory,
                                     log_cb,
                                     pause_cb=pause_cb,
                                 )
+                                if generated is None and local_memory:
+                                    generated = "".join(str(part) for part in local_memory)
+                                emit_page_output(curr, generated or "")
                             log_cb(f"[Recovery] Dense-page recheck succeeded on page {selected_page_indices[curr] + 1}.")
                             penalties[curr] += 0.10
                             methods[curr] = "dense-recheck"
@@ -2115,6 +2196,7 @@ def process_pdf(
                     if units and txt != "[Unreadable Image Layer]":
                         if len(units) > 1:
                             log_cb(f"[FAIL-SAFE] Page {curr+1} text-layer recovery using {len(units)} sentence/segment passes.")
+                        recovered_units = []
                         for unit in units:
                             strict_prompt = (
                                 prompt
@@ -2131,16 +2213,21 @@ def process_pdf(
                                 "pdf-text-failsafe-unit",
                                 sha256_text_fn(unit),
                             )
-                            stream_with_cache_fn(
+                            local_memory = []
+                            generated = stream_with_cache_fn(
                                 unit_key,
                                 lambda payload=payload: generate_retry_fn(client, model, payload, log_cb=log_cb),
                                 out,
                                 fmt,
-                                f_obj,
-                                mem,
+                                None,
+                                local_memory,
                                 log_cb,
                                 pause_cb=pause_cb,
                             )
+                            if generated is None and local_memory:
+                                generated = "".join(str(part) for part in local_memory)
+                            recovered_units.append(generated or "")
+                        emit_page_output(curr, "".join(recovered_units))
                     else:
                         payload = txt + "\n\n" + prompt if ("claude" in model or "gpt" in model) else [txt, prompt]
                         txt_key = build_request_cache_key_fn(
@@ -2149,16 +2236,20 @@ def process_pdf(
                             "pdf-text-failsafe",
                             sha256_text_fn(txt),
                         )
-                        stream_with_cache_fn(
+                        local_memory = []
+                        generated = stream_with_cache_fn(
                             txt_key,
                             lambda payload=payload: generate_retry_fn(client, model, payload, log_cb=log_cb),
                             out,
                             fmt,
-                            f_obj,
-                            mem,
+                            None,
+                            local_memory,
                             log_cb,
                             pause_cb=pause_cb,
                         )
+                        if generated is None and local_memory:
+                            generated = "".join(str(part) for part in local_memory)
+                        emit_page_output(curr, generated or "")
                     penalties[curr] += 0.28
                     methods[curr] = "text-layer-fallback"
                     success = True

@@ -1,5 +1,6 @@
 import io
 import os
+import re
 import sys
 import tempfile
 import types
@@ -7,6 +8,7 @@ import unittest
 from unittest import mock
 
 from chronicle_core import normalize_streamed_html_document, write_header
+from chronicle_app.services.offline_prompting import OFFLINE_PRIVATE_MODE_SUITABILITY
 from chronicle_app.services.runtime_policies import DEFAULT_CLAUDE_MODEL
 
 
@@ -59,6 +61,19 @@ _install_gui_import_stubs()
 
 import chronicle_runtime as chronicle
 import chronicle_gui
+
+
+def _relative_luminance(hex_color):
+    value = hex_color.lstrip("#")
+    channels = [int(value[index:index + 2], 16) / 255 for index in (0, 2, 4)]
+    linear = [channel / 12.92 if channel <= 0.04045 else ((channel + 0.055) / 1.055) ** 2.4 for channel in channels]
+    return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2]
+
+
+def _contrast_ratio(foreground, background):
+    lighter = max(_relative_luminance(foreground), _relative_luminance(background))
+    darker = min(_relative_luminance(foreground), _relative_luminance(background))
+    return (lighter + 0.05) / (darker + 0.05)
 
 
 class _FakeEpubHtml:
@@ -287,6 +302,15 @@ class AccessibilityContractsTest(unittest.TestCase):
             self.assertNotIn(first_line, summaries.values(), f"Duplicate tooltip summary detected for {key}")
             summaries[key] = first_line
 
+    def test_private_offline_mode_tooltip_warns_against_complex_sources(self):
+        warning = OFFLINE_PRIVATE_MODE_SUITABILITY.lower()
+
+        self.assertIn("clean, text-based pdfs", warning)
+        self.assertIn("handwriting", warning)
+        self.assertIn("dense images", warning)
+        self.assertIn("layout-heavy scans", warning)
+        self.assertIn("online ai mode", warning)
+
     def test_flyer_prompt_keeps_short_form_hierarchy_rules(self):
         cfg = self._base_cfg(doc_profile="flyer")
 
@@ -429,8 +453,184 @@ class AccessibilityContractsTest(unittest.TestCase):
         rendered = buf.getvalue()
 
         self.assertIn('<html lang="mi" dir="rtl">', rendered)
-        self.assertIn('<main id="content" role="main">', rendered)
+        self.assertIn('<a class="skip-link" href="#content">Skip to content</a>', rendered)
+        self.assertIn('<main id="content" role="main" aria-labelledby="document-title">', rendered)
+        self.assertIn('<h1 id="document-title">Chronicle Sample</h1>', rendered)
         self.assertIn("<title>Chronicle Sample</title>", rendered)
+
+    def test_html_wrapper_color_contrast_meets_wcag_aa(self):
+        buf = io.StringIO()
+
+        write_header(buf, "Contrast Sample", "html")
+        rendered = buf.getvalue()
+        variables = {
+            name: color
+            for name, color in re.findall(r"--([a-z-]+):\s*(#[0-9a-fA-F]{6})", rendered)
+        }
+
+        checks = [
+            ("body text", variables["text"], variables["bg"]),
+            ("muted text", variables["muted"], variables["surface"]),
+            ("skip link", "#0f172a", "#ffffff"),
+            ("page navigation link", "#1d4ed8", variables["surface"]),
+            ("table header text", variables["text"], "#eef3f8"),
+            ("focus outline on surface", "#1d4ed8", variables["surface"]),
+        ]
+        for label, foreground, background in checks:
+            with self.subTest(label=label):
+                self.assertGreaterEqual(_contrast_ratio(foreground, background), 4.5)
+
+    def test_normalizer_adds_accessible_page_navigation_for_multipage_html(self):
+        raw = """<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head><title>Sample</title></head>
+<body>
+<main id="content" role="main" aria-labelledby="document-title">
+<h1 id="document-title">Sample</h1>
+<h2>Page 1</h2><p>One.</p>
+<h2>Page 2</h2><p>Two.</p>
+</main>
+</body>
+</html>"""
+
+        cleaned = normalize_streamed_html_document(raw)
+
+        self.assertIn('aria-label="Page navigation"', cleaned)
+        self.assertIn('<a href="#page-1">Page 1</a>', cleaned)
+        self.assertIn('<a href="#page-2">Page 2</a>', cleaned)
+        self.assertIn('<h2 id="page-1">Page 1</h2>', cleaned)
+        self.assertIn('<h2 id="page-2">Page 2</h2>', cleaned)
+
+    def test_normalizer_honors_disabled_page_navigation(self):
+        raw = """<!DOCTYPE html>
+<html><head><title>Sample</title></head><body>
+<main id="content"><h1 id="document-title">Sample</h1><h2>Page 1</h2><p>One.</p><h2>Page 2</h2><p>Two.</p></main>
+</body></html>"""
+
+        cleaned = normalize_streamed_html_document(raw, insert_page_navigation=False)
+
+        self.assertNotIn('aria-label="Page navigation"', cleaned)
+        self.assertNotIn('id="page-1"', cleaned)
+        self.assertIn("<h2>Page 1</h2>", cleaned)
+        self.assertIn("<h2>Page 2</h2>", cleaned)
+
+    def test_large_html_normalizer_still_adds_page_navigation(self):
+        oversized_paragraph = "Long newspaper text. " * 12000
+        raw = f"""<!DOCTYPE html>
+<html><head><title>Large Sample</title></head><body>
+<main id="content" role="main" aria-labelledby="document-title">
+<h1 id="document-title">Large Sample</h1>
+<h2>Page 1</h2><p>{oversized_paragraph}</p>
+<h2>Page 2</h2><p>Two.</p>
+</main>
+</body></html>"""
+
+        cleaned = normalize_streamed_html_document(raw)
+
+        self.assertIn('aria-label="Page navigation"', cleaned)
+        self.assertIn('<a href="#page-1">Page 1</a>', cleaned)
+        self.assertIn('<a href="#page-2">Page 2</a>', cleaned)
+        self.assertIn('<h2 id="page-1">Page 1</h2>', cleaned)
+        self.assertIn('<h2 id="page-2">Page 2</h2>', cleaned)
+
+    def test_large_html_normalizer_honors_disabled_page_navigation(self):
+        oversized_paragraph = "Long newspaper text. " * 12000
+        raw = f"""<!DOCTYPE html>
+<html><head><title>Large Sample</title></head><body>
+<main id="content"><h1 id="document-title">Large Sample</h1>
+<h2>Page 1</h2><p>{oversized_paragraph}</p>
+<h2>Page 2</h2><p>Two.</p></main>
+</body></html>"""
+
+        cleaned = normalize_streamed_html_document(raw, insert_page_navigation=False)
+
+        self.assertNotIn('aria-label="Page navigation"', cleaned)
+        self.assertNotIn('id="page-1"', cleaned)
+        self.assertIn("<h2>Page 1</h2>", cleaned)
+        self.assertIn("<h2>Page 2</h2>", cleaned)
+
+    def test_normalizer_recovers_single_page_boundary_from_newspaper_metadata(self):
+        raw = """<!DOCTYPE html>
+<html><head><title>Article</title></head><body>
+<main id="content" role="main" aria-labelledby="document-title">
+<h1 id="document-title">Article</h1>
+<header><cite>Wodonga and Towong Sentinel, Friday 15 December 1944, page 1</cite></header>
+<article><h2>Story Heading</h2><p>Body.</p></article>
+</main>
+</body></html>"""
+
+        cleaned = normalize_streamed_html_document(raw)
+
+        self.assertIn("<h2", cleaned)
+        self.assertIn(">Page 1</h2>", cleaned)
+        self.assertLess(cleaned.index("Page 1"), cleaned.index("Story Heading"))
+
+    def test_no_translation_output_defaults_to_declared_target_language_not_und(self):
+        cfg = self._base_cfg(translate_mode="none", translate_target="English")
+
+        self.assertEqual(chronicle_gui.get_output_lang_code(cfg), "en")
+        self.assertEqual(chronicle_gui.get_output_text_direction(cfg), "ltr")
+
+    def test_source_language_override_controls_html_and_epub_metadata(self):
+        cfg = self._base_cfg(translate_mode="none", source_lang_code="ar")
+
+        self.assertEqual(chronicle_gui.get_output_lang_code(cfg), "ar")
+        self.assertEqual(chronicle_gui.get_output_text_direction(cfg), "rtl")
+
+    def test_normalizer_demotes_extra_h1s_to_keep_single_document_title(self):
+        raw = """<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head><title>Sample</title></head>
+<body>
+<main id="content" role="main">
+<h1 id="document-title">Sample</h1>
+<h1>Model Title</h1>
+<h3>Subsection</h3>
+<p>Body.</p>
+</main>
+</body>
+</html>"""
+
+        cleaned = normalize_streamed_html_document(raw)
+
+        self.assertEqual(cleaned.count("<h1"), 1)
+        self.assertRegex(cleaned, r"<h2\b[^>]*>Model Title</h2>")
+        self.assertRegex(cleaned, r"<h2\b[^>]*>Subsection</h2>")
+
+    def test_all_presets_carry_accessibility_contracts_across_user_formats(self):
+        formats = ("html", "docx", "md", "txt", "epub", "pdf", "json", "csv")
+        for profile_key, _label in chronicle_gui.PROFILE_CHOICES:
+            for fmt in formats:
+                with self.subTest(profile=profile_key, fmt=fmt):
+                    prompt = chronicle_gui.build_prompt(self._base_cfg(doc_profile=profile_key, format_type=fmt))
+                    self.assertIn("WCAG 2.2 COMPLIANCE", prompt)
+                    self.assertIn("ACCESSIBILITY REMEDIATION & RECOVERY", prompt)
+                    self.assertIn("PDF / SCANNED PAGE RULES", prompt)
+                    if fmt in ("html", "epub"):
+                        self.assertIn("LANGUAGE", prompt)
+                        self.assertIn("BIDIRECTIONAL TEXT ACCESSIBILITY", prompt)
+                        self.assertIn("scope=\"col\"", prompt)
+                    else:
+                        self.assertIn("STRICT NON-HTML RENDERING MODE", prompt)
+                    if fmt == "docx":
+                        self.assertIn("WORD / DOCX OUTPUT RULES", prompt)
+                        self.assertIn("[[PAGE BREAK]]", prompt)
+                    if fmt == "csv":
+                        self.assertIn("CSV OUTPUT MODE", prompt)
+
+    def test_all_profile_presets_keep_meaningful_image_descriptions_available(self):
+        for profile_key, _label in chronicle_gui.PROFILE_CHOICES:
+            with self.subTest(profile=profile_key):
+                preset = chronicle_gui.PROFILE_PRESETS[profile_key]
+                self.assertTrue(preset["image_descriptions"])
+
+    def test_pdf_prompt_and_metadata_are_clear_about_untagged_pdf_limit(self):
+        prompt = chronicle_gui.build_prompt(self._base_cfg(doc_profile="standard", format_type="pdf"))
+
+        self.assertIn("STRICT NON-HTML RENDERING MODE", prompt)
+        self.assertIn("PDF / SCANNED PAGE RULES", prompt)
+        self.assertIn("PDF OUTPUT ACCESSIBILITY NOTE", prompt)
+        self.assertIn("does not create a tagged PDF/UA structure tree", prompt)
 
     def test_gui_queue_display_status_marks_review_recommended_jobs(self):
         frame = types.SimpleNamespace()
@@ -742,10 +942,10 @@ class AccessibilityContractsTest(unittest.TestCase):
     def test_gui_pdf_chunk_pages_are_more_conservative_for_slow_engines_and_large_newspapers(self):
         self.assertEqual(chronicle_gui.get_pdf_chunk_pages(DEFAULT_CLAUDE_MODEL, "newspaper", 36), 1)
         self.assertEqual(chronicle_gui.get_pdf_chunk_pages("gpt-4o", "newspaper", 36), 1)
-        self.assertEqual(chronicle_gui.get_pdf_chunk_pages("gemini-2.5-pro", "newspaper", 36), 2)
+        self.assertEqual(chronicle_gui.get_pdf_chunk_pages("gemini-2.5-pro", "newspaper", 36), 1)
         self.assertEqual(chronicle_gui.get_pdf_chunk_pages("gemini-2.5-pro", "newspaper", 8, file_size_mb=8.9), 1)
         self.assertEqual(chronicle_gui.get_pdf_chunk_pages("gemini-2.5-pro", "comic", 24), 1)
-        self.assertEqual(chronicle_gui.get_pdf_chunk_pages("gemini-2.5-pro", "standard", 10), 2)
+        self.assertEqual(chronicle_gui.get_pdf_chunk_pages("gemini-2.5-pro", "standard", 10), 1)
 
     def test_cli_pdf_chunk_pages_match_gentle_large_document_policy(self):
         self.assertEqual(chronicle.get_pdf_chunk_pages(DEFAULT_CLAUDE_MODEL, "newspaper", 36), 1)
@@ -838,7 +1038,7 @@ class AccessibilityContractsTest(unittest.TestCase):
 
         self.assertIs(result, ready)
 
-    def test_gui_process_pdf_gearshifts_down_before_falling_back(self):
+    def test_gui_process_pdf_keeps_html_pages_independent_after_failure(self):
         class FakePage:
             def __init__(self, text):
                 self._text = text
@@ -885,12 +1085,11 @@ class AccessibilityContractsTest(unittest.TestCase):
                 page_progress_cb=lambda done, total: page_progress.append((done, total)),
             )
 
-        self.assertEqual(len(calls), 3)
-        self.assertIn("0:2", calls[0])
-        self.assertIn("0:1", calls[1])
-        self.assertIn("1:3", calls[2])
-        self.assertTrue(any("Gearshift Triggered" in line for line in logs))
-        self.assertTrue(any("Throttling down" in line for line in logs))
+        self.assertEqual(len(calls), 4)
+        self.assertIn("0:1", calls[0])
+        self.assertIn("0:", calls[1])
+        self.assertIn("1:2", calls[2])
+        self.assertIn("2:3", calls[3])
         self.assertEqual(page_progress[-1], (3, 3))
 
     def test_pdf_page_scope_parser_accepts_space_separated_ranges(self):
