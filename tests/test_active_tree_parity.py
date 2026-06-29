@@ -6,8 +6,6 @@ import unittest
 PRIMARY_ROOT = Path(__file__).resolve().parents[1]
 ACTIVE_TREE_ROOTS = [
     PRIMARY_ROOT,
-    PRIMARY_ROOT.parent / "Chronicle Beta",
-    PRIMARY_ROOT.parent / "Chronicle windows Beta",
 ]
 
 CRITICAL_PARITY_FILES = [
@@ -39,6 +37,9 @@ class ActiveTreeParityTest(unittest.TestCase):
         self.assertEqual(missing, [], f"Missing active Chronicle tree(s): {missing}")
 
     def test_critical_files_match_across_active_trees(self):
+        if len(ACTIVE_TREE_ROOTS) == 1:
+            self.skipTest("Only the canonical Chronicle tree is active.")
+
         reference_hashes = {}
         for rel_path in CRITICAL_PARITY_FILES:
             reference_file = PRIMARY_ROOT / rel_path

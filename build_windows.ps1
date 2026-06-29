@@ -10,9 +10,27 @@ $logFile = Join-Path $logDir "windows_build_$timestamp.log"
 
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 
+function Write-BuildOutput {
+    process {
+        $line = [string]$_
+        if ($env:CHRONICLE_SYNC_TRACE_LOG) {
+            $line |
+                Tee-Object -FilePath $logFile -Append |
+                Tee-Object -FilePath $easyLog -Append |
+                Out-Host
+            Add-Content -Path $env:CHRONICLE_SYNC_TRACE_LOG -Value $line -Encoding UTF8
+        } else {
+            $line |
+                Tee-Object -FilePath $logFile -Append |
+                Tee-Object -FilePath $easyLog -Append |
+                Out-Host
+        }
+    }
+}
+
 function Write-Log {
     param([string]$Message)
-    $Message | Tee-Object -FilePath $logFile -Append | Tee-Object -FilePath $easyLog -Append | Out-Host
+    $Message | Write-BuildOutput
 }
 
 function Fail-Build {
@@ -33,8 +51,10 @@ function Invoke-PyInstallerBuild {
 
     $previousConfigDir = $env:PYINSTALLER_CONFIG_DIR
     $previousWarnings = $env:PYTHONWARNINGS
+    $previousErrorActionPreference = $ErrorActionPreference
 
     try {
+        $ErrorActionPreference = "Continue"
         if ($Environment.ContainsKey("PYINSTALLER_CONFIG_DIR")) {
             $env:PYINSTALLER_CONFIG_DIR = $Environment["PYINSTALLER_CONFIG_DIR"]
         }
@@ -42,14 +62,45 @@ function Invoke-PyInstallerBuild {
             $env:PYTHONWARNINGS = $Environment["PYTHONWARNINGS"]
         }
 
-        & $PythonBin $Arguments 2>&1 |
-            Tee-Object -FilePath $logFile -Append |
-            Tee-Object -FilePath $easyLog -Append |
-            Out-Host
+        & $PythonBin $Arguments 2>&1 | Write-BuildOutput
         return $LASTEXITCODE
     } finally {
         $env:PYINSTALLER_CONFIG_DIR = $previousConfigDir
         $env:PYTHONWARNINGS = $previousWarnings
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+}
+
+function Invoke-NativeLogged {
+    param(
+        [string]$Command,
+        [string[]]$Arguments
+    )
+
+    $previousErrorActionPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = "Continue"
+        & $Command @Arguments 2>&1 | Write-BuildOutput
+        return $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+}
+
+function Assert-NoEmbeddedOfflinePayload {
+    param([string]$AppDir)
+
+    $blockedPaths = @(
+        (Join-Path $AppDir "_internal\offline\models"),
+        (Join-Path $AppDir "_internal\offline\ollama"),
+        (Join-Path $AppDir "offline\models"),
+        (Join-Path $AppDir "offline\ollama")
+    )
+
+    foreach ($blockedPath in $blockedPaths) {
+        if (Test-Path $blockedPath) {
+            Fail-Build "Windows app build contains embedded Private Offline Mode payload at $blockedPath. App builds must stay slim; Private Offline Mode now uses the user's existing Ollama installation."
+        }
     }
 }
 
@@ -120,27 +171,26 @@ foreach ($artifact in $staleArtifacts) {
     }
 }
 
-Write-Log "Latest resource roots will be bundled from the current workspace:"
+Write-Log "Latest slim resource roots will be bundled from the current workspace:"
 Write-Log "- Assets: $(Join-Path $rootDir 'assets')"
 Write-Log "- Docs:   $(Join-Path $rootDir 'docs')"
+Write-Log "Building slim Windows app without bundled Private Offline Mode resources."
+Write-Log "Private Offline Mode uses the user's existing Ollama installation with qwen2.5vl:7b."
+if (($env:CHRONICLE_BUNDLE_OFFLINE_PACK -eq "1") -or ($env:CHRONICLE_REQUIRE_OFFLINE_PACK -eq "1")) {
+    Write-Log "Ignoring legacy offline-bundle environment flags; app builds no longer embed offline model/runtime payloads."
+}
 
 Write-Log ""
 Write-Log "Installing requirements..."
-& $pythonBin -m pip install -r (Join-Path $rootDir "requirements.txt") 2>&1 |
-    Tee-Object -FilePath $logFile -Append |
-    Tee-Object -FilePath $easyLog -Append |
-    Out-Host
-if ($LASTEXITCODE -ne 0) {
+$pipExit = Invoke-NativeLogged -Command $pythonBin -Arguments @("-m", "pip", "install", "-r", (Join-Path $rootDir "requirements.txt"))
+if ($pipExit -ne 0) {
     Fail-Build "Dependency install failed."
 }
 
 Write-Log ""
 Write-Log "PyInstaller version:"
-& $pythonBin -m PyInstaller --version 2>&1 |
-    Tee-Object -FilePath $logFile -Append |
-    Tee-Object -FilePath $easyLog -Append |
-    Out-Host
-if ($LASTEXITCODE -ne 0) {
+$pyinstallerVersionExit = Invoke-NativeLogged -Command $pythonBin -Arguments @("-m", "PyInstaller", "--version")
+if ($pyinstallerVersionExit -ne 0) {
     Fail-Build "PyInstaller is not available."
 }
 
@@ -184,7 +234,6 @@ if ($jaracoPath -and (Test-Path $jaracoPath)) {
 } else {
     Write-Log "WARNING: setuptools jaraco vendor path not found."
 }
-
 $pyArgs.AddRange([string[]]@(
     "--hidden-import", "wx",
     "--hidden-import", "wx.adv",
@@ -232,6 +281,10 @@ $pyArgs.AddRange([string[]]@(
     "--exclude-module", "pycparser.yacctab",
     "--exclude-module", "charset_normalizer.md__mypyc",
     "--exclude-module", "pydantic.v1",
+    "--exclude-module", "matplotlib",
+    "--exclude-module", "scipy",
+    "--exclude-module", "pandas",
+    "--exclude-module", "sklearn",
     (Join-Path $rootDir "chronicle_gui.py")
 ))
 
@@ -258,6 +311,7 @@ try {
     if ($buildExit -ne 0) {
         Fail-Build "PyInstaller build failed."
     }
+    Assert-NoEmbeddedOfflinePayload -AppDir (Join-Path $rootDir "dist\Chronicle")
 } finally {
     Pop-Location
 }

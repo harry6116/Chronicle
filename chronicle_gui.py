@@ -71,6 +71,7 @@ from chronicle_app.services.prompting import (
     get_translation_target as shared_get_translation_target,
     strip_synthetic_page_filename_headings as shared_strip_synthetic_page_filename_headings,
 )
+from chronicle_app.services.offline_prompting import OFFLINE_PRIVATE_MODE_SUITABILITY, build_offline_prompt
 from chronicle_app.config import (
     MODEL_LABEL_BY_KEY,
     PROFILE_CHOICES,
@@ -82,16 +83,29 @@ from chronicle_app.config import (
 )
 from chronicle_app.services.runtime_policies import (
     DEFAULT_CLAUDE_MODEL,
+    OFFLINE_PRIVATE_MODEL,
     build_profile_selection_summary as shared_build_profile_selection_summary,
+    get_online_engine_settings,
     get_preferred_profile_model as shared_get_preferred_profile_model,
     get_model_vendor as shared_get_model_vendor,
     get_processing_speed_warning as shared_get_processing_speed_warning,
     get_model_tradeoff_text as shared_get_model_tradeoff_text,
     get_pdf_chunk_pages as shared_get_pdf_chunk_pages,
+    is_offline_model as shared_is_offline_model,
     estimate_run_effort as shared_estimate_run_effort,
     persist_runtime_settings_to_cfg as shared_persist_runtime_settings_to_cfg,
     resolve_model_for_available_keys as shared_resolve_model_for_available_keys,
     wait_for_gemini_upload_ready as shared_wait_for_gemini_upload_ready,
+)
+from chronicle_app.services.local_provider_runtime import (
+    OFFLINE_RUNTIME_MODE_EXISTING_OLLAMA,
+    DEFAULT_LOCAL_MODEL,
+    DEFAULT_LOCAL_URL,
+    existing_ollama_readiness,
+    existing_ollama_status_text,
+    get_offline_client,
+    offline_model_status_text,
+    pull_existing_ollama_model,
 )
 from chronicle_app.services.app_files import (
     build_log_header as shared_build_log_header,
@@ -402,6 +416,7 @@ if getattr(sys, 'frozen', False):
 
 # --- CONSTANTS ---
 APP_NAME = "Chronicle"
+APP_VERSION = "1.0.2"
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
@@ -429,14 +444,15 @@ AUTORUN_CONTINUITY_DIR_ENV = "CHRONICLE_CONTINUITY_DIR"
 SESSION_SCHEMA_VERSION = 1
 PDF_CHUNK_PAGES = 3
 TEXT_CHUNK_CHARS = 10000
-API_MIN_REQUEST_INTERVAL_SEC = 1.0
-API_BACKOFF_BASE_SEC = 8
-API_BACKOFF_MAX_SEC = 90
-API_MAX_RETRIES = 6
-API_MAX_CONCURRENT_REQUESTS = 1
-API_MAX_PENDING_REQUESTS = 24
-API_REQUEST_QUEUE_POLL_SEC = 0.25
-API_CACHE_MAX_ENTRIES = 3000
+_ONLINE_ENGINE_SETTINGS = get_online_engine_settings()
+API_MIN_REQUEST_INTERVAL_SEC = _ONLINE_ENGINE_SETTINGS["api_min_request_interval_sec"]
+API_BACKOFF_BASE_SEC = _ONLINE_ENGINE_SETTINGS["api_backoff_base_sec"]
+API_BACKOFF_MAX_SEC = _ONLINE_ENGINE_SETTINGS["api_backoff_max_sec"]
+API_MAX_RETRIES = _ONLINE_ENGINE_SETTINGS["api_max_retries"]
+API_MAX_CONCURRENT_REQUESTS = _ONLINE_ENGINE_SETTINGS["api_max_concurrent_requests"]
+API_MAX_PENDING_REQUESTS = _ONLINE_ENGINE_SETTINGS["api_max_pending_requests"]
+API_REQUEST_QUEUE_POLL_SEC = _ONLINE_ENGINE_SETTINGS["api_request_queue_poll_sec"]
+API_CACHE_MAX_ENTRIES = _ONLINE_ENGINE_SETTINGS["api_cache_max_entries"]
 TEXT_BATCH_TARGET_CHARS = 18000
 PDF_TEXTLAYER_AUDIT_COVERAGE_WARN = 0.72
 PDF_TEXTLAYER_AUDIT_COVERAGE_APPEND_FULL = 0.60
@@ -461,6 +477,7 @@ ROW_SETTING_KEYS = (
     "abbrev_expansion",
     "image_descriptions",
     "preserve_original_page_numbers",
+    "page_navigation_links",
     "merge_files",
     "large_print",
     "pdf_page_scope",
@@ -769,6 +786,7 @@ def build_control_settings_for_profile(cfg, profile_key, *, selected_model_name=
         "abbrev_expansion": bool(preset_cfg.get("abbrev_expansion", False)),
         "image_descriptions": bool(preset_cfg.get("image_descriptions", True)),
         "preserve_original_page_numbers": bool(preset_cfg.get("preserve_original_page_numbers", False)),
+        "page_navigation_links": bool(preset_cfg.get("page_navigation_links", True)),
         "large_print": bool(preset_cfg.get("large_print", False)),
         "merge_files": bool(preset_cfg.get("merge_files", False)),
     }
@@ -994,6 +1012,12 @@ def apply_expanded_abbreviations(content, doc_profile=None):
 def normalize_streamed_html_document(full_html):
     return core_normalize_streamed_html_document(full_html)
 
+def normalize_streamed_html_document_for_job(full_html, *, job_cfg=None):
+    return core_normalize_streamed_html_document(
+        full_html,
+        insert_page_navigation=bool((job_cfg or {}).get("page_navigation_links", True)),
+    )
+
 def apply_output_integrity_contract(content, fmt, doc_profile=None):
     return core_apply_output_integrity_contract(content, fmt, doc_profile)
 
@@ -1002,7 +1026,7 @@ def cleanup_output_text(content, *, fmt, job_cfg):
         content,
         fmt=fmt,
         job_cfg=job_cfg,
-        normalize_html_fn=normalize_streamed_html_document,
+        normalize_html_fn=normalize_streamed_html_document_for_job,
         modernize_punctuation_fn=apply_modern_punctuation,
         modernize_currency_fn=apply_modern_currency,
         expand_abbreviations_fn=apply_expanded_abbreviations,
@@ -1071,7 +1095,8 @@ def run_pdf_textlayer_audit(pdf_path, extracted_text, *, page_scope=""):
     }
 
 def build_prompt(cfg):
-    return build_shared_prompt(
+    builder = build_offline_prompt if shared_is_offline_model(cfg.get("selected_model_name") or cfg.get("model_name")) else build_shared_prompt
+    return builder(
         cfg,
         translation_targets=TRANSLATION_TARGETS,
         rtl_language_codes=RTL_LANGUAGE_CODES,
@@ -1085,13 +1110,14 @@ def write_header(file_obj, title, fmt, lang_code="en", text_dir="ltr"):
 def write_footer(file_obj, fmt):
     core_write_footer(file_obj, fmt)
 
-def save_pdf(path, content, large_print=False):
+def save_pdf(path, content, large_print=False, title="Chronicle PDF Output"):
     return shared_save_pdf(
         path,
         content,
         large_print=large_print,
         fpdf_cls=FPDF,
         sanitize_latin1_fn=sanitize_latin1,
+        title=title,
     )
 
 def save_docx(path, content):
@@ -1332,7 +1358,7 @@ def process_rendered_document(client, path, out, fmt, prompt, model, f_obj, mem,
 class MainFrame(wx.Frame):
     def __init__(self):
         self.build_stamp = get_runtime_build_stamp()
-        super().__init__(None, title=f"{APP_NAME} | Build {self.build_stamp}", size=(980, 760))
+        super().__init__(None, title=f"{APP_NAME} {APP_VERSION}", size=(980, 760))
         self.autorun_spec_path = str(os.environ.get(AUTORUN_SPEC_ENV, "") or "").strip()
         self.autorun_active = bool(self.autorun_spec_path)
         self.autorun_close_on_finish = False
@@ -1342,7 +1368,7 @@ class MainFrame(wx.Frame):
             'translate_mode': 'none', 'collision_mode': 'auto', 'merge_files': False,
             'translate_target': 'English',
             'image_descriptions': True, 'modernize_punctuation': False, 'unit_conversion': False,
-            'abbrev_expansion': False, 'preserve_original_page_numbers': False, 'large_print': False, 'delete_source_on_success': False,
+            'abbrev_expansion': False, 'preserve_original_page_numbers': False, 'page_navigation_links': True, 'large_print': False, 'delete_source_on_success': False,
             'preserve_source_structure': True,
             'custom_prompt': '', 'custom_commands': '',
             'pdf_textlayer_audit': True,
@@ -1366,6 +1392,8 @@ class MainFrame(wx.Frame):
             'last_browse_dir': '',
             'risk_notice_acknowledged': False,
             'risk_notice_dont_show_again': False,
+            'ollama_setup_first_launch_offered': False,
+            'offline_runtime_mode': OFFLINE_RUNTIME_MODE_EXISTING_OLLAMA,
         })
         self.keys = load_json(KEYS_FILE, {})
         # One-time migration for legacy default config: TXT + output_txt => HTML default.
@@ -1426,7 +1454,8 @@ class MainFrame(wx.Frame):
         message = (
             "To use this app, you need API keys for the AI models of your choice:\n"
             "Google Gemini, Anthropic Claude, or OpenAI GPT.\n\n"
-            "Select Open API Key Vault to enter keys now."
+            "If you do not enter any API keys, Chronicle will still open, but only Private Offline Mode will be available.\n\n"
+            "Select Open API Key Vault to enter keys now, or choose Later to use offline mode only."
         )
         msg_ctrl = wx.StaticText(panel, label=message)
         msg_ctrl.Wrap(560)
@@ -1449,6 +1478,35 @@ class MainFrame(wx.Frame):
         dlg.Destroy()
         if result == wx.ID_OK:
             self.OnApiKeys(None)
+        self.MaybeOfferOllamaSetupOnFirstLaunch()
+
+    def MaybeOfferOllamaSetupOnFirstLaunch(self):
+        if self.cfg.get("ollama_setup_first_launch_offered"):
+            return False
+        if existing_ollama_readiness().get("ready"):
+            self.cfg["offline_runtime_mode"] = OFFLINE_RUNTIME_MODE_EXISTING_OLLAMA
+            self.cfg["ollama_setup_first_launch_offered"] = True
+            save_json(CONFIG_FILE, self.cfg)
+            return False
+        self.cfg["ollama_setup_first_launch_offered"] = True
+        save_json(CONFIG_FILE, self.cfg)
+        message = (
+            "Private Offline Mode now uses your own local Ollama installation.\n\n"
+            f"To use it, install Ollama, open it, and install Chronicle's recommended model:\n\nollama pull {DEFAULT_LOCAL_MODEL}\n\n"
+            "Private Offline Mode is best for clean, text-based PDFs and simple sensitive documents such as bank statements, medical forms, legal paperwork, invoices, receipts, tax records, and identity-like documents.\n\n"
+            "Use Online AI Mode for handwriting, historical newspapers, magazines, comics, complex diagrams, damaged scans, and other difficult layouts.\n\n"
+            "Open the Ollama setup check now?"
+        )
+        result = wx.MessageBox(
+            message,
+            "Set Up Private Offline Mode",
+            wx.YES_NO | wx.ICON_QUESTION,
+        )
+        if result == wx.YES:
+            self.OnUseExistingOllama(None)
+            return True
+        self.Log("Private Offline Mode Ollama setup was skipped during first launch.")
+        return False
 
     def EnsureRiskNoticeAcknowledged(self):
         if FirstLaunchNoticeDialog is None:
@@ -1456,6 +1514,8 @@ class MainFrame(wx.Frame):
         if self.cfg.get("risk_notice_acknowledged") and self.cfg.get("risk_notice_dont_show_again"):
             if not any(self.keys.values()):
                 wx.CallAfter(self.ShowWelcome)
+            else:
+                wx.CallAfter(self.MaybeOfferOllamaSetupOnFirstLaunch)
             return True
         dlg = FirstLaunchNoticeDialog(self)
         result = dlg.ShowModal()
@@ -1466,6 +1526,8 @@ class MainFrame(wx.Frame):
             dlg.Destroy()
             if not any(self.keys.values()):
                 wx.CallAfter(self.ShowWelcome)
+            else:
+                wx.CallAfter(self.MaybeOfferOllamaSetupOnFirstLaunch)
             return True
         dlg.Destroy()
         wx.CallAfter(self.Close)
@@ -1547,6 +1609,9 @@ class MainFrame(wx.Frame):
 
     def _sync_controls_from_cfg(self):
         fmt_selection = {'html': 0, 'txt': 1, 'docx': 2, 'md': 3, 'pdf': 4, 'json': 5, 'csv': 6, 'epub': 7}
+        if hasattr(self, "processing_mode_choice"):
+            self.processing_mode_choice.SetSelection(1 if shared_is_offline_model(self.cfg.get("model_override")) else 0)
+            self.UpdateProcessingModeTooltip()
         self.format_choice.SetSelection(fmt_selection.get(self.cfg.get('format_type', 'html'), 0))
         tmap = {'none': 0, 'both': 1, 'english_only': 2}
         self.run_translate_choice.SetSelection(tmap.get(self.cfg.get('translate_mode', 'none'), 0))
@@ -1555,6 +1620,7 @@ class MainFrame(wx.Frame):
         self.run_abbrev_choice.SetSelection(1 if self.cfg.get('abbrev_expansion', False) else 0)
         self.run_images_choice.SetSelection(0 if self.cfg.get('image_descriptions', True) else 1)
         self.run_page_numbers_choice.SetSelection(1 if self.cfg.get('preserve_original_page_numbers', False) else 0)
+        self.run_page_links_choice.SetSelection(0 if self.cfg.get('page_navigation_links', True) else 1)
         self.run_merge_choice.SetSelection(1 if self.cfg.get('merge_files', False) else 0)
         self.run_largeprint_choice.SetSelection(1 if self.cfg.get('large_print', False) else 0)
         self.SetPdfPageScopeSelection(self.cfg.get('pdf_page_scope', ''))
@@ -1776,6 +1842,7 @@ class MainFrame(wx.Frame):
         root.Add(queue_section['queue_tools'], 0, wx.EXPAND)
 
         settings_bindings = {
+            'processing_mode': (wx.EVT_CHOICE, self.OnProcessingModeChanged),
             'format_choice': (wx.EVT_CHOICE, self.OnFormatChoiceChanged),
             'apply_settings': (wx.EVT_BUTTON, self.OnApplySettingsToQueue),
             'run_preflight': (wx.EVT_BUTTON, self.OnRunPreflight),
@@ -1797,6 +1864,7 @@ class MainFrame(wx.Frame):
             bind=lambda widget, name: bind_named(widget, name, settings_bindings),
         )
         self.format_choice = settings_section['format_choice']
+        self.processing_mode_choice = settings_section['processing_mode_choice']
         self.btn_apply_settings = settings_section['btn_apply_settings']
         self.btn_run_preflight = settings_section['btn_run_preflight']
         self.btn_first_pages_trial = settings_section['btn_first_pages_trial']
@@ -1807,6 +1875,7 @@ class MainFrame(wx.Frame):
         self.run_abbrev_choice = settings_section['run_abbrev_choice']
         self.run_images_choice = settings_section['run_images_choice']
         self.run_page_numbers_choice = settings_section['run_page_numbers_choice']
+        self.run_page_links_choice = settings_section['run_page_links_choice']
         self.run_merge_choice = settings_section['run_merge_choice']
         self.lbl_run_largeprint = settings_section['lbl_run_largeprint']
         self.run_largeprint_choice = settings_section['run_largeprint_choice']
@@ -1854,7 +1923,7 @@ class MainFrame(wx.Frame):
         root.Add(log_actions, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
         panel.SetSizer(root)
         self.CreateStatusBar(1)
-        self.SafeSetStatusText(f"Ready. Build {self.build_stamp}")
+        self.SafeSetStatusText(f"Ready. {APP_NAME} {APP_VERSION}")
         self.UpdateProfileGuide()
         self.UpdateLargePrintVisibility()
         self.OnDestModeChanged()
@@ -1916,10 +1985,12 @@ class MainFrame(wx.Frame):
             requested_model = str(spec.get("model_name") or "").strip()
             if requested_model:
                 self.cfg["model_name"] = self.ResolveModelNameForAvailableKeys(requested_model)
+                self.cfg["model_override"] = self.cfg["model_name"] if shared_is_offline_model(self.cfg["model_name"]) else str(spec.get("model_override") or self.cfg.get("model_override", "") or "")
             else:
                 self.cfg["model_name"] = self.ResolveModelNameForAvailableKeys(
                     self.GetPreferredModelName(profile_key)
                 )
+                self.cfg["model_override"] = str(spec.get("model_override") or self.cfg.get("model_override", "") or "")
 
             self._sync_controls_from_cfg()
             self.queue = []
@@ -1945,20 +2016,13 @@ class MainFrame(wx.Frame):
                 wx.CallAfter(self.Close)
 
     def ModelFromLabel(self, label):
-        return {
-            'Gemini 2.5 Flash': 'gemini-2.5-flash',
-            'Gemini 2.5 Pro': 'gemini-2.5-pro',
-            'Claude Sonnet 4': DEFAULT_CLAUDE_MODEL,
-            'GPT-4o': 'gpt-4o'
-        }.get(label, 'gemini-2.5-flash')
+        for key, value in MODEL_LABEL_BY_KEY.items():
+            if value == label:
+                return key
+        return 'gemini-2.5-flash'
 
     def LabelFromModel(self, model_name):
-        return {
-            'gemini-2.5-flash': 'Gemini 2.5 Flash',
-            'gemini-2.5-pro': 'Gemini 2.5 Pro',
-            DEFAULT_CLAUDE_MODEL: 'Claude Sonnet 4',
-            'gpt-4o': 'GPT-4o',
-        }.get(model_name, 'Gemini 2.5 Flash')
+        return MODEL_LABEL_BY_KEY.get(model_name, 'Gemini 2.5 Flash')
 
     def GetModelGuideText(self, label):
         guides = {
@@ -1967,6 +2031,10 @@ class MainFrame(wx.Frame):
             'Gemini 2.5 Pro': "Best for difficult scans, nuanced documents, and maximum extraction fidelity. Slower and higher cost than Flash.",
             'Claude Sonnet 4': "Best for strong structured writing quality and complex instruction-following. Good for polished narrative outputs.",
             'GPT-4o': "Best for broad multimodal reasoning and mixed document/image tasks. Strong general-purpose fallback across formats.",
+            'Private Offline Mode': (
+                "Runs your local Ollama model on this computer for sensitive documents. "
+                f"{OFFLINE_PRIVATE_MODE_SUITABILITY}"
+            ),
         }
         return guides.get(label, guides['Gemini 2.5 Flash'])
 
@@ -1976,6 +2044,8 @@ class MainFrame(wx.Frame):
             self.SetStatusText(text)
 
     def HasProviderKey(self, vendor):
+        if vendor == "offline":
+            return True
         vendor_key = "claude" if vendor == "anthropic" else str(vendor or "")
         return bool(self.keys.get(vendor_key))
 
@@ -1986,7 +2056,13 @@ class MainFrame(wx.Frame):
         )
 
     def GetPreferredModelName(self, profile_key):
-        return get_preferred_profile_model(profile_key, self.cfg)
+        cfg = dict(self.cfg)
+        if hasattr(self, "processing_mode_choice"):
+            if self.processing_mode_choice.GetSelection() == 1:
+                cfg["model_override"] = OFFLINE_PRIVATE_MODEL
+            elif shared_is_offline_model(cfg.get("model_override")):
+                cfg["model_override"] = ""
+        return get_preferred_profile_model(profile_key, cfg)
 
     def UpdateModelGuide(self):
         if hasattr(self, 'choice_profile'):
@@ -1996,7 +2072,7 @@ class MainFrame(wx.Frame):
         preferred_model_name = self.GetPreferredModelName(profile_key)
         model_name = self.ResolveModelNameForAvailableKeys(preferred_model_name)
         label = self.LabelFromModel(model_name)
-        manual_override = str(self.cfg.get("model_override", "") or "").strip()
+        manual_override = str(OFFLINE_PRIVATE_MODEL if getattr(self, "processing_mode_choice", None) and self.processing_mode_choice.GetSelection() == 1 else self.cfg.get("model_override", "") or "").strip()
         model_help = self.GetModelGuideText('Automatic' if not manual_override else label)
         speed_warning = get_processing_speed_warning(profile_key, model_name)
         status_text = f"{('Automatic' if not manual_override else label)}: {model_help}"
@@ -2012,6 +2088,21 @@ class MainFrame(wx.Frame):
         status_bar = self.GetStatusBar()
         if status_bar is not None:
             self.SafeSetStatusText(status_text[:180])
+
+    def UpdateProcessingModeTooltip(self):
+        if not hasattr(self, "processing_mode_choice"):
+            return
+        if self.processing_mode_choice.GetSelection() == 1:
+            self.processing_mode_choice.SetToolTip(
+                "Private Offline Mode keeps documents on this computer using your local Ollama model. "
+                f"{OFFLINE_PRIVATE_MODE_SUITABILITY}"
+            )
+            self.processing_mode_choice.SetName("Processing Mode Selector (Private Offline Mode)")
+        else:
+            self.processing_mode_choice.SetToolTip(
+                "Online AI Mode uses Chronicle's configured online providers such as Gemini, Claude, or GPT. Best for maximum accuracy while testing, or when the document is not too sensitive to process through your chosen provider account."
+            )
+            self.processing_mode_choice.SetName("Processing Mode Selector (Online AI Mode)")
 
     def GetPreflightTargetIndex(self):
         selected = self.GetSelectedIndices()
@@ -2281,6 +2372,7 @@ class MainFrame(wx.Frame):
         self.run_abbrev_choice.SetSelection(1 if control_settings.get("abbrev_expansion", False) else 0)
         self.run_images_choice.SetSelection(0 if control_settings.get("image_descriptions", True) else 1)
         self.run_page_numbers_choice.SetSelection(1 if control_settings.get("preserve_original_page_numbers", False) else 0)
+        self.run_page_links_choice.SetSelection(0 if control_settings.get("page_navigation_links", True) else 1)
         self.run_merge_choice.SetSelection(1 if control_settings.get("merge_files", False) else 0)
         self.run_largeprint_choice.SetSelection(1 if control_settings.get("large_print", False) else 0)
         self.UpdateLargePrintVisibility()
@@ -2289,9 +2381,16 @@ class MainFrame(wx.Frame):
         fmt_map = {0: 'html', 1: 'txt', 2: 'docx', 3: 'md', 4: 'pdf', 5: 'json', 6: 'csv', 7: 'epub'}
         t_rev = {0: 'none', 1: 'both', 2: 'english_only'}
         selected_profile = PROFILE_CHOICES[self.choice_profile.GetSelection()][0]
-        preferred_model_name = self.GetPreferredModelName(selected_profile)
+        mode_is_offline = hasattr(self, "processing_mode_choice") and self.processing_mode_choice.GetSelection() == 1
+        mode_cfg = dict(self.cfg)
+        if mode_is_offline:
+            mode_cfg["model_override"] = OFFLINE_PRIVATE_MODEL
+        elif shared_is_offline_model(mode_cfg.get("model_override")):
+            mode_cfg["model_override"] = ""
+        preferred_model_name = get_preferred_profile_model(selected_profile, mode_cfg)
         selected_model_name = self.ResolveModelNameForAvailableKeys(preferred_model_name)
         cfg = dict(self.cfg)
+        cfg["model_override"] = OFFLINE_PRIVATE_MODEL if mode_is_offline else mode_cfg.get("model_override", "")
         cfg['format_type'] = fmt_map.get(self.format_choice.GetSelection(), 'html')
         apply_profile_preset(
             cfg,
@@ -2306,6 +2405,7 @@ class MainFrame(wx.Frame):
         cfg['abbrev_expansion'] = self.run_abbrev_choice.GetSelection() == 1
         cfg['image_descriptions'] = self.run_images_choice.GetSelection() == 0
         cfg['preserve_original_page_numbers'] = self.run_page_numbers_choice.GetSelection() == 1
+        cfg['page_navigation_links'] = self.run_page_links_choice.GetSelection() == 0
         cfg['merge_files'] = self.run_merge_choice.GetSelection() == 1
         cfg['large_print'] = self.run_largeprint_choice.GetSelection() == 1
         cfg['pdf_page_scope'] = self.GetSelectedPdfPageScope()
@@ -2335,7 +2435,8 @@ class MainFrame(wx.Frame):
         trans = "no translation" if translate_mode == "none" else ("translate-only" if translate_mode == "english_only" else "original+translation")
         units = "units untouched" if not settings.get("unit_conversion", False) else "units converted"
         page_refs = "printed page refs on" if settings.get("preserve_original_page_numbers", False) else "printed page refs off"
-        parts = [fmt, profile_label, punct, trans, units, page_refs]
+        page_links = "page links on" if settings.get("page_navigation_links", True) else "page links off"
+        parts = [fmt, profile_label, punct, trans, units, page_refs, page_links]
         pdf_scope = normalize_pdf_page_scope_text(settings.get("pdf_page_scope", ""))
         if pdf_scope:
             parts.append(f"PDF pages {pdf_scope}")
@@ -2360,6 +2461,8 @@ class MainFrame(wx.Frame):
         profile_key = settings.get('doc_profile', 'standard')
         profile_index = next((i for i, (k, _) in enumerate(PROFILE_CHOICES) if k == profile_key), 0)
         self.format_choice.SetSelection(fmt_map.get(settings.get('format_type', 'html'), 0))
+        self.processing_mode_choice.SetSelection(1 if shared_is_offline_model(settings.get('model_override') or settings.get('model_name')) else 0)
+        self.UpdateProcessingModeTooltip()
         self.choice_profile.SetSelection(profile_index)
         self.run_translate_choice.SetSelection(tmap.get(settings.get('translate_mode', 'none'), 0))
         self.run_punct_choice.SetSelection(1 if settings.get('modernize_punctuation', False) else 0)
@@ -2367,6 +2470,7 @@ class MainFrame(wx.Frame):
         self.run_abbrev_choice.SetSelection(1 if settings.get('abbrev_expansion', False) else 0)
         self.run_images_choice.SetSelection(0 if settings.get('image_descriptions', True) else 1)
         self.run_page_numbers_choice.SetSelection(1 if settings.get('preserve_original_page_numbers', False) else 0)
+        self.run_page_links_choice.SetSelection(0 if settings.get('page_navigation_links', True) else 1)
         self.run_merge_choice.SetSelection(1 if settings.get('merge_files', False) else 0)
         self.run_largeprint_choice.SetSelection(1 if settings.get('large_print', False) else 0)
         self.SetPdfPageScopeSelection(settings.get('pdf_page_scope', '') or '')
@@ -2493,6 +2597,29 @@ class MainFrame(wx.Frame):
             self.ApplySettingsToRows(target_indices, settings, "current format settings")
         event.Skip()
 
+    def OnProcessingModeChanged(self, event):
+        offline = self.processing_mode_choice.GetSelection() == 1
+        self.cfg["model_override"] = OFFLINE_PRIVATE_MODEL if offline else ""
+        save_json(CONFIG_FILE, self.cfg)
+        self.UpdateProcessingModeTooltip()
+        self.UpdateModelGuide()
+        self.UpdateProfileGuide()
+        self.UpdatePreflightSummary()
+        if not self.is_running and self.queue:
+            settings = self.BuildSettingsFromControls()
+            target_indices = self.GetTargetQueueIndicesForSettingChange()
+            self.ApplySettingsToRows(
+                target_indices,
+                settings,
+                "Private Offline Mode settings" if offline else "Online AI Mode settings",
+            )
+        self.SafeSetStatusText(
+            "Private Offline Mode selected. Best for clean, text-based PDFs and simple sensitive documents."
+            if offline
+            else "Online AI Mode selected. Chronicle will use configured online providers."
+        )
+        event.Skip()
+
     def OnRunOptionChoiceChanged(self, event):
         self.UpdatePreflightSummary()
         if not self.is_running and self.queue:
@@ -2533,6 +2660,7 @@ class MainFrame(wx.Frame):
         has_sel = self._has_queue_selection()
         can_edit = not self.is_running
         self.format_choice.Enable(can_edit)
+        self.processing_mode_choice.Enable(can_edit)
         self.run_translate_choice.Enable(can_edit)
         self.run_punct_choice.Enable(can_edit)
         self.run_units_choice.Enable(can_edit)
@@ -2795,6 +2923,110 @@ class MainFrame(wx.Frame):
         text = self.BuildProviderCapabilityMatrix()
         wx.MessageBox(text, "Provider Capability Matrix", wx.OK | wx.ICON_INFORMATION)
         self.Log("Opened provider capability matrix.")
+
+    def OnPrivateOfflineMode(self, e):
+        self.cfg["offline_runtime_mode"] = OFFLINE_RUNTIME_MODE_EXISTING_OLLAMA
+        save_json(CONFIG_FILE, self.cfg)
+        existing_status = existing_ollama_status_text()
+        text = (
+            "Private Offline Mode\n\n"
+            "Use this mode for sensitive documents such as bank statements, medical forms, legal paperwork, "
+            "invoices, receipts, tax records, and identity-like documents.\n\n"
+            "Documents stay on this computer. Chronicle uses your local Ollama model instead "
+            "of Gemini, Claude, or GPT. Offline results may be slower or less accurate than online Gemini, so review "
+            "private financial, medical, legal, and identity details carefully.\n\n"
+            f"{OFFLINE_PRIVATE_MODE_SUITABILITY}\n\n"
+            f"{offline_model_status_text(OFFLINE_PRIVATE_MODEL)}\n\n"
+            f"Ollama status: {existing_status}\n\n"
+            f"Required setup command: ollama pull {DEFAULT_LOCAL_MODEL}\n\n"
+            "To select offline processing, use the Processing Mode selector in the main Chronicle window or choose Private Offline Mode in Preferences."
+        )
+        wx.MessageBox(text, "Private Offline Mode", wx.OK | wx.ICON_INFORMATION)
+        self.Log("Opened Private Offline Mode information.")
+
+    def OnUseExistingOllama(self, e):
+        readiness = existing_ollama_readiness()
+        command = readiness["pull_command"]
+        if readiness["ready"]:
+            self.cfg["offline_runtime_mode"] = OFFLINE_RUNTIME_MODE_EXISTING_OLLAMA
+            save_json(CONFIG_FILE, self.cfg)
+            wx.MessageBox(
+                f"Existing Ollama is ready with {DEFAULT_LOCAL_MODEL}.\n\n"
+                "Private Offline Mode will now use your Ollama service.",
+                "Existing Ollama Ready",
+                wx.OK | wx.ICON_INFORMATION,
+            )
+            self.Log("Private Offline Mode set to existing Ollama.")
+            return
+
+        if not readiness["service_running"]:
+            wx.MessageBox(
+                f"Chronicle could not reach Ollama at {DEFAULT_LOCAL_URL}.\n\n"
+                "Install and open Ollama first. Then install Chronicle's recommended local model with:\n\n"
+                f"{command}\n\n"
+                "After it finishes, choose File > Set Up Local Ollama again.",
+                "Existing Ollama Not Running",
+                wx.OK | wx.ICON_INFORMATION,
+            )
+            self.Log("Existing Ollama setup checked: service not reachable.")
+            return
+
+        message = (
+            f"Ollama is running, but Chronicle could not find {DEFAULT_LOCAL_MODEL}.\n\n"
+            "Chronicle uses this model for Private Offline Mode because current validation favors it for clean, text-based sensitive PDFs such as bank statements, invoices, receipts, medical forms, and legal paperwork.\n\n"
+            "You can install it with this command:\n\n"
+            f"{command}\n\n"
+            "Do you want Chronicle to ask Ollama to install it now?"
+        )
+        result = wx.MessageBox(message, "Install Ollama Model", wx.YES_NO | wx.ICON_QUESTION)
+        if result != wx.YES:
+            self.Log(f"Existing Ollama model install skipped. Command: {command}")
+            return
+        self._pull_existing_ollama_model()
+
+    def _pull_existing_ollama_model(self):
+        dialog = wx.ProgressDialog(
+            "Installing Ollama Model",
+            f"Running: ollama pull {DEFAULT_LOCAL_MODEL}",
+            maximum=100,
+            parent=self,
+            style=wx.PD_APP_MODAL | wx.PD_AUTO_HIDE | wx.PD_ELAPSED_TIME,
+        )
+
+        def worker():
+            try:
+                readiness = pull_existing_ollama_model(model=DEFAULT_LOCAL_MODEL)
+                wx.CallAfter(self._finish_existing_ollama_pull, dialog, readiness, None)
+            except Exception as ex:
+                wx.CallAfter(self._finish_existing_ollama_pull, dialog, None, ex)
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _finish_existing_ollama_pull(self, dialog, readiness, error):
+        try:
+            dialog.Destroy()
+        except Exception:
+            pass
+        if error is not None:
+            message = str(error)
+            wx.MessageBox(message, "Ollama Model Install Failed", wx.OK | wx.ICON_ERROR)
+            self.Log(f"Existing Ollama model install failed: {message}")
+            return
+        if readiness and readiness.get("ready"):
+            self.cfg["offline_runtime_mode"] = OFFLINE_RUNTIME_MODE_EXISTING_OLLAMA
+            save_json(CONFIG_FILE, self.cfg)
+            wx.MessageBox(
+                f"Ollama installed {DEFAULT_LOCAL_MODEL}. Private Offline Mode will now use your existing Ollama service.",
+                "Existing Ollama Ready",
+                wx.OK | wx.ICON_INFORMATION,
+            )
+            self.Log("Private Offline Mode set to existing Ollama after model install.")
+            return
+        wx.MessageBox(
+            f"Ollama finished, but Chronicle still could not confirm {DEFAULT_LOCAL_MODEL}. Try running: ollama pull {DEFAULT_LOCAL_MODEL}",
+            "Ollama Model Not Confirmed",
+            wx.OK | wx.ICON_WARNING,
+        )
 
     def OnResumeCenter(self, e):
         session = load_json(SESSION_FILE, {}) if os.path.exists(SESSION_FILE) else {}
@@ -3354,12 +3586,12 @@ class MainFrame(wx.Frame):
             self.SaveActiveSession()
 
     def OnDiscoverScanners(self, e):
-        self.Log("Searching for connected input devices...", engine_event=True)
+        self.Log("Searching for connected scanners and printer/scanner devices...", engine_event=True)
         scanners, err = discover_connected_flatbed_scanners()
         if err:
             self.Log(err, engine_event=True)
         if not scanners:
-            msg = "No connected input devices were detected."
+            msg = "No connected scanners or printer/scanner devices were detected."
             if err:
                 msg += f"\n\nDetails: {err}"
             wx.MessageBox(msg, "Device Search", wx.OK | wx.ICON_INFORMATION)
@@ -3379,7 +3611,7 @@ class MainFrame(wx.Frame):
             lines.append(f"{idx}. {name}{suffix}")
         summary = "\n".join(lines)
         self.Log(f"Device search complete: {len(scanners)} device(s) found.", engine_event=True)
-        wx.MessageBox(summary, "Connected Devices", wx.OK | wx.ICON_INFORMATION)
+        wx.MessageBox(summary, "Connected Scanners and Printers", wx.OK | wx.ICON_INFORMATION)
 
     def OnScanViaNaps2(self, e):
         if self.is_running:
@@ -3392,6 +3624,7 @@ class MainFrame(wx.Frame):
             msg = "No NAPS2 scanner devices were detected."
             if err:
                 msg += f"\n\nDetails: {err}"
+            msg += "\n\nUse Find Connected Devices to check whether the scanner or printer is visible to the operating system."
             wx.MessageBox(msg, "Scan via NAPS2", wx.OK | wx.ICON_INFORMATION)
             return
 
@@ -3578,14 +3811,13 @@ class MainFrame(wx.Frame):
         self.RefreshLicenseStatus()
         wx.MessageBox(
             (
-                f"{APP_NAME}\n\n"
-                f"Build: {self.build_stamp}\n"
+                f"{APP_NAME} {APP_VERSION}\n\n"
                 f"Runtime: {sys.executable if getattr(sys, 'frozen', False) else __file__}\n"
                 f"Python: {sys.version.split()[0]}\n"
                 f"wx: {wx.version()}\n\n"
                 f"{self.license_status_text}"
             ),
-            "About Build",
+            f"About {APP_NAME}",
             wx.OK | wx.ICON_INFORMATION,
         )
 
@@ -3759,6 +3991,11 @@ class MainFrame(wx.Frame):
         return self.license_status_text
 
     def GetClient(self, model):
+        if shared_is_offline_model(model):
+            return get_offline_client(
+                model,
+                runtime_mode=OFFLINE_RUNTIME_MODE_EXISTING_OLLAMA,
+            )
         vendor = "anthropic" if "claude" in model else "openai" if "gpt" in model else "gemini"
         key_vendor = "claude" if vendor == "anthropic" else vendor
         key = self.keys.get(key_vendor)

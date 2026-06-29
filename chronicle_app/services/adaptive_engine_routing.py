@@ -1,6 +1,6 @@
 import os
 
-from chronicle_app.services.runtime_policies import DEFAULT_CLAUDE_MODEL, normalize_model_name
+from chronicle_app.services.runtime_policies import DEFAULT_CLAUDE_MODEL, is_offline_model, normalize_model_name
 
 
 FORCE_DEEP_PROFILES = {
@@ -212,6 +212,15 @@ def select_execution_model_for_job(
     getsize_fn=os.path.getsize,
 ):
     baseline_model = normalize_model_name(preferred_model)
+    if is_offline_model(baseline_model):
+        return {
+            "model_name": baseline_model,
+            "baseline_model": baseline_model,
+            "routing_mode": "manual" if not should_use_automatic_engine(job_cfg) else "automatic",
+            "routing_reason": "Private Offline Mode selected; Chronicle will use the local model pack only.",
+            "auto_escalation_model": None,
+            "difficulty": "offline",
+        }
     manual_override = not should_use_automatic_engine(job_cfg)
     profile = str(job_cfg.get("doc_profile", "standard") or "standard").lower()
 

@@ -115,7 +115,10 @@ def _expand_abbreviations_for_profile(expand_abbreviations_fn, content, doc_prof
 
 def cleanup_output_text(content, *, fmt, job_cfg, normalize_html_fn, modernize_punctuation_fn, modernize_currency_fn, expand_abbreviations_fn, enforce_heading_structure_fn, apply_integrity_contract_fn=None):
     if fmt == "html":
-        content = normalize_html_fn(content)
+        try:
+            content = normalize_html_fn(content, job_cfg=job_cfg)
+        except TypeError:
+            content = normalize_html_fn(content)
         if job_cfg.get("modernize_punctuation"):
             content = modernize_punctuation_fn(content)
         if job_cfg.get("unit_conversion"):

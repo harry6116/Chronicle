@@ -20,6 +20,21 @@ def safe_rmtree(path, retries=5, delay=0.25):
             else:
                 raise last_err
 
+def assert_no_embedded_offline_payload(app_bundle):
+    blocked_paths = (
+        os.path.join(app_bundle, "Contents", "Resources", "offline", "models"),
+        os.path.join(app_bundle, "Contents", "Resources", "offline", "ollama"),
+        os.path.join(app_bundle, "Contents", "Frameworks", "offline", "models"),
+        os.path.join(app_bundle, "Contents", "Frameworks", "offline", "ollama"),
+    )
+    for blocked_path in blocked_paths:
+        if os.path.exists(blocked_path):
+            raise RuntimeError(
+                "Mac app build contains embedded Private Offline Mode payload at "
+                f"{blocked_path}. Mac and Windows app builds must stay slim; "
+                "Private Offline Mode now uses the user's existing Ollama installation."
+            )
+
 def run_build():
     print("--- Chronicle Sledgehammer Build: Mac ---")
     build_stamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
@@ -29,7 +44,7 @@ def run_build():
     print(f"Build stamp: {build_stamp}")
 
     # 1. Clean previous build artifacts
-    for folder in ['build', 'dist']:
+    for folder in ['build', 'dist', '.pyinstaller-cache']:
         if os.path.exists(folder):
             safe_rmtree(folder)
     if os.path.exists('Chronicle.spec'):
@@ -45,6 +60,8 @@ def run_build():
 
     # 3. Master PyInstaller command with aggressive dependencies
     icon_path = os.path.abspath(os.path.join("assets", "icons", "chronicle_option3.icns"))
+    if os.environ.get("CHRONICLE_BUNDLE_OFFLINE_PACK") == "1" or os.environ.get("CHRONICLE_REQUIRE_OFFLINE_PACK") == "1":
+        print("Ignoring legacy offline-bundle environment flags; app builds no longer embed offline model/runtime payloads.")
     cmd = [
         sys.executable, "-m", "PyInstaller",
         "--noconfirm",
@@ -106,6 +123,10 @@ def run_build():
         "--exclude-module", "pycparser.yacctab",
         "--exclude-module", "charset_normalizer.md__mypyc",
         "--exclude-module", "pydantic.v1",
+        "--exclude-module", "matplotlib",
+        "--exclude-module", "scipy",
+        "--exclude-module", "pandas",
+        "--exclude-module", "sklearn",
 
         "chronicle_gui.py"
     ]
@@ -114,6 +135,11 @@ def run_build():
     for src, dest in (("assets", "assets"), ("docs", "docs"), ("build_stamp.txt", ".")):
         abs_src = os.path.abspath(src)
         cmd[-1:-1] = ["--add-data", f"{abs_src}{os.pathsep}{dest}"]
+
+    print(
+        "Building slim Mac app without bundled Private Offline Mode resources. "
+        "Private Offline Mode uses the user's existing Ollama installation with qwen2.5vl:7b."
+    )
 
     if os.path.exists(icon_path):
         # Keep branding centralized in assets/icons.
@@ -154,6 +180,7 @@ def run_build():
             print("Warning: failed reading embedded app build stamp.")
     else:
         print(f"Warning: embedded app build stamp not found at {embedded_stamp}")
+    assert_no_embedded_offline_payload(os.path.join("dist", "Chronicle.app"))
     print("\nBUILD COMPLETE! Your Mac application is in the 'dist' folder.")
 
 if __name__ == "__main__":

@@ -451,7 +451,7 @@ class ApiKeyDialog(wx.Dialog):
         return key.startswith("AIza") and len(key) == 39
 
     def __init__(self, parent, *, initial_keys=None, save_keys=None):
-        super().__init__(parent, title="Chronicle API Keys Vault", size=(500, 350))
+        super().__init__(parent, title="Chronicle API Keys Vault", size=(560, 400))
         self.keys = dict(initial_keys or {"gemini": "", "claude": "", "openai": ""})
         self._save_keys = save_keys
         panel = wx.Panel(self)
@@ -460,6 +460,20 @@ class ApiKeyDialog(wx.Dialog):
         header = wx.StaticText(panel, label="Secure Vault: API keys are stored locally on this machine.")
         header.SetName("Secure Vault Instructions")
         vbox.Add(header, flag=wx.ALL, border=10)
+
+        offline_note = wx.StaticText(
+            panel,
+            label=(
+                "If you leave all API key fields blank, Chronicle will still work, "
+                "but only Private Offline Mode will be available."
+            ),
+        )
+        offline_note.SetName("Offline Only Without API Keys Notice")
+        offline_note.SetToolTip(
+            "Private Offline Mode uses Chronicle's installed local model and keeps documents on this computer."
+        )
+        offline_note.Wrap(520)
+        vbox.Add(offline_note, flag=wx.LEFT | wx.RIGHT | wx.BOTTOM | wx.EXPAND, border=10)
 
         self.grid = wx.FlexGridSizer(3, 2, 10, 10)
         self.grid.AddGrowableCol(1, 1)
@@ -644,6 +658,11 @@ class PrefsDialog(wx.Dialog):
         self.cpn.SetToolTip("Enable this when you need visible printed book/page references kept as explicit output markers for transcription or citation work.")
         vbox.Add(self.cpn, flag=wx.LEFT | wx.RIGHT | wx.EXPAND, border=10)
 
+        vbox.Add(wx.StaticText(panel, label="Page Navigation Links:"), flag=wx.LEFT | wx.TOP, border=10)
+        self.cpl = wx.Choice(panel, choices=["Add page jump links", "Do not add page jump links"])
+        self.cpl.SetToolTip("Adds a Page navigation landmark with links to each extracted PDF page in HTML output.")
+        vbox.Add(self.cpl, flag=wx.LEFT | wx.RIGHT | wx.EXPAND, border=10)
+
         vbox.Add(wx.StaticText(panel, label="PDF Display Mode:"), flag=wx.LEFT | wx.TOP, border=10)
         self.cl = wx.Choice(panel, choices=["Standard PDF output", "Large print PDF output (18pt high-contrast)"])
         self.cl.SetToolTip("Large print mode applies only to PDF output.")
@@ -753,6 +772,7 @@ class PrefsDialog(wx.Dialog):
         self.ca.SetSelection(1 if cfg.get("abbrev_expansion", False) else 0)
         self.ci.SetSelection(0 if cfg.get("image_descriptions", True) else 1)
         self.cpn.SetSelection(1 if cfg.get("preserve_original_page_numbers", False) else 0)
+        self.cpl.SetSelection(0 if cfg.get("page_navigation_links", True) else 1)
         self.cl.SetSelection(1 if cfg.get("large_print", False) else 0)
         self.cm.SetSelection(1 if cfg.get("merge_files", False) else 0)
         f_map = {"endnotes": 0, "inline": 1, "strict": 2}
@@ -809,6 +829,7 @@ class PrefsDialog(wx.Dialog):
                 "abbrev_expansion": self.ca.GetSelection() == 1,
                 "image_descriptions": self.ci.GetSelection() == 0,
                 "preserve_original_page_numbers": self.cpn.GetSelection() == 1,
+                "page_navigation_links": self.cpl.GetSelection() == 0,
                 "large_print": self.cl.GetSelection() == 1,
                 "merge_files": self.cm.GetSelection() == 1,
                 "academic_footnote_mode": frev.get(self.cf.GetSelection(), "endnotes"),
@@ -852,6 +873,7 @@ class PrefsDialog(wx.Dialog):
         self.ca.SetSelection(1 if preset.get("abbrev_expansion", False) else 0)
         self.ci.SetSelection(0 if preset.get("image_descriptions", True) else 1)
         self.cpn.SetSelection(1 if preset.get("preserve_original_page_numbers", False) else 0)
+        self.cpl.SetSelection(0 if preset.get("page_navigation_links", True) else 1)
         self.cl.SetSelection(1 if preset.get("large_print", False) else 0)
         self.cm.SetSelection(1 if preset.get("merge_files", False) else 0)
         self.UpdateAcademicControlState()

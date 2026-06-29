@@ -65,6 +65,7 @@ from chronicle_app.services.prompting import (
     build_prompt as build_shared_prompt,
     enforce_archival_heading_structure as shared_enforce_archival_heading_structure,
 )
+from chronicle_app.services.runtime_policies import get_online_engine_settings
 from chronicle_app.config import (
     PROFILE_CHOICES,
     PROFILE_PRESETS,
@@ -155,11 +156,19 @@ PDF_CHUNK_PAGES = 5
 TEXT_CHUNK_CHARS = 15000
 HEARTBEAT_TIMEOUT_SEC = 480
 API_POLITE_MODE = True
-API_MIN_REQUEST_INTERVAL_SEC = 1.5 if API_POLITE_MODE else 1.0
-API_MAX_CONCURRENT_REQUESTS = 1
-API_MAX_PENDING_REQUESTS = 24
-API_REQUEST_QUEUE_POLL_SEC = 0.25
-API_CACHE_MAX_ENTRIES = 3000
+_ONLINE_ENGINE_SETTINGS = get_online_engine_settings(
+    api_min_request_interval_sec=1.5 if API_POLITE_MODE else 1.0,
+    api_backoff_base_sec=10,
+    api_max_retries=5,
+)
+API_MIN_REQUEST_INTERVAL_SEC = _ONLINE_ENGINE_SETTINGS["api_min_request_interval_sec"]
+API_BACKOFF_BASE_SEC = _ONLINE_ENGINE_SETTINGS["api_backoff_base_sec"]
+API_BACKOFF_MAX_SEC = _ONLINE_ENGINE_SETTINGS["api_backoff_max_sec"]
+API_MAX_RETRIES = _ONLINE_ENGINE_SETTINGS["api_max_retries"]
+API_MAX_CONCURRENT_REQUESTS = _ONLINE_ENGINE_SETTINGS["api_max_concurrent_requests"]
+API_MAX_PENDING_REQUESTS = _ONLINE_ENGINE_SETTINGS["api_max_pending_requests"]
+API_REQUEST_QUEUE_POLL_SEC = _ONLINE_ENGINE_SETTINGS["api_request_queue_poll_sec"]
+API_CACHE_MAX_ENTRIES = _ONLINE_ENGINE_SETTINGS["api_cache_max_entries"]
 TEXT_BATCH_TARGET_CHARS = 24000
 API_CONNECTION_FAILURE_DELAY_SEC = 20.0
 GEMINI_UPLOAD_POLL_SEC = 2.5
@@ -217,15 +226,20 @@ def get_translation_target(config):
     return lookup.get(target.lower(), ("English", "en"))
 
 def get_output_lang_code(config):
-    if config.get("translate_mode", "none") == "none":
-        return "und"
+    explicit = str(
+        config.get("output_lang_code")
+        or config.get("source_lang_code")
+        or config.get("language_code")
+        or ""
+    ).strip().lower()
+    if re.fullmatch(r"[a-z]{2,3}(?:-[a-z0-9]{2,8})?", explicit):
+        return explicit
     _, code = get_translation_target(config)
     return code
 
 def get_output_text_direction(config):
-    if config.get("translate_mode", "none") == "none":
-        return "auto"
-    return "rtl" if get_output_lang_code(config) in RTL_LANGUAGE_CODES else "ltr"
+    code = get_output_lang_code(config).split("-", 1)[0]
+    return "rtl" if code in RTL_LANGUAGE_CODES else "ltr"
 
 def is_path_within_protected_input_dirs(path):
     try:
@@ -260,81 +274,6 @@ def get_api_key(model_name):
         _secure_chmod(key_file, 0o600)
         return new_key
     exit()
-
-def ask_menu(title, options, option_map, default_key=''):
-    print(f"\n{title}")
-    for opt in options: print(opt)
-    while True:
-        choice = input("Select option: ").strip()
-        if choice in option_map: return option_map[choice]
-        if choice == '' and default_key in option_map: return option_map[default_key]
-        print("Invalid choice.")
-
-def ask_bool(title, options, true_choice='2', default_choice='0'):
-    print(f"\n{title}")
-    for opt in options: print(opt)
-    while True:
-        choice = input("Select option: ").strip()
-        if choice == '':
-            choice = default_choice
-        if choice == true_choice: return True
-        if choice in ['0', '1']: return False
-        print("Invalid choice.")
-
-def get_user_preferences():
-    config = {}
-    fmt_map = {'1': ('html', 'output_html'), '2': ('txt', 'output_txt'), '3': ('docx', 'output_docx'), '4': ('md', 'output_md'), '5': ('pdf', 'output_pdf'), '6': ('json', 'output_json'), '7': ('csv', 'output_csv'), '8': ('epub', 'output_epub')}
-    fmt, out_folder = ask_menu("MENU 1: OUTPUT FORMAT", ["1. HTML", "2. TXT", "3. DOCX", "4. MD", "5. PDF", "6. JSON", "7. CSV", "8. EPUB"], fmt_map)
-    config['format_type'] = fmt
-    config['output_dir'] = os.path.join(SCRIPT_DIR, out_folder)
-    model_options = [
-        "1. Gemini 2.5 Flash",
-        "2. Gemini 2.5 Pro (Deep Scan)",
-        "3. Claude Sonnet 4",
-        "4. GPT-4o",
-    ]
-    model_map = {'1':'gemini-2.5-flash', '2':'gemini-2.5-pro', '3':'claude-sonnet-4-20250514', '4':'gpt-4o', '':'gemini-2.5-flash'}
-    config['model_name'] = ask_menu("MENU 2: AI ENGINE", model_options, model_map, '')
-
-    profile_options = [f"{idx}. {label}" for idx, (_, label) in enumerate(PROFILE_CHOICES, start=1)]
-    profile_map = {str(idx): key for idx, (key, _) in enumerate(PROFILE_CHOICES, start=1)}
-    config['doc_profile'] = ask_menu("MENU 3: DOCUMENT PROFILE", profile_options, profile_map, '1')
-    shared_preset = PROFILE_PRESETS.get(config['doc_profile'], PROFILE_PRESETS['standard'])
-    recommended_model = str(shared_preset.get('model_name', 'gemini-2.5-flash'))
-    model_default_map = {
-        'gemini-2.5-flash': '1',
-        'gemini-2.5-pro': '2',
-        'claude-sonnet-4-20250514': '3',
-        'gpt-4o': '4',
-    }
-    preset = {
-        'model': model_default_map.get(recommended_model, '1'),
-        'translate': '0' if shared_preset.get('translate_mode', 'none') == 'none' else ('2' if shared_preset.get('translate_mode') == 'both' else '3'),
-        'punct': bool(shared_preset.get('modernize_punctuation', False)),
-        'unit': bool(shared_preset.get('unit_conversion', False)),
-        'merge': bool(shared_preset.get('merge_files', False)),
-        'image': bool(shared_preset.get('image_descriptions', True)),
-        'large': bool(shared_preset.get('large_print', False)),
-        'abbrev': bool(shared_preset.get('abbrev_expansion', False)),
-    }
-    config['model_name'] = ask_menu("MENU 3B: RECOMMENDED ENGINE (BY PRESET)", model_options, model_map, preset['model'])
-    
-    config['translate_mode'] = ask_menu("MENU 4: LANGUAGE TRANSLATION", ["0. Disable translation (keep original language)", "2. Keep original + translation in brackets", "3. Translate only"], {'0':'none', '2':'both', '3':'english_only', '':'none'}, preset['translate'])
-    if config['translate_mode'] != 'none':
-        target_map = {'1': 'English', '2': 'Spanish', '3': 'French', '4': 'German', '5': 'Italian', '6': 'Portuguese', '': 'English'}
-        config['translate_target'] = ask_menu("MENU 4B: TRANSLATION TARGET", ["1. English", "2. Spanish", "3. French", "4. German", "5. Italian", "6. Portuguese"], target_map, '')
-    else:
-        config['translate_target'] = 'English'
-    config['modernize_punctuation'] = ask_bool("MENU 5: PUNCTUATION", ["0. Strictly preserve original punctuation", "2. Update to modern punctuation"], default_choice='2' if preset['punct'] else '0')
-    config['unit_conversion'] = ask_bool("MENU 6: CURRENCY & MEASUREMENTS", ["0. Leave old currency/measurements untouched", "2. Keep old values and add modern equivalence in brackets"], default_choice='2' if preset['unit'] else '0')
-    config['merge_files'] = ask_bool("MENU 7: FILE HANDLING", ["0. Individual", "2. Merge files"], default_choice='2' if preset['merge'] else '0')
-    config['collision_mode'] = ask_menu("MENU 8: FILE COLLISIONS", ["1. Skip (Default)", "2. Overwrite", "3. Auto-Number"], {'1':'skip', '2':'overwrite', '3':'auto'}, '1')
-    config['image_descriptions'] = ask_menu("MENU 9: VISUALS", ["0. Enable", "1. Disable"], {'0':True, '1':False, '':True}, '0' if preset['image'] else '1')
-    config['large_print'] = ask_bool("MENU 10: LARGE PRINT PDF", ["0. Standard 11pt", "2. Enable 18pt High-Contrast"], default_choice='2' if preset['large'] else '0') if fmt == 'pdf' else False
-    config['batch_mode'] = ask_menu("MENU 11: BATCH SCAN", ["0. Standard", "1. Recursive (Keep)", "2. Recursive (Delete)"], {'0':'flat', '1':'recursive_keep', '2':'recursive_delete', '':'flat'}, '')
-    config['abbrev_expansion'] = ask_bool("MENU 12: ABBREVIATIONS", ["0. Skip", "2. Expand Contextually (e.g., Bn [Battalion])"], default_choice='2' if preset['abbrev'] else '0')
-    config['academic_mode'] = config['doc_profile'] == 'academic'
-    return config
 
 def get_prompt(config):
     return build_shared_prompt(
@@ -394,8 +333,11 @@ def apply_modern_currency(text_content):
 def apply_expanded_abbreviations(text_content, doc_profile=None):
     return core_apply_expanded_abbreviations(text_content, doc_profile)
 
-def normalize_streamed_html_document(full_html):
-    return core_normalize_streamed_html_document(full_html)
+def normalize_streamed_html_document(full_html, *, insert_page_navigation=True):
+    return core_normalize_streamed_html_document(
+        full_html,
+        insert_page_navigation=insert_page_navigation,
+    )
 
 
 def enforce_archival_heading_structure(content, fmt, doc_profile):
@@ -472,12 +414,30 @@ def _write_temp_png(prefix, image_bytes):
     return temp_path
 
 
-def save_as_pdf(pdf_path, text_content, large_print=False):
+def _set_pdf_metadata(pdf, title="Chronicle PDF Output"):
+    metadata = {
+        "set_title": title,
+        "set_author": "Chronicle",
+        "set_creator": "Chronicle",
+        "set_subject": "Untagged PDF output. For best accessibility, use Chronicle HTML, DOCX, or EPUB output.",
+        "set_keywords": "untagged PDF, accessibility review, Chronicle",
+    }
+    for method_name, value in metadata.items():
+        method = getattr(pdf, method_name, None)
+        if callable(method):
+            try:
+                method(value)
+            except Exception:
+                pass
+
+
+def save_as_pdf(pdf_path, text_content, large_print=False, title="Chronicle PDF Output"):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=15)
     font_size = 18 if large_print else 11
     pdf.set_font("Helvetica", size=font_size)
+    _set_pdf_metadata(pdf, title=title)
     if large_print:
         # Force FPDF HTML parser to respect large-font rendering.
         text_content = f"<div style='font-size: 24px; line-height: 1.5;'>{text_content}</div>"
@@ -490,6 +450,7 @@ def save_as_pdf(pdf_path, text_content, large_print=False):
         fallback.add_page()
         fallback.set_auto_page_break(auto=True, margin=15)
         fallback.set_font("Helvetica", size=font_size)
+        _set_pdf_metadata(fallback, title=title)
 
         # Strip HTML and unescape entities for clean plain-text fallback.
         import html as html_lib
@@ -580,7 +541,7 @@ def dispatch_save(config, path, memory_list, title, clear_memory=False):
     if fmt == 'docx': 
         append_to_docx(path, content)
         if clear_memory: memory_list.clear()
-    elif fmt == 'pdf': save_as_pdf(path, content, config.get('large_print', False))
+    elif fmt == 'pdf': save_as_pdf(path, content, config.get('large_print', False), title)
     elif fmt == 'json': save_as_json(path, content)
     elif fmt == 'csv': save_as_csv(path, content)
     elif fmt == 'epub': save_as_epub(path, title, content, get_output_lang_code(config), get_output_text_direction(config))
@@ -824,240 +785,6 @@ def play_completion_sound():
             "-Command",
             "(New-Object Media.SoundPlayer 'C:\\Windows\\Media\\notify.wav').PlaySync();"
         ])
-
-def process_files():
-    config = get_user_preferences()
-    model_name = config['model_name']
-    api_key = get_api_key(model_name)
-    try:
-        if "claude" in model_name:
-            import anthropic
-            client = anthropic.Anthropic(api_key=api_key)
-        elif "gpt" in model_name:
-            import openai
-            client = openai.OpenAI(api_key=api_key)
-        else:
-            client = genai.Client(api_key=api_key)
-    except Exception as e:
-        return print(f"Connection Error: {e}")
-
-    prompt_text = get_prompt(config)
-    target_scan_dir = BATCH_INPUT_DIR if config['batch_mode'].startswith('recursive') else INPUT_DIR
-    os.makedirs(target_scan_dir, exist_ok=True)
-    os.makedirs(config['output_dir'], exist_ok=True)
-    valid_files = []
-    if config['batch_mode'].startswith('recursive'):
-        for r, d, f in os.walk(target_scan_dir):
-            valid_files.extend([os.path.join(r, file) for file in f if os.path.splitext(file)[1].lower() in SUPPORTED_EXTENSIONS and not file.startswith('.')])
-    else:
-        if os.path.exists(target_scan_dir):
-            valid_files = [os.path.join(target_scan_dir, f) for f in os.listdir(target_scan_dir) if os.path.splitext(f)[1].lower() in SUPPORTED_EXTENSIONS and not f.startswith('.')]
-    if not valid_files:
-        return print("No valid files found.")
-
-    master_path = os.path.join(config['output_dir'], f"Chronicle_Merged.{config['format_type']}")
-    master_file_obj, master_memory = None, []
-    if config['merge_files']:
-        if os.path.exists(master_path):
-            os.remove(master_path)
-        if config['format_type'] in ['html', 'txt', 'md']:
-            master_file_obj = open(master_path, 'w', encoding='utf-8')
-            write_header(master_file_obj, "Chronicle Merged", config['format_type'], get_output_lang_code(config), get_output_text_direction(config))
-
-    for file_path in sorted(valid_files):
-        filename = os.path.basename(file_path)
-        base_name, ext = os.path.splitext(filename)[0], os.path.splitext(filename)[1].lower()
-        current_memory = []
-        if config['merge_files']:
-            output_path, active_write_path = master_path, master_path
-            current_file_obj, current_memory = master_file_obj, master_memory
-            if config['format_type'] == 'html':
-                current_file_obj.write("<br>")
-            elif config['format_type'] in ['txt', 'md']:
-                current_file_obj.write("\n\n")
-        else:
-            output_path = os.path.join(config['output_dir'], f"{base_name}.{config['format_type']}")
-            if os.path.exists(output_path):
-                if config.get('collision_mode') == 'skip':
-                    continue
-                elif config.get('collision_mode') == 'auto':
-                    base_name = f"{base_name}_{int(time.time())}"
-                    output_path = os.path.join(config['output_dir'], f"{base_name}.{config['format_type']}")
-            active_write_path = output_path + ".tmp"
-            if os.path.exists(active_write_path):
-                os.remove(active_write_path)
-            current_file_obj = open(active_write_path, 'w', encoding='utf-8') if config['format_type'] in ['html', 'txt', 'md'] else None
-            if current_file_obj:
-                write_header(
-                    current_file_obj,
-                    base_name,
-                    config['format_type'],
-                    get_output_lang_code(config),
-                    get_output_text_direction(config),
-                )
-        print(f"\nProcessing {filename}...")
-        try:
-            config['source_path'] = file_path
-            if ext == '.pdf':
-                process_pdf(client, file_path, active_write_path, config['format_type'], prompt_text, config['model_name'], current_file_obj, current_memory)
-            elif ext in PRESENTATION_EXTENSIONS:
-                process_pptx_document(client, file_path, active_write_path, config['format_type'], prompt_text, config['model_name'], current_file_obj, current_memory)
-            elif ext in SOURCE_TEXT_EXTENSIONS:
-                process_text_document(client, file_path, active_write_path, ext, config['format_type'], prompt_text, config['model_name'], current_file_obj, current_memory)
-            elif ext in FITZ_TEXT_EXTENSIONS:
-                process_fitz_text_document_cli(client, file_path, active_write_path, config['format_type'], prompt_text, config['model_name'], current_file_obj, current_memory)
-            elif ext in SUPPORTED_IMAGE_EXTENSIONS:
-                process_image(client, file_path, active_write_path, config['format_type'], prompt_text, config['model_name'], current_file_obj, current_memory)
-            elif ext in RENDERABLE_DOCUMENT_EXTENSIONS:
-                process_rendered_document_cli(client, file_path, active_write_path, config['format_type'], prompt_text, config['model_name'], current_file_obj, current_memory)
-            if config['batch_mode'] == 'recursive_delete':
-                if is_path_within_protected_input_dirs(file_path):
-                    print(f"Protected folder rule: not deleting source file in protected directory: {file_path}")
-                else:
-                    os.remove(file_path)
-            if not config['merge_files']:
-                dispatch_save(config, active_write_path, current_memory, base_name)
-                if current_file_obj:
-                    write_footer(current_file_obj, config['format_type'])
-                    current_file_obj.close()
-                if config['format_type'] == 'html' and os.path.exists(active_write_path):
-                    try:
-                        with open(active_write_path, 'r', encoding='utf-8', errors='ignore') as fh:
-                            cleaned_html = normalize_streamed_html_document(fh.read())
-                        if config.get('modernize_punctuation'):
-                            cleaned_html = apply_modern_punctuation(cleaned_html)
-                        if config.get('unit_conversion'):
-                            cleaned_html = apply_modern_currency(cleaned_html)
-                        if config.get('abbrev_expansion'):
-                            cleaned_html = apply_expanded_abbreviations(cleaned_html, config.get('doc_profile'))
-                        cleaned_html = apply_newspaper_html_safety_fallback(
-                            cleaned_html,
-                            'html',
-                            config.get('doc_profile'),
-                        )
-                        cleaned_html = recover_newspaper_header_citation(
-                            cleaned_html,
-                            'html',
-                            config.get('doc_profile'),
-                            config.get('source_path'),
-                        )
-                        cleaned_html = recover_source_attribution_footer(
-                            cleaned_html,
-                            'html',
-                            config.get('doc_profile'),
-                            config.get('source_path'),
-                        )
-                        cleaned_html = apply_handwriting_audit_flag(
-                            cleaned_html,
-                            'html',
-                            config.get('doc_profile'),
-                            whole_document=True,
-                        )
-                        cleaned_html = enforce_archival_heading_structure(
-                            cleaned_html,
-                            'html',
-                            config.get('doc_profile'),
-                        )
-                        with open(active_write_path, 'w', encoding='utf-8') as fh:
-                            fh.write(cleaned_html)
-                    except Exception as cleanup_ex:
-                        print(f"Warning: HTML cleanup skipped ({cleanup_ex})")
-                elif config['format_type'] in ('txt', 'md') and os.path.exists(active_write_path):
-                    try:
-                        with open(active_write_path, 'r', encoding='utf-8', errors='ignore') as fh:
-                            cleaned_text = fh.read()
-                        if config.get('modernize_punctuation'):
-                            cleaned_text = apply_modern_punctuation(cleaned_text)
-                        if config.get('unit_conversion'):
-                            cleaned_text = apply_modern_currency(cleaned_text)
-                        if config.get('abbrev_expansion'):
-                            cleaned_text = apply_expanded_abbreviations(cleaned_text, config.get('doc_profile'))
-                        cleaned_text = apply_handwriting_audit_flag(
-                            cleaned_text,
-                            config['format_type'],
-                            config.get('doc_profile'),
-                            whole_document=True,
-                        )
-                        with open(active_write_path, 'w', encoding='utf-8') as fh:
-                            fh.write(cleaned_text)
-                    except Exception as cleanup_ex:
-                        print(f"Warning: text audit cleanup skipped ({cleanup_ex})")
-                if os.path.exists(active_write_path):
-                    os.rename(active_write_path, output_path)
-            else:
-                dispatch_save(config, master_path, master_memory, "Merged", clear_memory=True)
-        except Exception as e:
-            print(f"Error on {filename}: {e}")
-            if current_file_obj and not config['merge_files']:
-                current_file_obj.close()
-    if config['merge_files']:
-        dispatch_save(config, master_path, master_memory, "Merged", clear_memory=True)
-        if master_file_obj:
-            write_footer(master_file_obj, config['format_type'])
-            master_file_obj.close()
-            if config['format_type'] == 'html' and os.path.exists(master_path):
-                try:
-                    with open(master_path, 'r', encoding='utf-8', errors='ignore') as fh:
-                        cleaned_html = normalize_streamed_html_document(fh.read())
-                        if config.get('modernize_punctuation'):
-                            cleaned_html = apply_modern_punctuation(cleaned_html)
-                        if config.get('unit_conversion'):
-                            cleaned_html = apply_modern_currency(cleaned_html)
-                        if config.get('abbrev_expansion'):
-                            cleaned_html = apply_expanded_abbreviations(cleaned_html, config.get('doc_profile'))
-                    cleaned_html = apply_newspaper_html_safety_fallback(
-                        cleaned_html,
-                        'html',
-                        config.get('doc_profile'),
-                    )
-                    cleaned_html = recover_newspaper_header_citation(
-                        cleaned_html,
-                        'html',
-                        config.get('doc_profile'),
-                        config.get('source_path'),
-                    )
-                    cleaned_html = recover_source_attribution_footer(
-                        cleaned_html,
-                        'html',
-                        config.get('doc_profile'),
-                        config.get('source_path'),
-                    )
-                    cleaned_html = apply_handwriting_audit_flag(
-                        cleaned_html,
-                        'html',
-                        config.get('doc_profile'),
-                        whole_document=True,
-                    )
-                    cleaned_html = enforce_archival_heading_structure(
-                        cleaned_html,
-                        'html',
-                        config.get('doc_profile'),
-                    )
-                    with open(master_path, 'w', encoding='utf-8') as fh:
-                        fh.write(cleaned_html)
-                except Exception as cleanup_ex:
-                    print(f"Warning: merge HTML cleanup skipped ({cleanup_ex})")
-            elif config['format_type'] in ('txt', 'md') and os.path.exists(master_path):
-                try:
-                    with open(master_path, 'r', encoding='utf-8', errors='ignore') as fh:
-                        cleaned_text = fh.read()
-                        if config.get('modernize_punctuation'):
-                            cleaned_text = apply_modern_punctuation(cleaned_text)
-                        if config.get('unit_conversion'):
-                            cleaned_text = apply_modern_currency(cleaned_text)
-                        if config.get('abbrev_expansion'):
-                            cleaned_text = apply_expanded_abbreviations(cleaned_text, config.get('doc_profile'))
-                    cleaned_text = apply_handwriting_audit_flag(
-                        cleaned_text,
-                        config['format_type'],
-                        config.get('doc_profile'),
-                        whole_document=True,
-                    )
-                    with open(master_path, 'w', encoding='utf-8') as fh:
-                        fh.write(cleaned_text)
-                except Exception as cleanup_ex:
-                    print(f"Warning: merge text audit cleanup skipped ({cleanup_ex})")
-    play_completion_sound()
 
 def get_pdf_chunk_pages(model_name, profile_key, total_pages, default_chunk_pages=PDF_CHUNK_PAGES, *, file_size_mb=None):
     model_name = str(model_name or "").lower()
@@ -1365,7 +1092,7 @@ def wait_for_gemini_upload_ready(client, uploaded, poll_sec=GEMINI_UPLOAD_POLL_S
         raise Exception("Google API failed to process the uploaded document.")
     return current
 
-def generate_with_retry(client, model_name, contents, max_retries=5, base_delay=10):
+def generate_with_retry(client, model_name, contents, max_retries=API_MAX_RETRIES, base_delay=API_BACKOFF_BASE_SEC):
     import time
     for attempt in range(max_retries):
         try:
@@ -1403,7 +1130,7 @@ def generate_with_retry(client, model_name, contents, max_retries=5, base_delay=
                     "Connection path unavailable. Chronicle stopped retrying to avoid hammering the API service."
                 ) from e
             if "429" in error_str or "exhausted" in error_str or "quota" in error_str or "overloaded" in error_str:
-                delay = base_delay * (2 ** attempt)
+                delay = min(API_BACKOFF_MAX_SEC, base_delay * (2 ** attempt))
                 print(f"\n[API Rate Limit Hit] Backing off for {delay} seconds (Attempt {attempt + 1}/{max_retries})...")
                 time.sleep(delay)
             else:
@@ -1578,7 +1305,9 @@ def process_pptx_document(client, file_path, output_path, format_type, prompt_te
             memory_list=memory_list,
         )
 
+def main():
+    raise SystemExit("Chronicle's legacy CLI has been retired. Run the desktop GUI with `python chronicle_gui.py`.")
+
+
 if __name__ == "__main__":
-    migrate_legacy_cli_key_files()
-    shared_emit_launch_continuity(script_dir=SCRIPT_DIR)
-    process_files()
+    main()

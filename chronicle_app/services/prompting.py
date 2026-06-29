@@ -11,17 +11,22 @@ def get_translation_target(cfg, translation_targets):
 
 
 def get_output_lang_code(cfg, translation_targets):
-    if cfg.get("translate_mode", "none") == "none":
-        return "und"
+    explicit = str(
+        cfg.get("output_lang_code")
+        or cfg.get("source_lang_code")
+        or cfg.get("language_code")
+        or ""
+    ).strip().lower()
+    if re.fullmatch(r"[a-z]{2,3}(?:-[a-z0-9]{2,8})?", explicit):
+        return explicit
     _, code = get_translation_target(cfg, translation_targets)
     return code
 
 
 def get_output_text_direction(cfg, translation_targets, rtl_language_codes):
-    if cfg.get("translate_mode", "none") == "none":
-        return "auto"
     code = get_output_lang_code(cfg, translation_targets)
-    return "rtl" if code in rtl_language_codes else "ltr"
+    primary = code.split("-", 1)[0]
+    return "rtl" if primary in rtl_language_codes else "ltr"
 
 
 def build_prompt(
@@ -64,7 +69,10 @@ def build_prompt(
         "title-page artwork, photographs, seals, insignia, maps, diagrams, or illustrated advertisements, "
         "include a concrete image description instead of omitting it or substituting a source filename."
         if cfg.get("image_descriptions")
-        else 'Output <img alt=""> for all images to hide them from screen readers.'
+        else "Keep image descriptions concise, but do not hide meaningful visual content from screen readers. "
+        'Use <img alt=""> only for purely decorative images; for meaningful photographs, diagrams, figures, '
+        "icons, covers, seals, maps, screenshots, or visual instructions, provide a concrete text alternative "
+        "or bracketed [Image Description: ...] instead of omitting it or substituting a source filename."
     )
     page_number_rule = (
         "Preserve visible original printed page numbers as standalone reference markers when they are clearly present. "
@@ -550,6 +558,13 @@ GENERAL THROUGHPUT RULES:
             "- Output only CSV rows.\n"
             "- No prose, no headings, no markdown, no HTML tags.\n"
             "- Keep column consistency and escape quotes per CSV rules.\n"
+        )
+    if format_type == "pdf":
+        base += (
+            "\nPDF OUTPUT ACCESSIBILITY NOTE:\n"
+            "- Chronicle's generated PDF writer produces readable visual PDFs but does not create a tagged PDF/UA structure tree.\n"
+            "- Keep the source text semantically clean before PDF rendering, and prefer HTML, DOCX, or EPUB when a fully navigable assistive-technology output is required.\n"
+            "- Do not claim the PDF itself is tagged; treat it as an untagged PDF unless a downstream PDF remediation tool adds tags.\n"
         )
     if format_type == "html":
         return f"Format strictly as HTML. No markdown wrappers.\n{base}"

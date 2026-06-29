@@ -5,11 +5,16 @@ import io
 
 import chronicle_app.services.pdf_processor as pdf_processor_module
 from chronicle_app.services.pdf_processor import process_pdf
+from chronicle_app.services.pdf_processor import _format_source_page_span
 from chronicle_app.services.pdf_processor import GEMINI_FILE_UPLOAD_TIMEOUT_MS
 from chronicle_app.services.runtime_policies import DEFAULT_CLAUDE_MODEL
 
 
 class PdfProcessorTest(unittest.TestCase):
+    def test_format_source_page_span_avoids_single_page_repetition(self):
+        self.assertEqual(_format_source_page_span(16, 16, 29), "page 16 of 29 pages")
+        self.assertEqual(_format_source_page_span(15, 16, 29), "pages 15-16 of 29 pages")
+
     def test_process_pdf_sends_text_backed_legal_pages_to_deep_engine(self):
         class FakePage:
             def __init__(self, text):
@@ -1102,7 +1107,7 @@ class PdfProcessorTest(unittest.TestCase):
         class ModelsApi:
             def generate_content(self, **kwargs):
                 calls.append(kwargs)
-                return type("Response", (), {"text": "<article><h1>Pro newspaper result</h1></article>"})()
+                return type("Response", (), {"text": "<article><h1>Pro newspaper result</h1><p>" + ("dense OCR text " * 12) + "</p></article>"})()
 
         class Client:
             def __init__(self):
@@ -1217,6 +1222,126 @@ class PdfProcessorTest(unittest.TestCase):
         self.assertTrue(any("[Gemini Image] Requesting dense newspaper strip 2/2" in line for line in logs))
         self.assertFalse(any("Dense NLA newspaper OCR detected" in line for line in logs))
 
+    def test_process_pdf_streams_dense_newspaper_strips_in_parallel_and_writes_in_order(self):
+        class FakePage:
+            def extract_text(self):
+                return "National Library of Australia\n" + "\n".join(
+                    f"Column OCR line {idx} with newspaper text." for idx in range(900)
+                )
+
+        class FakeReader:
+            def __init__(self, _path):
+                self.pages = [FakePage()]
+
+        class BrokenSliceWriter:
+            def add_page(self, page):
+                raise RuntimeError("dense strip path should not build PDF slices")
+
+            def write(self, fh):
+                raise RuntimeError("dense strip path should not build PDF slices")
+
+        class Client:
+            _api_client = type("ApiClient", (), {"api_key": "AIza-test"})()
+
+        class FakePixmap:
+            def tobytes(self, fmt):
+                return b"rendered-png"
+
+        class FakePageImage:
+            rect = type("Rect", (), {"x0": 0, "y0": 0, "x1": 400, "y1": 800, "width": 400})()
+
+            def get_pixmap(self, **kwargs):
+                return FakePixmap()
+
+        class FakeFitzDoc:
+            def load_page(self, index):
+                return FakePageImage()
+
+            def close(self):
+                return None
+
+        class FakeFitz:
+            csRGB = object()
+
+            @staticmethod
+            def Matrix(x, y):
+                return (x, y)
+
+            @staticmethod
+            def Rect(x0, y0, x1, y1):
+                return (x0, y0, x1, y1)
+
+            @staticmethod
+            def open(path):
+                return FakeFitzDoc()
+
+        calls = []
+        emitted = []
+        logs = []
+
+        def fake_stream(key, request_fn, out, fmt, f_obj, mem, log_cb, pause_cb=None):
+            calls.append((key, f_obj is None, mem is not emitted))
+            if ":0:0:" in key:
+                text = "strip-one " + ("dense OCR text " * 12) + "\n"
+                if mem is not None:
+                    mem.append(text)
+                return text
+            text = "strip-two " + ("dense OCR text " * 12) + "\n"
+            if mem is not None:
+                mem.append(text)
+            return text
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            pdf_path = os.path.join(tmpdir, "dense.pdf")
+            with open(pdf_path, "wb") as fh:
+                fh.write(b"x" * int(1.2 * 1024 * 1024))
+            original_fitz = pdf_processor_module.fitz
+            pdf_processor_module.fitz = FakeFitz
+            try:
+                process_pdf(
+                    client=Client(),
+                    path=pdf_path,
+                    out="out.html",
+                    fmt="html",
+                    prompt="Prompt\nHISTORICAL NEWSPAPER RULES",
+                    model="gemini-2.5-pro",
+                    f_obj=None,
+                    mem=emitted,
+                    log_cb=logs.append,
+                    confidence_cb=None,
+                    pause_cb=None,
+                    page_progress_cb=None,
+                    page_scope="",
+                    doc_profile="newspaper",
+                    script_dir=tmpdir,
+                    pdf_reader_cls=FakeReader,
+                    pdf_writer_cls=BrokenSliceWriter,
+                    parse_pdf_page_scope_spec_fn=lambda scope, total_pages: [0],
+                    normalize_pdf_page_scope_text_fn=lambda scope: scope,
+                    get_pdf_chunk_pages_fn=lambda model, profile, total, **kwargs: 1,
+                    sha256_file_fn=lambda path: "fingerprint",
+                    sha256_text_fn=lambda text: f"sha:{text}",
+                    build_payload_fn=lambda *args, **kwargs: self.fail("Dense strip path should not build inline payloads"),
+                    build_request_cache_key_fn=lambda model, prompt, kind, fp: f"{kind}:{model}:{fp}",
+                    stream_with_cache_fn=fake_stream,
+                    generate_retry_fn=lambda *args, **kwargs: self.fail("Dense newspaper Pro strip path should not use SDK streaming"),
+                    split_text_for_fail_safe_fn=lambda text, max_chars=900: [text],
+                    remove_fn=lambda path: None,
+                    exists_fn=lambda path: True,
+                    allow_text_layer_fallback=True,
+                )
+            finally:
+                pdf_processor_module.fitz = original_fitz
+
+        self.assertEqual(len(calls), 2)
+        self.assertTrue(all(call[1] for call in calls))
+        self.assertTrue(all(call[2] for call in calls))
+        joined = "".join(emitted)
+        self.assertIn("<h2>Page 1</h2>", joined)
+        self.assertIn(("strip-one " + ("dense OCR text " * 12)).strip(), joined)
+        self.assertIn(("strip-two " + ("dense OCR text " * 12)).strip(), joined)
+        self.assertTrue(any("strips in parallel" in line for line in logs))
+
     def test_process_pdf_does_not_use_trove_article_ocr_by_default(self):
         class FakePage:
             def extract_text(self):
@@ -1282,7 +1407,9 @@ class PdfProcessorTest(unittest.TestCase):
             )
 
         self.assertEqual(trove_requests, [])
-        self.assertEqual(emitted, ["gpt visual output"])
+        self.assertEqual(len(emitted), 1)
+        self.assertIn("<h2>Page 1</h2>", emitted[0])
+        self.assertIn("gpt visual output", emitted[0])
 
     def test_process_pdf_uses_trove_article_ocr_only_when_explicitly_enabled(self):
         class FakePage:
@@ -1504,7 +1631,9 @@ class PdfProcessorTest(unittest.TestCase):
             finally:
                 pdf_processor_module.fitz = original_fitz
 
-        self.assertEqual(len(emitted), 4)
+        joined = "".join(emitted)
+        self.assertIn("<h2>Page 1</h2>", joined)
+        self.assertIn("<h2>Page 2</h2>", joined)
         self.assertTrue(any("Rendering source page 1 as 2 newspaper strips" in line for line in logs))
         self.assertTrue(any("Rendering source page 2 as 2 newspaper strips" in line for line in logs))
 
@@ -1636,6 +1765,123 @@ class PdfProcessorTest(unittest.TestCase):
         self.assertTrue(any("Image-only scanned page detected" in line for line in logs))
         self.assertTrue(any("Visible rendered page:" in line for line in logs))
 
+    def test_process_pdf_image_only_scanned_pages_parallelize_and_write_in_order(self):
+        class FakePage:
+            def extract_text(self):
+                return ""
+
+        class FakeReader:
+            def __init__(self, _path):
+                self.pages = [FakePage(), FakePage()]
+
+        class BrokenSliceWriter:
+            def add_page(self, page):
+                raise RuntimeError("image-only scanned pages should not be rebuilt as PDF slices")
+
+            def write(self, fh):
+                raise RuntimeError("image-only scanned pages should not be rebuilt as PDF slices")
+
+        class Client:
+            _api_client = type("ApiClient", (), {"api_key": "AIza-test"})()
+
+        class FakePixmap:
+            def tobytes(self, fmt):
+                return b"rendered-war-diary-page"
+
+        class FakePageImage:
+            def get_pixmap(self, **kwargs):
+                return FakePixmap()
+
+        class FakeFitzDoc:
+            def load_page(self, index):
+                return FakePageImage()
+
+            def close(self):
+                return None
+
+        class FakeFitz:
+            csRGB = object()
+
+            @staticmethod
+            def Matrix(x, y):
+                return (x, y)
+
+            @staticmethod
+            def open(path):
+                return FakeFitzDoc()
+
+        calls = []
+        emitted = []
+        logs = []
+        progress = []
+
+        def fake_stream(key, request_fn, out, fmt, f_obj, mem, log_cb, pause_cb=None):
+            calls.append((key, f_obj is None, mem is not emitted))
+            if ":0:" in key:
+                if mem is not None:
+                    mem.append("page-one\n")
+                return "page-one\n"
+            if mem is not None:
+                mem.append("page-two\n")
+            return "page-two\n"
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            pdf_path = os.path.join(tmpdir, "Australian Imperial Force Unit War Diary.pdf")
+            with open(pdf_path, "wb") as fh:
+                fh.write(b"x" * int(2.0 * 1024 * 1024))
+            original_fitz = pdf_processor_module.fitz
+            pdf_processor_module.fitz = FakeFitz
+            try:
+                process_pdf(
+                    client=Client(),
+                    path=pdf_path,
+                    out="out.html",
+                    fmt="html",
+                    prompt="Prompt\nMILITARY RECORDS",
+                    model="gemini-2.5-pro",
+                    f_obj=None,
+                    mem=emitted,
+                    log_cb=logs.append,
+                    confidence_cb=None,
+                    pause_cb=None,
+                    page_progress_cb=lambda done, total, page=None: progress.append((done, total, page)),
+                    page_scope="",
+                    doc_profile="military",
+                    script_dir=tmpdir,
+                    pdf_reader_cls=FakeReader,
+                    pdf_writer_cls=BrokenSliceWriter,
+                    parse_pdf_page_scope_spec_fn=lambda scope, total_pages: [0, 1],
+                    normalize_pdf_page_scope_text_fn=lambda scope: scope,
+                    get_pdf_chunk_pages_fn=lambda model, profile, total, **kwargs: 1,
+                    sha256_file_fn=lambda path: "fingerprint",
+                    sha256_text_fn=lambda text: f"sha:{text}",
+                    build_payload_fn=lambda *args, **kwargs: self.fail("Image-only scanned pages should not build PDF payloads"),
+                    build_request_cache_key_fn=lambda model, prompt, kind, fp: f"{kind}:{model}:{fp}",
+                    stream_with_cache_fn=fake_stream,
+                    generate_retry_fn=lambda *args, **kwargs: self.fail("Image-only scanned pages should not use Gemini PDF streaming"),
+                    split_text_for_fail_safe_fn=lambda text, max_chars=900: [text],
+                    remove_fn=os.remove,
+                    exists_fn=os.path.exists,
+                    wait_for_gemini_upload_ready_fn=lambda client, uploaded, **kwargs: uploaded,
+                    allow_text_layer_fallback=True,
+                )
+            finally:
+                pdf_processor_module.fitz = original_fitz
+
+            leftovers = [name for name in os.listdir(tmpdir) if name.startswith("chronicle_temp_")]
+
+        self.assertEqual(len(calls), 2)
+        self.assertTrue(all(call[1] for call in calls))
+        self.assertTrue(all(call[2] for call in calls))
+        self.assertEqual(len(emitted), 2)
+        self.assertIn("<h2>Page 1</h2>", emitted[0])
+        self.assertIn("page-one", emitted[0])
+        self.assertIn("<h2>Page 2</h2>", emitted[1])
+        self.assertIn("page-two", emitted[1])
+        self.assertEqual(progress[-1], (2, 2, 2))
+        self.assertEqual(leftovers, [])
+        self.assertTrue(any("image-only scanned PDF pages in parallel" in line for line in logs))
+
     def test_process_pdf_dense_newspaper_flash_uses_pro_strip_escalation_before_pdf_slice(self):
         class FakePage:
             def extract_text(self):
@@ -1669,7 +1915,7 @@ class PdfProcessorTest(unittest.TestCase):
         class ModelsApi:
             def generate_content(self, **kwargs):
                 calls.append(kwargs)
-                return type("Response", (), {"text": "HEADLINE\nBody text"})()
+                return type("Response", (), {"text": "HEADLINE\n" + ("Body text from dense strip. " * 8)})()
 
         class Client:
             def __init__(self):

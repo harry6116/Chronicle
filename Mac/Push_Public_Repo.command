@@ -5,6 +5,10 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 SNAPSHOT_DIR="$ROOT_DIR/artifacts/public_repo_stage/Chronicle"
 DEFAULT_PUBLIC_REPO_DIR="${CHRONICLE_PUBLIC_REPO_DIR:-$HOME/Documents/Chronicle Public Repo}"
+. "$SCRIPT_DIR/release_helpers.sh"
+RELEASE_NOTES_FILE="$(release_notes_file "$ROOT_DIR")"
+RELEASE_VERSION="$(release_version_from_notes "$RELEASE_NOTES_FILE")"
+DEFAULT_COMMIT_MESSAGE="Public repo refresh for Chronicle $RELEASE_VERSION"
 
 normalize_answer() {
   printf '%s' "$1" | tr '[:upper:]' '[:lower:]'
@@ -82,13 +86,13 @@ if git diff --cached --quiet; then
 fi
 
 echo ""
-echo "Enter a public repo commit summary (e.g., Public repo refresh for 1.0.0):"
+echo "Enter a public repo commit summary:"
+echo "Press Enter to use:"
+echo "  $DEFAULT_COMMIT_MESSAGE"
 read -r commit_message
 
 if [[ -z "${commit_message// }" ]]; then
-  echo "ERROR: Commit summary cannot be empty."
-  read -r -p "Press Enter to close..."
-  exit 1
+  commit_message="$DEFAULT_COMMIT_MESSAGE"
 fi
 
 git commit -m "$commit_message"

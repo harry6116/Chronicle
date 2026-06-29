@@ -31,11 +31,17 @@ def _contains_scanner_keyword(text):
         "scanner",
         "scanjet",
         "canoscan",
+        "pixma",
+        "maxify",
         "perfection",
         "imageclass",
         "mfp",
+        "multifunction",
         "all-in-one",
         "flatbed",
+        "airprint",
+        "escl",
+        "printer",
     )
     return any(k in t for k in keywords)
 
@@ -71,7 +77,8 @@ def _walk_macos_profiler_items(node, scanners, seen, source):
     name = str(node.get("_name") or node.get("device_name") or node.get("spphysicalloc") or "").strip()
     manufacturer = str(node.get("manufacturer") or node.get("spmanufacturer") or "").strip()
     details_blob = " ".join(str(v) for v in node.values() if isinstance(v, (str, int, float)))
-    _append_unique_scanner(scanners, seen, name, manufacturer, source, details_blob)
+    force_printer_source = source.lower().endswith("printers")
+    _append_unique_scanner(scanners, seen, name, manufacturer, source, details_blob, force=force_printer_source)
 
     for val in node.values():
         if isinstance(val, (list, dict)):
@@ -189,11 +196,11 @@ def discover_scanners_windows():
         (
             "$ErrorActionPreference='SilentlyContinue';"
             "$d=Get-PnpDevice -PresentOnly | "
-            "Where-Object { $_.Class -eq 'Image' -or $_.FriendlyName -match 'scan|scanner|scanjet|canoscan|perfection|flatbed|mfp' } | "
+            "Where-Object { $_.Class -in @('Image','Printer') -or $_.FriendlyName -match 'scan|scanner|scanjet|canoscan|pixma|maxify|perfection|flatbed|mfp|multifunction|all-in-one|printer' } | "
             "Select-Object FriendlyName,Manufacturer,Status,Class;"
             "if(-not $d){"
             "$d=Get-CimInstance Win32_PnPEntity | "
-            "Where-Object { $_.PNPClass -eq 'Image' -or $_.Name -match 'scan|scanner|scanjet|canoscan|perfection|flatbed|mfp' } | "
+            "Where-Object { $_.PNPClass -in @('Image','Printer') -or $_.Name -match 'scan|scanner|scanjet|canoscan|pixma|maxify|perfection|flatbed|mfp|multifunction|all-in-one|printer' } | "
             "Select-Object @{N='FriendlyName';E={$_.Name}},Manufacturer,Status,@{N='Class';E={$_.PNPClass}}"
             "};"
             "$d | ConvertTo-Json -Compress"
@@ -221,7 +228,7 @@ def discover_scanners_windows():
         manu = str(item.get("Manufacturer") or "").strip()
         status = str(item.get("Status") or "").strip()
         cls = str(item.get("Class") or "").strip()
-        _append_unique_scanner(scanners, seen, name, manu, "Windows PnP", f"{status} {cls}")
+        _append_unique_scanner(scanners, seen, name, manu, "Windows PnP", f"{status} {cls}", force=cls.lower() == "printer")
     return scanners, None
 
 

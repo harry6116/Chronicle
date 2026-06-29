@@ -1,6 +1,8 @@
 import copy
 import os
 
+from chronicle_app.services.runtime_policies import get_model_vendor, is_offline_model
+
 
 def begin_run_start(*, resume_incomplete_only, scheduled_start_ts):
     return {
@@ -156,7 +158,9 @@ def find_missing_api_key_requirement(
     for row in pending_rows:
         settings = normalize_row_settings_fn(row)
         model = str(settings.get("model_name") or model_from_label_fn(row["engine"]))
-        vendor = "claude" if "claude" in model else "openai" if "gpt" in model else "gemini"
+        if is_offline_model(model):
+            continue
+        vendor = get_model_vendor(model)
         if has_vendor_key_fn(vendor):
             continue
         return {

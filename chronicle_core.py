@@ -3,8 +3,46 @@ import html
 import io
 import os
 import re
-from collections import Counter
 from urllib.parse import quote
+
+from chronicle_app.services.book_cleanup import _apply_book_plain_text_cleanup
+from chronicle_app.services.book_cleanup import _normalize_book_dialogue_quotes
+from chronicle_app.services.book_cleanup import _normalize_book_page_markers
+from chronicle_app.services.html_heading_cleanup import _promote_bare_instruction_heading
+from chronicle_app.services.html_heading_cleanup import _promote_bare_military_instruction_heading
+from chronicle_app.services.html_heading_cleanup import _promote_bold_followup_after_h1
+from chronicle_app.services.html_heading_cleanup import _promote_context_paragraph_heading
+from chronicle_app.services.html_heading_cleanup import _promote_definition_list_headings
+from chronicle_app.services.html_heading_cleanup import _promote_index_heading
+from chronicle_app.services.html_heading_cleanup import _promote_index_section_heading
+from chronicle_app.services.html_heading_cleanup import _promote_list_section_headings
+from chronicle_app.services.html_heading_cleanup import _promote_military_continuation_heading
+from chronicle_app.services.html_heading_cleanup import _promote_military_order_page_heading
+from chronicle_app.services.html_heading_cleanup import _promote_numbered_instruction_headings
+from chronicle_app.services.html_heading_cleanup import _promote_ordered_list_instruction_headings
+from chronicle_app.services.html_heading_cleanup import _promote_short_first_h2_to_h1
+from chronicle_app.services.html_heading_cleanup import _promote_short_h2_with_bold_followup
+from chronicle_app.services.html_heading_cleanup import _promote_strong_paragraph_headings
+from chronicle_app.services.output_cleanup import _collapse_inline_image_sources
+from chronicle_app.services.output_cleanup import _convert_markdown_headings_inside_html
+from chronicle_app.services.output_cleanup import _dedupe_adjacent_html_paragraph_blocks
+from chronicle_app.services.output_cleanup import _strip_broken_placeholder_images_html
+from chronicle_app.services.output_cleanup import _strip_html_page_wrapper_noise
+from chronicle_app.services.output_cleanup import _strip_repeated_periodical_running_head_h1s
+from chronicle_app.services.output_cleanup import strip_internal_chronicle_output_labels
+from chronicle_app.services.handwriting_forms import _normalize_form_semantics_html
+from chronicle_app.services.handwriting_forms import apply_handwriting_audit_flag
+from chronicle_app.services.handwriting_forms import should_flag_handwriting_audit
+from chronicle_app.services.html_heading_cleanup import _extract_running_header_title
+from chronicle_app.services.html_heading_cleanup import _looks_like_heading_text
+from chronicle_app.services.html_heading_cleanup import _promote_leading_paragraph_headings
+from chronicle_app.services.html_heading_cleanup import _promote_sparse_heading_blocks
+from chronicle_app.services.html_page_navigation import inject_page_navigation
+from chronicle_app.services.html_page_navigation import inject_single_page_boundary_from_metadata
+from chronicle_app.services.newspaper_processing import apply_newspaper_html_safety_fallback
+from chronicle_app.services.newspaper_processing import build_newspaper_safety_notice
+from chronicle_app.services.newspaper_processing import recover_newspaper_header_citation
+from chronicle_app.services.newspaper_processing import recover_source_attribution_footer
 
 try:
     from bs4 import BeautifulSoup, NavigableString, Tag
@@ -12,11 +50,6 @@ except ImportError:  # pragma: no cover - optional dependency in lightweight tes
     BeautifulSoup = None
     NavigableString = str
     Tag = None
-
-try:
-    import fitz
-except ImportError:  # pragma: no cover - optional dependency in lightweight test envs
-    fitz = None
 
 
 MAX_FULL_DOCUMENT_HTML_NORMALIZATION_CHARS = 200_000
@@ -226,405 +259,6 @@ def get_modern_newspaper_profile_rules(format_type):
     )
 
 
-def _is_common_leading_elision(fragment: str) -> bool:
-    return bool(re.match(r"(?:em|cause|cos|round|til|tis|twas|un|neath)\b", fragment.lower()))
-
-
-def _normalize_book_dialogue_quotes(text: str) -> str:
-    if not text or "'" not in text:
-        return text
-
-    chars = []
-    open_quote = False
-    for index, char in enumerate(text):
-        if char != "'":
-            chars.append(char)
-            continue
-
-        prev_char = text[index - 1] if index > 0 else ""
-        next_char = text[index + 1] if index + 1 < len(text) else ""
-        if prev_char.isalnum() and next_char.isalnum():
-            chars.append(char)
-            continue
-        if not prev_char.strip() and _is_common_leading_elision(text[index + 1 :]):
-            chars.append(char)
-            continue
-        chars.append('"')
-        open_quote = not open_quote
-    return "".join(chars)
-
-
-def _split_fused_book_front_matter(text: str) -> str:
-    if not text:
-        return ""
-    cleaned = text
-    cleaned = re.sub(r"(\.\.\.|\.\s\.\s\.)(?=(Books by\b))", r"\1\n\n", cleaned)
-    cleaned = re.sub(r"(?<=[a-z0-9\)])(?=(Books by\b))", "\n\n", cleaned)
-    cleaned = re.sub(
-        r"(?<=[a-z0-9\"'])\s+(?=(PENGUIN BOOKS|NEVER BEFORE HAS A CRIMINAL MASTERMIND)\b)",
-        "\n\n",
-        cleaned,
-    )
-    cleaned = re.sub(
-        r"(?m)^(ARTEMIS FOWL)\n(?=(NEVER BEFORE HAS A CRIMINAL MASTERMIND)\b)",
-        r"\1\n\n",
-        cleaned,
-    )
-    cleaned = re.sub(
-        r"(?m)^(NEVER BEFORE HAS A CRIMINAL MASTERMIND)\n(?=(PENGUIN BOOKS)\b)",
-        r"\1\n\n",
-        cleaned,
-    )
-    return cleaned
-
-
-def _normalize_book_page_markers(text: str) -> str:
-    if not text:
-        return ""
-
-    cleaned = re.sub(
-        r"(?m)^(\[Original Page Number:\s*(\d+)\])(?:\s*\n\s*\[Original Page Number:\s*\2\])+$",
-        r"\1",
-        text,
-    )
-    marker_pattern = re.compile(r"(?m)^\[Original Page Number:\s*(\d+)\]\s*$")
-    matches = list(marker_pattern.finditer(cleaned))
-    if len(matches) < 2:
-        return cleaned
-
-    parts = []
-    last_index = 0
-    previous_number = None
-    for match in matches:
-        current_number = int(match.group(1))
-        insertion = ""
-        if previous_number is not None and current_number - previous_number > 1:
-            insertion = "\n".join(
-                f"[Original Page Number: {number}]"
-                for number in range(previous_number + 1, current_number)
-            ) + "\n"
-        parts.append(cleaned[last_index:match.start()])
-        parts.append(insertion)
-        parts.append(match.group(0))
-        last_index = match.end()
-        previous_number = current_number
-    parts.append(cleaned[last_index:])
-    return "".join(parts)
-
-
-def _repair_obvious_book_scan_wraps(text: str) -> str:
-    if not text:
-        return ""
-    # Only repair a very small set of common suffix splits to avoid harming real compounds.
-    return re.sub(
-        r"\b([A-Za-z]{4,})-(ing|ed|er|ers|est|ly|ion|ions|ment|ments|ance|ances|ence|ences)\b",
-        r"\1\2",
-        text,
-    )
-
-
-def _cleanup_numeric_quote_noise(text: str) -> str:
-    if not text:
-        return ""
-
-    def _fix_line(match):
-        line = match.group(0)
-        if re.fullmatch(r'[\d"\-\s]+', line.strip()):
-            return line.replace('"', "")
-        return line
-
-    return re.sub(r"(?m)^.*$", _fix_line, text)
-
-
-def _apply_book_plain_text_cleanup(text: str, preserve_original_page_numbers: bool) -> str:
-    cleaned = text
-    cleaned = _cleanup_numeric_quote_noise(cleaned)
-    cleaned = re.sub(r"([^\n])((?:#{1,6})\s+[A-Z])", r"\1\n\2", cleaned)
-    cleaned = _split_fused_book_front_matter(cleaned)
-    cleaned = _normalize_book_dialogue_quotes(cleaned)
-    cleaned = _repair_obvious_book_scan_wraps(cleaned)
-    if preserve_original_page_numbers:
-        cleaned = re.sub(
-            r"(?m)^(Chapter\s+\d+:[^\n]+)\n(\d{1,3})$",
-            r"\1\n[Original Page Number: \2]",
-            cleaned,
-        )
-        cleaned = re.sub(
-            r"(?m)^(\[Original Page Number:\s*\d+\])\n(\[Original Page Number:\s*\d+\])$",
-            r"\1\n\2",
-            cleaned,
-        )
-        cleaned = _normalize_book_page_markers(cleaned)
-    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
-    return cleaned
-
-
-def _collapse_inline_image_sources(text: str) -> str:
-    if not text:
-        return ""
-    cleaned = text
-    cleaned = re.sub(
-        r"(?is)data:image\/[a-z0-9.+-]+;base64,[a-z0-9+\/=\s_-]{24,}",
-        "about:blank",
-        cleaned,
-    )
-    cleaned = re.sub(
-        r'(?is)<img\b[^>]*\s+src\s*=\s*["\'](?:data:image\/[a-z0-9.+-]+;base64,|about:blank)[^<]{32,}(?=>|</|$)',
-        '<img src="about:blank">',
-        cleaned,
-    )
-    cleaned = re.sub(
-        r"(?is)(src\s*=\s*['\"])data:image\/[a-z0-9.+-]+;base64,[^'\"]+(['\"])",
-        r"\1about:blank\2",
-        cleaned,
-    )
-    cleaned = re.sub(
-        r"(?is)(src\s*=\s*['\"])about:blank[^'\"]{24,}(['\"])",
-        r"\1about:blank\2",
-        cleaned,
-    )
-    cleaned = re.sub(
-        r"(?is)(about:blank[\"'>])([a-z0-9+\/=\s_-]{24,})",
-        r"\1",
-        cleaned,
-    )
-    cleaned = re.sub(
-        r'(?is)(<img\b[^>]*\s+src\s*=\s*["\']about:blank)(?=</)',
-        r'\1">',
-        cleaned,
-    )
-    cleaned = re.sub(
-        r"(?is)(<img\b[^>]*\s+src\s*=\s*['\"])(?:data:image\/[a-z0-9.+-]+;base64,|about:blank)[^'\"]*(['\"][^>]*>)",
-        r"\1about:blank\2",
-        cleaned,
-    )
-    cleaned = re.sub(r"about:blank[a-z0-9+\/=\s_-]{240,}", "about:blank", cleaned, flags=re.IGNORECASE)
-    return cleaned
-
-
-def _strip_html_page_wrapper_noise(text: str) -> str:
-    if not text:
-        return ""
-    cleaned = text
-    cleaned = re.sub(r"<!--.*?-->\s*", "", cleaned, flags=re.DOTALL)
-    cleaned = re.sub(r"(?im)^\s*#{2,6}\s*Page\s+\d+\s*$", "", cleaned)
-    cleaned = re.sub(r"(?im)^\s*Page\s+\d+\s*$", "", cleaned)
-    cleaned = re.sub(
-        r"(?im)^\s*\d{1,4}\s+[A-ZÇĞİÖŞÜ]+(?:\s+\d{4})?\s+Oyungezer\s*(?=<)",
-        "",
-        cleaned,
-    )
-    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
-    return cleaned
-
-
-def _convert_markdown_headings_inside_html(text: str) -> str:
-    if not text:
-        return ""
-    cleaned = text
-
-    def _replace_heading(match):
-        hashes = match.group(1)
-        inner = re.sub(r"\s+", " ", (match.group(2) or "")).strip()
-        level = min(len(hashes), 6)
-        if not inner:
-            return ""
-        return f"<h{level}>{html.escape(inner)}</h{level}>"
-
-    cleaned = re.sub(
-        r"(?im)^(#{1,6})\s+(.+?)\s*$",
-        _replace_heading,
-        cleaned,
-    )
-    return cleaned
-
-
-def _strip_broken_placeholder_images_html(text: str) -> str:
-    if not text:
-        return ""
-    cleaned = text
-    cleaned = re.sub(
-        r'<img\b([^>]*?)\s+src=(["\'])(?:IMAGE_PLACEHOLDER(?:_\d+)?|IMAGE_URL(?:_\d+)?|)\2([^>]*)/?>',
-        "",
-        cleaned,
-        flags=re.IGNORECASE,
-    )
-    cleaned = re.sub(
-        r'<img\b([^>]*?)\s+src=(["\'])\s*\2([^>]*)/?>',
-        "",
-        cleaned,
-        flags=re.IGNORECASE,
-    )
-    cleaned = re.sub(r"<figure>\s*</figure>", "", cleaned, flags=re.IGNORECASE | re.DOTALL)
-    cleaned = re.sub(r"<figure>\s*<figcaption>\s*</figcaption>\s*</figure>", "", cleaned, flags=re.IGNORECASE | re.DOTALL)
-    return cleaned
-
-
-def _strip_repeated_periodical_running_head_h1s(body: str, document_title: str = "") -> str:
-    if not body:
-        return ""
-
-    wrapped_heading_pattern = re.compile(
-        r"<header>\s*<h1\b[^>]*>(.*?)</h1>\s*</header>",
-        flags=re.IGNORECASE | re.DOTALL,
-    )
-    wrapped_titles = []
-    for match in wrapped_heading_pattern.finditer(body):
-        plain = re.sub(r"\s+", " ", _strip_html_tags(match.group(1))).strip(" -|:")
-        if plain:
-            wrapped_titles.append(plain)
-
-    wrapped_counts = Counter(title.casefold() for title in wrapped_titles)
-    doc_title_norm = re.sub(r"\s+", " ", (document_title or "")).strip().casefold()
-    candidate_titles = {
-        title_key
-        for title_key, count in wrapped_counts.items()
-        if count >= 3
-        and 4 <= len(title_key) <= 14
-        and len(title_key.split()) <= 2
-        and not re.search(r"\d", title_key)
-        and (not doc_title_norm or title_key not in doc_title_norm)
-    }
-    if not candidate_titles:
-        return body
-
-    heading_pattern = re.compile(
-        r"(?:<header>\s*)?<h1\b[^>]*>(.*?)</h1>(?:\s*</header>)?",
-        flags=re.IGNORECASE | re.DOTALL,
-    )
-    removals = []
-    for match in heading_pattern.finditer(body):
-        plain = re.sub(r"\s+", " ", _strip_html_tags(match.group(1))).strip(" -|:")
-        before = body[max(0, match.start() - 260):match.start()]
-        after = body[match.end():match.end() + 1600]
-        boundary = bool(
-            re.search(
-                r"(?:\[Original Page Number:\s*\d+\]|<footer\b|</footer>|</article>|<hr\b)",
-                before,
-                flags=re.IGNORECASE,
-            )
-        )
-        if plain.casefold() not in candidate_titles:
-            if (
-                not boundary
-                or not (4 <= len(plain) <= 14)
-                or len(plain.split()) > 2
-                or re.search(r"\d", plain)
-                or (doc_title_norm and plain.casefold() in doc_title_norm)
-            ):
-                continue
-        next_heading = re.search(r"<h([1-2])\b[^>]*>(.*?)</h\1>", after, flags=re.IGNORECASE | re.DOTALL)
-        if not next_heading:
-            continue
-        next_plain = re.sub(r"\s+", " ", _strip_html_tags(next_heading.group(2))).strip(" -|:")
-        if not next_plain or next_plain.casefold() == plain.casefold():
-            continue
-        if not boundary and "Image Description: A magazine page layout" not in (before + after):
-            continue
-        removals.append((match.start(), match.end()))
-
-    if not removals:
-        return body
-
-    cleaned = body
-    for start, end in reversed(removals):
-        cleaned = cleaned[:start] + cleaned[end:]
-    return cleaned
-
-
-def _dedupe_adjacent_html_paragraph_blocks(text: str) -> str:
-    if not text:
-        return text
-    paragraph_re = re.compile(r"<p\b[^>]*>.*?</p>\s*", flags=re.IGNORECASE | re.DOTALL)
-    tokens = []
-    pos = 0
-    for match in paragraph_re.finditer(text):
-        if match.start() > pos:
-            tokens.append(("text", text[pos:match.start()]))
-        tokens.append(("p", match.group(0)))
-        pos = match.end()
-    if pos < len(text):
-        tokens.append(("text", text[pos:]))
-    if not any(kind == "p" for kind, _value in tokens):
-        return text
-
-    for window in range(6, 0, -1):
-        changed = True
-        while changed:
-            changed = False
-            result = []
-            idx = 0
-            while idx < len(tokens):
-                block = tokens[idx:idx + window]
-                next_block = tokens[idx + window:idx + (window * 2)]
-                if (
-                    len(block) == window
-                    and len(next_block) == window
-                    and all(kind == "p" for kind, _value in block)
-                    and block == next_block
-                ):
-                    result.extend(block)
-                    idx += window * 2
-                    changed = True
-                    continue
-                result.append(tokens[idx])
-                idx += 1
-            tokens = result
-    return "".join(value for _kind, value in tokens)
-
-
-def strip_internal_chronicle_output_labels(text_content, format_type):
-    if not text_content:
-        return text_content
-    fmt = str(format_type or "").lower()
-    cleaned = str(text_content)
-    internal_label_pattern = (
-        r"(?:Auto\s+Engine|PDF\s+Heuristic|Gemini(?:\s+PDF|\s+Image|\s+Pro)?|"
-        r"FAIL-SAFE|Gearshift|Rate\s+Limit|Throttle|Cache|Progress|Resume|NETWORK\s+STALL\s+ALERT)"
-    )
-    cleaned = re.sub(r"\[\[CHRONICLE_PROGRESS_STATE::[^\]]*\]\]\s*", "", cleaned)
-    cleaned = re.sub(rf"(?im)^\s*\[\s*{internal_label_pattern}\s*\][^\n]*(?:\n|$)", "", cleaned)
-    cleaned = re.sub(r"(?i)\bChronicle Note:\s*", "Note: ", cleaned)
-    cleaned = re.sub(r"(?i)\[CHRONICLE NOTE:\s*", "[Note: ", cleaned)
-    cleaned = re.sub(r"(?i)\[CHRONICLE AUDIT FLAG:\s*", "[Audit flag: ", cleaned)
-
-    if fmt in ("html", "epub"):
-        cleaned = re.sub(
-            rf"<(?:p|li|div|section|article|aside|h[1-6])\b[^>]*>\s*\[\s*{internal_label_pattern}\s*\][^<]*(?:<br\s*/?>\s*)?</(?:p|li|div|section|article|aside|h[1-6])>\s*",
-            "",
-            cleaned,
-            flags=re.IGNORECASE,
-        )
-        cleaned = re.sub(r"\sdata-strip=(['\"]).*?\1", "", cleaned, flags=re.IGNORECASE | re.DOTALL)
-        cleaned = re.sub(r"\sdata-source-page=(['\"]).*?\1", "", cleaned, flags=re.IGNORECASE | re.DOTALL)
-        cleaned = re.sub(r"\sclass=(['\"])chronicle-[^'\"]*\1", "", cleaned, flags=re.IGNORECASE)
-        cleaned = re.sub(
-            r"<h([1-6])\b([^>]*)>\s*Source\s+page\s+(\d+)\s*,\s*(?:strip|stripe)\s+\d+\s*</h\1>\s*",
-            "",
-            cleaned,
-            flags=re.IGNORECASE,
-        )
-        cleaned = re.sub(
-            r"<h([1-6])\b([^>]*)>\s*Source\s+page\s+(\d+)(?:\s*,\s*text\s+layer\s+fallback)?\s*</h\1>",
-            r"<h\1\2>Page \3</h\1>",
-            cleaned,
-            flags=re.IGNORECASE,
-        )
-        cleaned = re.sub(
-            r"\b(?:Source\s+page\s+\d+\s*,\s*)?(?:strip|stripe)\s+\d+\b",
-            "",
-            cleaned,
-            flags=re.IGNORECASE,
-        )
-        cleaned = re.sub(r"\btext\s+layer\s+fallback\b", "", cleaned, flags=re.IGNORECASE)
-    else:
-        cleaned = re.sub(r"(?im)^\s*Source\s+page\s+\d+\s*,\s*(?:strip|stripe)\s+\d+\s*$", "", cleaned)
-        cleaned = re.sub(r"(?im)^\s*Source\s+page\s+(\d+)(?:\s*,\s*text\s+layer\s+fallback)?\s*$", r"Page \1", cleaned)
-        cleaned = re.sub(r"\btext\s+layer\s+fallback\b", "", cleaned, flags=re.IGNORECASE)
-    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
-    return cleaned
-
-
 def sanitize_model_output(text_content, format_type, doc_profile=None, preserve_original_page_numbers=False):
     if not text_content:
         return ""
@@ -657,6 +291,7 @@ def sanitize_model_output(text_content, format_type, doc_profile=None, preserve_
         cleaned = _strip_html_page_wrapper_noise(cleaned)
         cleaned = _convert_markdown_headings_inside_html(cleaned)
         cleaned = _collapse_inline_image_sources(cleaned)
+        cleaned = re.sub(r"\[Image:\s*([^\]]+)\]", r"[Image Description: \1]", cleaned, flags=re.IGNORECASE)
         cleaned = re.sub(r"<style\b[^>]*>.*?</style>\s*", "", cleaned, flags=re.IGNORECASE | re.DOTALL)
         cleaned = re.sub(r"<script\b[^>]*>.*?</script>\s*", "", cleaned, flags=re.IGNORECASE | re.DOTALL)
         cleaned = re.sub(r"\sstyle=(['\"]).*?\1", "", cleaned, flags=re.IGNORECASE | re.DOTALL)
@@ -741,7 +376,7 @@ def apply_expanded_abbreviations(html_text: str, doc_profile=None) -> str:
     return expand_abbreviations(html_text, doc_profile=doc_profile)
 
 
-def _inject_html_toc(text_content):
+def _inject_html_toc(text_content, *, include_page_headings=True):
     if not text_content:
         return text_content
 
@@ -829,13 +464,21 @@ def _inject_html_toc(text_content):
         attrs = match.group(2) or ""
         inner = match.group(3) or ""
         heading_text = _strip_html_tags(inner)
+        if not include_page_headings and re.fullmatch(
+            r"(?:Source\s+)?Page\s+[0-9]+[A-Za-z]?",
+            heading_text or "",
+            flags=re.IGNORECASE,
+        ):
+            return match.group(0)
         if not heading_text or _is_noise_heavy_heading(heading_text, level):
             return match.group(0)
         counter += 1
-        attrs_wo_id = re.sub(r'\s+id=(["\']).*?\1', "", attrs, flags=re.IGNORECASE | re.DOTALL)
-        heading_id = f"heading-{counter}"
+        id_match = re.search(r'\bid=(["\'])(.*?)\1', attrs, flags=re.IGNORECASE | re.DOTALL)
+        heading_id = id_match.group(2) if id_match else f"heading-{counter}"
         headings.append((int(level), heading_id, heading_text))
-        return f'<h{level}{attrs_wo_id} id="{heading_id}">{inner}</h{level}>'
+        if id_match:
+            return match.group(0)
+        return f'<h{level}{attrs} id="{heading_id}">{inner}</h{level}>'
 
     cleaned = re.sub(
         r"<h([1-3])([^>]*)>(.*?)</h\1>",
@@ -912,134 +555,6 @@ def _inject_html_toc(text_content):
     return cleaned
 
 
-def build_newspaper_safety_notice(format_type):
-    if format_type == "html":
-        return (
-            '<div class="audit-note" role="note" aria-label="Newspaper Safety Fallback">'
-            "<p><strong>Note:</strong> Newspaper safety fallback was applied to keep this reading output stable. "
-            "Layout has been simplified to plain semantic blocks.</p></div>"
-        )
-    if format_type == "epub":
-        return (
-            '<div class="audit-note" role="note" aria-label="Newspaper Safety Fallback">'
-            "<p><strong>Note:</strong> Newspaper safety fallback simplified this page to plain semantic blocks.</p></div>"
-        )
-    if format_type in ("txt", "md"):
-        return "[Note: Newspaper safety fallback simplified this page to keep the reading output stable.]\n\n"
-    return ""
-
-
-def apply_newspaper_html_safety_fallback(text_content, format_type, doc_profile, max_chars=14000):
-    if doc_profile != "newspaper" or format_type not in ("html", "epub"):
-        return text_content
-    if not text_content:
-        return text_content
-    notice = build_newspaper_safety_notice(format_type)
-
-    def _inject_notice_inside_document(document, note_markup):
-        if not note_markup or note_markup in document:
-            return document
-        if re.search(r"<main\b[^>]*>", document, flags=re.IGNORECASE):
-            return re.sub(
-                r"(<main\b[^>]*>\s*)",
-                r"\1" + note_markup + "\n",
-                document,
-                count=1,
-                flags=re.IGNORECASE,
-            )
-        if re.search(r"<body\b[^>]*>", document, flags=re.IGNORECASE):
-            return re.sub(
-                r"(<body\b[^>]*>\s*)",
-                r"\1" + note_markup + "\n",
-                document,
-                count=1,
-                flags=re.IGNORECASE,
-            )
-        return note_markup + "\n" + document
-
-    def _strip_leading_notice(document, note_markup):
-        if not note_markup:
-            return document, False
-        stripped = document.lstrip()
-        if not stripped.startswith(note_markup):
-            return document, False
-        remainder = stripped[len(note_markup):].lstrip()
-        return remainder, True
-
-    cleaned = text_content
-    cleaned, had_leading_notice = _strip_leading_notice(cleaned, notice)
-    cleaned = re.sub(r"<div\b[^>]*>", "<section>", cleaned, flags=re.IGNORECASE)
-    cleaned = re.sub(r"</div\s*>", "</section>", cleaned, flags=re.IGNORECASE)
-    cleaned = re.sub(r"<section>\s*</section>", "", cleaned, flags=re.IGNORECASE)
-    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
-    if had_leading_notice:
-        cleaned = _inject_notice_inside_document(cleaned, notice)
-    if len(cleaned) <= max_chars:
-        return cleaned
-    body = re.sub(r"<figure\b[^>]*>.*?</figure>", "", cleaned, flags=re.IGNORECASE | re.DOTALL)
-    body = re.sub(r"<table\b[^>]*>.*?</table>", "", body, flags=re.IGNORECASE | re.DOTALL)
-    body = re.sub(r"<section\b[^>]*>\s*</section>", "", body, flags=re.IGNORECASE | re.DOTALL)
-    if format_type in ("html", "epub") and notice and notice not in body:
-        body = _inject_notice_inside_document(body, notice)
-    return body
-
-
-class _FitzPageAdapter:
-    def __init__(self, page):
-        self._page = page
-
-    def extract_text(self):
-        return self._page.get_text("text") or ""
-
-
-class _FitzPdfReaderAdapter:
-    def __init__(self, path):
-        if fitz is None:
-            raise RuntimeError("PyMuPDF (fitz) is required for PDF metadata recovery.")
-        self._doc = fitz.open(path)
-        meta = self._doc.metadata or {}
-        self.metadata = {
-            "/Author": meta.get("author", "") or "",
-            "/Subject": meta.get("subject", "") or "",
-            "/Creator": meta.get("creator", "") or "",
-            "/Title": meta.get("title", "") or "",
-        }
-        self.pages = [_FitzPageAdapter(self._doc.load_page(i)) for i in range(len(self._doc))]
-
-
-def _default_pdf_reader(path):
-    try:
-        return _FitzPdfReaderAdapter(path)
-    except Exception:
-        return None
-
-
-def _infer_source_attribution(metadata, text_sample, source_path=None):
-    metadata = metadata or {}
-    text_sample = text_sample or ""
-    author = (metadata.get("/Author") or "").strip()
-    subject = (metadata.get("/Subject") or "").strip()
-    creator = (metadata.get("/Creator") or "").strip()
-    combined = " ".join(part for part in (author, subject, creator, text_sample) if part)
-    url_match = re.search(r"https?://[^\s<>()]+", text_sample, flags=re.IGNORECASE)
-    source_url = url_match.group(0).rstrip(".,);]") if url_match else ""
-    stem = os.path.splitext(os.path.basename(source_path or ""))[0]
-    archive_match = re.match(r"^([a-z0-9]+_\d{6})(?:_subset_\d+pages)?$", stem, flags=re.IGNORECASE)
-
-    if re.search(r"National Library of Australia|nla\.gov\.au", combined, flags=re.IGNORECASE):
-        return {"label": "National Library of Australia", "url": source_url}
-    if re.search(r"Internet Archive|archive\.org", combined, flags=re.IGNORECASE):
-        return {"label": "Internet Archive", "url": source_url}
-    if archive_match:
-        identifier = archive_match.group(1)
-        return {"label": "Internet Archive", "url": f"https://archive.org/details/{identifier}"}
-    if author and source_url:
-        return {"label": author, "url": source_url}
-    if author:
-        return {"label": author, "url": ""}
-    return None
-
-
 def _strip_html_tags(text):
     if not text:
         return ""
@@ -1050,951 +565,30 @@ def _strip_html_tags(text):
     return clean_text_artifacts(text)
 
 
-def _extract_first_heading_text(text_content):
-    if not text_content:
-        return ""
-    match = re.search(r"<h1\b[^>]*>(.*?)</h1>", text_content, flags=re.IGNORECASE | re.DOTALL)
-    if not match:
-        return ""
-    heading = _strip_html_tags(match.group(1))
-    return heading.rstrip(" .,:;")
-
-
-def _extract_publication_date_line(text_content, text_sample):
-    candidates = [
-        _strip_html_tags(text_content or ""),
-        clean_text_artifacts(text_sample or ""),
-    ]
-    patterns = [
-        (
-            r"([A-Z][A-Z .'\-]+,\s+(?:MONDAY|TUESDAY|WEDNESDAY|THURSDAY|FRIDAY|SATURDAY|SUNDAY),\s+[A-Z]+\s+\d{1,2},\s+\d{4})",
-            0,
-        ),
-        (
-            r"((?:MONDAY|TUESDAY|WEDNESDAY|THURSDAY|FRIDAY|SATURDAY|SUNDAY),\s+[A-Z]+\s+\d{1,2},\s+\d{4})",
-            re.IGNORECASE,
-        ),
-    ]
-    for candidate in candidates:
-        if not candidate:
-            continue
-        for pattern, flags in patterns:
-            match = re.search(pattern, candidate, flags=flags)
-            if match:
-                return re.sub(r"\s+", " ", match.group(1)).strip().rstrip(" .,:;")
-    return ""
-
-
-def _extract_page_number(source_path, metadata, text_sample):
-    title = clean_text_artifacts((metadata or {}).get("/Title") or "")
-    stem = os.path.splitext(os.path.basename(source_path or ""))[0]
-    candidates = [title, stem, clean_text_artifacts(text_sample or "")]
-    for candidate in candidates:
-        if not candidate:
-            continue
-        match = re.search(r"\bpage[-_ ]?(\d{1,4})\b", candidate, flags=re.IGNORECASE)
-        if match:
-            return str(int(match.group(1)))
-    return ""
-
-
-def _infer_newspaper_header_citation(text_content, source_path, metadata, text_sample):
-    title = clean_text_artifacts((metadata or {}).get("/Title") or "")
-    if title and re.search(r"\bpage\s+\d+\b", title, flags=re.IGNORECASE):
-        return title.rstrip(" .")
-
-    page_number = _extract_page_number(source_path, metadata, text_sample)
-    heading = _extract_first_heading_text(text_content)
-    date_line = _extract_publication_date_line(text_content, text_sample)
-    parts = []
-    if heading:
-        parts.append(heading)
-    if date_line:
-        parts.append(date_line)
-    if page_number:
-        parts.append(f"Page {page_number}")
-    if parts:
-        return ", ".join(parts)
-    return ""
-
-
-def recover_newspaper_header_citation(text_content, format_type, doc_profile, source_path=None, pdf_reader_cls=None):
-    if not text_content or format_type not in ("html", "epub") or doc_profile != "newspaper":
-        return text_content
-    if re.search(r"<header\b[^>]*>\s*<cite\b", text_content, flags=re.IGNORECASE):
-        return text_content
-    if not source_path or not os.path.exists(source_path) or not source_path.lower().endswith(".pdf"):
-        return text_content
-
-    pdf_reader_cls = pdf_reader_cls or _default_pdf_reader
-    if pdf_reader_cls is None:
-        return text_content
-
-    try:
-        reader = pdf_reader_cls(source_path)
-        if reader is None:
-            return text_content
-        metadata = dict(reader.metadata or {})
-        text_sample = ""
-        if reader.pages:
-            text_sample = (reader.pages[0].extract_text() or "")[:4000]
-    except Exception:
-        return text_content
-
-    citation = _infer_newspaper_header_citation(text_content, source_path, metadata, text_sample)
-    if not citation:
-        return text_content
-
-    header = f"<header><cite>{html.escape(citation)}</cite></header>"
-    if re.search(r"<main\b[^>]*>", text_content, flags=re.IGNORECASE):
-        return re.sub(
-            r"(<main\b[^>]*>\s*)",
-            r"\1" + header + "\n",
-            text_content,
-            count=1,
-            flags=re.IGNORECASE,
-        )
-    return header + "\n" + text_content
-
-
-def recover_source_attribution_footer(text_content, format_type, doc_profile, source_path=None, pdf_reader_cls=None):
-    if not text_content or format_type not in ("html", "epub") or doc_profile != "newspaper":
-        return text_content
-    if "<footer><cite>" in text_content.lower():
-        return text_content
-    if not source_path or not os.path.exists(source_path) or not source_path.lower().endswith(".pdf"):
-        return text_content
-
-    pdf_reader_cls = pdf_reader_cls or _default_pdf_reader
-    if pdf_reader_cls is None:
-        return text_content
-
-    try:
-        reader = pdf_reader_cls(source_path)
-        if reader is None:
-            return text_content
-        metadata = dict(reader.metadata or {})
-        text_sample = ""
-        if reader.pages:
-            text_sample = (reader.pages[0].extract_text() or "")[:2000]
-    except Exception:
-        return text_content
-
-    attribution = _infer_source_attribution(metadata, text_sample, source_path)
-    if not attribution:
-        return text_content
-
-    label = html.escape(attribution["label"])
-    source_url = attribution["url"]
-    if source_url:
-        safe_url = html.escape(source_url, quote=True)
-        footer = f'<footer><cite>{label}</cite> <a href="{safe_url}">{safe_url}</a></footer>'
-    else:
-        footer = f"<footer><cite>{label}</cite></footer>"
-
-    if re.search(r"</main\s*>", text_content, flags=re.IGNORECASE):
-        return re.sub(r"</main\s*>", footer + "\n</main>", text_content, count=1, flags=re.IGNORECASE)
-    return text_content.rstrip() + "\n" + footer
-
-
-def should_flag_handwriting_audit(text_content, format_type, doc_profile, min_chars=200):
-    if doc_profile not in ("archival", "handwritten"):
-        return False
-    if not text_content:
-        return False
-    normalized = text_content
-    if format_type in ("html", "epub"):
-        normalized = re.sub(r"<br\s*/?>", "\n", normalized, flags=re.IGNORECASE)
-        normalized = re.sub(r"<[^>]+>", " ", normalized)
-    normalized = html.unescape(normalized)
-    normalized = re.sub(r"\s+", " ", normalized).strip()
-    if len(normalized) < min_chars:
-        return False
-    return "[unclear" not in normalized.lower()
-
-
-def apply_handwriting_audit_flag(text_content, format_type, doc_profile, whole_document=False):
-    if not should_flag_handwriting_audit(text_content, format_type, doc_profile):
-        return text_content
-
-    if format_type == "html":
-        style_block = (
-            ".audit-note {"
-            " margin: 0 0 1rem;"
-            " padding: 0.85rem 1rem;"
-            " border-left: 4px solid #94a3b8;"
-            " background: #eef3f8;"
-            " color: var(--text);"
-            " border-radius: 8px;"
-            "}"
-            ".audit-note p { margin: 0; }"
-            ".audit-note strong { font-weight: 700; }"
-        )
-        warning = (
-            '<div class="audit-note" role="note" aria-label="Transcription Audit Flag">'
-            "<p><strong>Note:</strong> This handwritten document was transcribed with high fluency "
-            "and no uncertainty markers. Please be aware that automated systems may silently guess degraded cursive.</p>"
-            "</div>"
-        )
-        if whole_document:
-            if re.search(r'aria-label="Transcription Audit Flag"', text_content, flags=re.IGNORECASE):
-                return text_content
-            flagged = re.sub(
-                r"(<main\b[^>]*>\s*)",
-                r"\1" + warning,
-                text_content,
-                flags=re.IGNORECASE,
-                count=1,
-            )
-            if ".audit-note" not in flagged:
-                if "</style>" in flagged:
-                    flagged = flagged.replace("</style>", style_block + "\n</style>", 1)
-                elif "</head>" in flagged:
-                    flagged = flagged.replace("</head>", f"<style>{style_block}</style>\n</head>", 1)
-                elif "<body" in flagged:
-                    flagged = re.sub(
-                        r"(<body\b[^>]*>\s*)",
-                        r"\1<style>" + style_block + "</style>\n",
-                        flagged,
-                        flags=re.IGNORECASE,
-                        count=1,
-                    )
-                else:
-                    flagged = f"<style>{style_block}</style>\n" + flagged
-            return flagged
-        return warning + "\n" + text_content
-
-    if format_type == "epub":
-        warning = (
-            '<div class="audit-note" role="note" aria-label="Transcription Audit Flag">'
-            "<p><strong>Note:</strong> This handwritten document was transcribed with high fluency "
-            "and no uncertainty markers. Please review for potential automated guesses in degraded cursive.</p>"
-            "</div>"
-        )
-        if 'aria-label="Transcription Audit Flag"' in text_content:
-            return text_content
-        return warning + "\n" + text_content
-
-    if format_type in ("txt", "md"):
-        warning = "[Audit flag: Suspiciously fluent handwriting transcription. Review for potential automated guesses.]\n\n"
-        if text_content.startswith("[Audit flag:"):
-            return text_content
-        return warning + text_content
-
-    return text_content
-
-
-def _normalize_form_semantics_html(body):
-    body = re.sub(
-        r'\[(?:Text\s*input\s*area|Text\s*input|Input\s*area)\]',
-        '[Text Field: Empty]',
-        body,
-        flags=re.IGNORECASE,
-    )
-    body = re.sub(
-        r'<input\b[^>]*\btype\s*=\s*(?:["\']?)(?:text|search|email|tel|url|number|date|datetime-local|month|week|time)(?:["\']?)[^>]*\/?>',
-        '[Text Field: Empty]',
-        body,
-        flags=re.IGNORECASE,
-    )
-    body = re.sub(
-        r'<textarea\b[^>]*>.*?</textarea\s*>',
-        '[Text Field: Empty]',
-        body,
-        flags=re.IGNORECASE | re.DOTALL,
-    )
-    body = re.sub(
-        r'<input\b(?=[^>]*\btype\s*=\s*(?:["\']?)checkbox(?:["\']?))[^>]*\/?>',
-        lambda m: '[Checkbox: Selected]' if re.search(r'\bchecked\b', m.group(0), flags=re.IGNORECASE) else '[Checkbox: Empty]',
-        body,
-        flags=re.IGNORECASE,
-    )
-    body = re.sub(
-        r'<input\b(?=[^>]*\btype\s*=\s*(?:["\']?)radio(?:["\']?))[^>]*\/?>',
-        lambda m: '[Radio Button: Selected]' if re.search(r'\bchecked\b', m.group(0), flags=re.IGNORECASE) else '[Radio Button: Empty]',
-        body,
-        flags=re.IGNORECASE,
-    )
-    body = re.sub(
-        r'\[Checkbox:\s*(Selected|Empty)\]\s*(Yes|No)\b',
-        r'[Radio Button: \1] \2',
-        body,
-        flags=re.IGNORECASE,
-    )
-    return body
-
-
-def _promote_sparse_heading_blocks(body):
-    match = re.search(r'(<main\b[^>]*>)(.*?)(</main\s*>)', body, flags=re.IGNORECASE | re.DOTALL)
-    if not match:
-        return body
-    inner = match.group(2)
-    if re.search(r'<h[1-6]\b', inner, flags=re.IGNORECASE):
-        return body
-    if re.search(r'<(?:section|article|table|ul|ol|figure|header|footer)\b', inner, flags=re.IGNORECASE):
-        return body
-    if inner.lower().count('<br') < 3:
-        simple_blocks = list(
-            re.finditer(r'<p\b[^>]*>(.*?)</p>', inner, flags=re.IGNORECASE | re.DOTALL)
-        )
-        if len(simple_blocks) < 2:
-            return body
-
-        parsed_blocks = []
-        for block in simple_blocks:
-            block_inner = block.group(1)
-            if re.search(r'<(?:table|ul|ol|figure|header|footer|nav|blockquote)\b', block_inner, flags=re.IGNORECASE):
-                return body
-            lines = [
-                line.strip()
-                for line in re.split(r'<br\s*/?>', block_inner, flags=re.IGNORECASE)
-                if _strip_html_tags(line).strip()
-            ]
-            parsed_blocks.append(lines)
-
-        if not parsed_blocks:
-            return body
-        if len(parsed_blocks[0]) >= 2:
-            heading_lines = parsed_blocks[0][:2]
-            remaining_blocks = [parsed_blocks[0][2:]] + parsed_blocks[1:]
-        elif len(parsed_blocks) >= 2 and len(parsed_blocks[0]) == 1 and len(parsed_blocks[1]) == 1:
-            heading_lines = [parsed_blocks[0][0], parsed_blocks[1][0]]
-            remaining_blocks = parsed_blocks[2:]
-        else:
-            return body
-
-        first_heading = _strip_html_tags(heading_lines[0]).strip()
-        second_heading = _strip_html_tags(heading_lines[1]).strip()
-        if not first_heading or not second_heading:
-            return body
-        if max(len(first_heading), len(second_heading)) > 180:
-            return body
-        if not _looks_like_heading_text(first_heading) or not _looks_like_heading_text(second_heading, allow_sentence_case=False):
-            return body
-
-        rebuilt = [f'<h1>{heading_lines[0]}</h1>', f'<h2>{heading_lines[1]}</h2>']
-        for block_lines in remaining_blocks:
-            for line in block_lines:
-                rebuilt.append(f'<p>{line}</p>')
-        new_inner = '\n'.join(rebuilt)
-        return body[:match.start(2)] + new_inner + body[match.end(2):]
-
-    plain = re.sub(r'<br\s*/?>', '\\n', inner, flags=re.IGNORECASE)
-    plain = re.sub(r'<[^>]+>', '', plain)
-    blocks = [re.sub(r'\s+', ' ', block).strip() for block in re.split(r'\n\s*\n+', plain) if block.strip()]
-    if len(blocks) < 2:
-        return body
-    if max((len(block) for block in blocks[:2]), default=0) > 180:
-        return body
-    if not _looks_like_heading_text(blocks[0]) or not _looks_like_heading_text(blocks[1], allow_sentence_case=False):
-        return body
-
-    rebuilt = []
-    rebuilt.append(f'<h1>{html.escape(blocks[0])}</h1>')
-    rebuilt.append(f'<h2>{html.escape(blocks[1])}</h2>')
-    for block in blocks[2:]:
-        rebuilt.append(f'<p>{html.escape(block)}</p>')
-    new_inner = '\n'.join(rebuilt)
-    return body[:match.start(2)] + new_inner + body[match.end(2):]
-
-
-def _promote_leading_paragraph_headings(body):
-    match = re.search(r'(<main\b[^>]*>)(.*?)(</main\s*>)', body, flags=re.IGNORECASE | re.DOTALL)
-    if not match:
-        return body
-    inner = match.group(2)
-    if re.search(r'<h1\b', inner, flags=re.IGNORECASE):
-        return body
-
-    paragraph_pattern = re.compile(r'<p\b[^>]*>(.*?)</p>', flags=re.IGNORECASE | re.DOTALL)
-    paragraphs = list(paragraph_pattern.finditer(inner))
-    if not paragraphs:
-        return body
-
-    promoted = inner
-
-    def _plain_text(fragment):
-        return re.sub(r'\s+', ' ', _strip_html_tags(fragment)).strip(' -:')
-
-    for para in paragraphs[:5]:
-        content = para.group(1).strip()
-        plain = _plain_text(content)
-        if not plain:
-            continue
-        if re.fullmatch(r'Section\s+[0-9A-Za-z.()-]+', plain, flags=re.IGNORECASE):
-            promoted = promoted.replace(para.group(0), f'<h1>{content}</h1>', 1)
-            break
-        if plain.upper() == plain and 6 <= len(plain) <= 110 and any(ch.isalpha() for ch in plain):
-            promoted = promoted.replace(para.group(0), f'<h1>{content}</h1>', 1)
-            break
-
-    if promoted == inner and paragraphs:
-        first = paragraphs[0]
-        plain = _plain_text(first.group(1))
-        title, remainder = _extract_running_header_title(plain)
-        if title:
-            replacement = [f'<h1>{html.escape(title)}</h1>']
-            if remainder:
-                replacement.append(f'<p>{html.escape(remainder)}</p>')
-            promoted = promoted.replace(first.group(0), '\n'.join(replacement), 1)
-
-    if not re.search(r'<h2\b', promoted, flags=re.IGNORECASE):
-        paragraphs = list(paragraph_pattern.finditer(promoted))
-        for para in paragraphs[:5]:
-            content = para.group(1).strip()
-            plain = _plain_text(content)
-            if not plain:
-                continue
-            if re.fullmatch(r'(?:Section|Chapter|Part|Division)\s+[0-9A-Za-z.()-]+', plain, flags=re.IGNORECASE):
-                promoted = promoted.replace(para.group(0), f'<h2>{content}</h2>', 1)
-                break
-            if plain.upper() == plain and 4 <= len(plain) <= 110 and any(ch.isalpha() for ch in plain):
-                promoted = promoted.replace(para.group(0), f'<h2>{content}</h2>', 1)
-                break
-
-    return body[:match.start(2)] + promoted + body[match.end(2):]
-
-
-def _promote_list_section_headings(body):
-    match = re.search(r'(<main\b[^>]*>)(.*?)(</main\s*>)', body, flags=re.IGNORECASE | re.DOTALL)
-    if not match:
-        return body
-    inner = match.group(2)
-    if re.search(r'<h[1-6]\b', inner, flags=re.IGNORECASE):
-        return body
-
-    list_match = re.search(r'<(ol|ul)\b[^>]*>.*?</\1\s*>', inner, flags=re.IGNORECASE | re.DOTALL)
-    if not list_match:
-        return body
-    list_html = list_match.group(0)
-    strong_labels = re.findall(r'<li\b[^>]*>\s*<strong>(.*?)</strong>', list_html, flags=re.IGNORECASE | re.DOTALL)
-    if len(strong_labels) < 2:
-        return body
-
-    intro_match = re.search(r'<p\b[^>]*>(.*?)</p>\s*' + re.escape(list_html), inner, flags=re.IGNORECASE | re.DOTALL)
-    if not intro_match:
-        return body
-
-    intro_plain = re.sub(r'\s+', ' ', _strip_html_tags(intro_match.group(1))).strip(' -|:')
-    if not intro_plain or len(intro_plain) > 80 or intro_plain.endswith(('.', '!', '?', ':')):
-        return body
-
-    promoted = inner.replace(intro_match.group(0), f'<h1>{intro_match.group(1).strip()}</h1>\n{list_html}', 1)
-    promoted = re.sub(
-        r'(<li\b[^>]*>\s*)<strong>(.*?)</strong>',
-        lambda m: f"{m.group(1)}<h2>{m.group(2).strip()}</h2>",
-        promoted,
-        count=1,
-        flags=re.IGNORECASE | re.DOTALL,
-    )
-    return body[:match.start(2)] + promoted + body[match.end(2):]
-
-
-def _promote_numbered_instruction_headings(body):
-    match = re.search(r'(<main\b[^>]*>)(.*?)(</main\s*>)', body, flags=re.IGNORECASE | re.DOTALL)
-    if not match:
-        return body
-    inner = match.group(2)
-    if re.search(r'<h[1-6]\b', inner, flags=re.IGNORECASE):
-        return body
-
-    paragraph_pattern = re.compile(r'<p\b[^>]*>(.*?)</p>', flags=re.IGNORECASE | re.DOTALL)
-    paragraphs = list(paragraph_pattern.finditer(inner))
-    if len(paragraphs) < 3:
-        return body
-
-    first_plain = re.sub(r'\s+', ' ', _strip_html_tags(paragraphs[0].group(1))).strip(' -|:')
-    if not first_plain or len(first_plain) > 60:
-        return body
-
-    numbered = []
-    for para in paragraphs[1:5]:
-        plain = re.sub(r'\s+', ' ', _strip_html_tags(para.group(1))).strip()
-        number_match = re.match(r'^(\d{1,2})\.\s+([A-Z][A-Za-z]+)\.?\s+(.*)$', plain)
-        if number_match:
-            numbered.append((para, number_match))
-    if len(numbered) < 2:
-        return body
-
-    promoted = inner.replace(paragraphs[0].group(0), f'<h1>{paragraphs[0].group(1).strip()}</h1>', 1)
-    first_para, first_match = numbered[0]
-    heading_text = f"{first_match.group(1)}. {first_match.group(2)}"
-    remainder = first_match.group(3).strip()
-    replacement = [f'<h2>{html.escape(heading_text)}</h2>']
-    if remainder:
-        replacement.append(f'<p>{html.escape(remainder)}</p>')
-    promoted = promoted.replace(first_para.group(0), '\n'.join(replacement), 1)
-    return body[:match.start(2)] + promoted + body[match.end(2):]
-
-
-def _promote_context_paragraph_heading(body):
-    match = re.search(r'(<main\b[^>]*>)(.*?)(</main\s*>)', body, flags=re.IGNORECASE | re.DOTALL)
-    if not match:
-        return body
-    inner = match.group(2)
-    if re.search(r'<h1\b', inner, flags=re.IGNORECASE):
-        return body
-
-    heading_match = re.search(r'<h2\b[^>]*>(.*?)</h2>', inner, flags=re.IGNORECASE | re.DOTALL)
-    if not heading_match:
-        return body
-
-    paragraph_pattern = re.compile(r'<p\b[^>]*>(.*?)</p>', flags=re.IGNORECASE | re.DOTALL)
-    paragraphs = list(paragraph_pattern.finditer(inner[:heading_match.start()]))
-    if not paragraphs:
-        return body
-
-    candidates = []
-    for para in paragraphs[-4:]:
-        plain = re.sub(r'\s+', ' ', _strip_html_tags(para.group(1))).strip(' -|:')
-        if not plain or len(plain) > 140:
-            continue
-        if re.search(r'\b(?:Chapter|Part|Division|Schedule|Criminal Code|INDEX)\b', plain, flags=re.IGNORECASE):
-            candidates.append((para, plain))
-
-    if not candidates:
-        return body
-
-    para, plain = candidates[0]
-    promoted = inner.replace(para.group(0), f'<h1>{html.escape(plain)}</h1>', 1)
-    return body[:match.start(2)] + promoted + body[match.end(2):]
-
-
-def _promote_index_heading(body):
-    match = re.search(r'(<main\b[^>]*>)(.*?)(</main\s*>)', body, flags=re.IGNORECASE | re.DOTALL)
-    if not match:
-        return body
-    inner = match.group(2)
-    if re.search(r'<h1\b', inner, flags=re.IGNORECASE):
-        return body
-    promoted = re.sub(r'<h2\b([^>]*)>\s*INDEX\s*</h2>', r'<h1\1>INDEX</h1>', inner, count=1, flags=re.IGNORECASE)
-    if promoted == inner:
-        promoted = re.sub(r'<p\b([^>]*)>\s*INDEX\s*</p>', r'<h1\1>INDEX</h1>', inner, count=1, flags=re.IGNORECASE)
-    if promoted == inner:
-        promoted = re.sub(
-            r'<header>\s*(?:<span>\s*\d{1,4}\s*</span>\s*)?INDEX\s*</header>',
-            '<h1>INDEX</h1>',
-            inner,
-            count=1,
-            flags=re.IGNORECASE | re.DOTALL,
-        )
-    if promoted == inner:
-        return body
-    return body[:match.start(2)] + promoted + body[match.end(2):]
-
-
-def _promote_index_section_heading(body):
-    match = re.search(r'(<main\b[^>]*>)(.*?)(</main\s*>)', body, flags=re.IGNORECASE | re.DOTALL)
-    if not match:
-        return body
-    inner = match.group(2)
-    if re.search(r'<h1\b', inner, flags=re.IGNORECASE):
-        return body
-    section_match = re.search(
-        r"<section>\s*<span>\s*(Index|Contents|Appendix)\s*</span>\s*(?:<span>\s*([^<]+?)\s*</span>)?\s*</section>",
-        inner,
-        flags=re.IGNORECASE | re.DOTALL,
-    )
-    if not section_match:
-        section_match = re.search(
-            r"<section>\s*<section>\s*(Index|INDEX|Contents|Appendix)\s*</section>\s*<section>\s*([^<]+?)\s*</section>\s*</section>",
-            inner,
-            flags=re.IGNORECASE | re.DOTALL,
-        )
-        if not section_match:
-            section_match = re.search(
-                r"<section>\s*<section>\s*(Index|INDEX|Contents|Appendix)\s*</section>\s*</section>",
-                inner,
-                flags=re.IGNORECASE | re.DOTALL,
-            )
-            if not section_match:
-                return body
-    heading = re.sub(r"\s+", " ", section_match.group(1)).strip()
-    replacement = f"<h1>{html.escape(heading)}</h1>"
-    if heading.upper() == "INDEX":
-        replacement += "\n<h2>Index Entries</h2>"
-    group_two = section_match.group(2) if section_match.lastindex and section_match.lastindex >= 2 else None
-    if group_two:
-        page_ref = re.sub(r"\s+", " ", group_two).strip()
-        if page_ref and not _is_probable_page_furniture_text(page_ref) and not page_ref.isdigit():
-            replacement += f"\n<p>{html.escape(page_ref)}</p>"
-    promoted = inner.replace(section_match.group(0), replacement, 1)
-    return body[:match.start(2)] + promoted + body[match.end(2):]
-
-
-def _promote_military_continuation_heading(body):
-    match = re.search(r'(<main\b[^>]*>)(.*?)(</main\s*>)', body, flags=re.IGNORECASE | re.DOTALL)
-    if not match:
-        return body
-    inner = match.group(2)
-    if re.search(r'<h[1-6]\b', inner, flags=re.IGNORECASE):
-        return body
-    if not re.search(r"The National Archives'? reference\s+WO-95", inner, flags=re.IGNORECASE):
-        return body
-    numbered_items = re.findall(r'(?m)(?:^|<br\s*/?>)\s*(\d{1,2})\.\s+[A-Z][^<]{3,}', inner, flags=re.IGNORECASE)
-    if len(numbered_items) < 2:
-        return body
-    insertion = "<h1>Military Diary Continuation</h1>\n<h2>Operational Orders</h2>\n"
-    if re.search(r"<header\b[^>]*>.*?</header>", inner, flags=re.IGNORECASE | re.DOTALL):
-        promoted = re.sub(
-            r"(<header\b[^>]*>.*?</header>)",
-            r"\1\n" + insertion,
-            inner,
-            count=1,
-            flags=re.IGNORECASE | re.DOTALL,
-        )
-    else:
-        promoted = insertion + inner
-    return body[:match.start(2)] + promoted + body[match.end(2):]
-
-
-def _promote_military_order_page_heading(body):
-    match = re.search(r'(<main\b[^>]*>)(.*?)(</main\s*>)', body, flags=re.IGNORECASE | re.DOTALL)
-    if not match:
-        return body
-    inner = match.group(2)
-    if re.search(r'<h1\b', inner, flags=re.IGNORECASE):
-        return body
-    if not re.search(r"The National Archives'? reference\s+WO[- /\d]+", inner, flags=re.IGNORECASE):
-        return body
-    if not re.search(r'<ol\b', inner, flags=re.IGNORECASE):
-        return body
-
-    para_match = re.search(r'<p\b[^>]*>(.*?)</p>', inner, flags=re.IGNORECASE | re.DOTALL)
-    if not para_match:
-        return body
-    lines = [
-        re.sub(r'\s+', ' ', _strip_html_tags(line)).strip(' -|:')
-        for line in re.split(r'<br\s*/?>', para_match.group(1), flags=re.IGNORECASE)
-        if _strip_html_tags(line).strip()
-    ]
-    heading_text = " ".join(lines[:3]).strip().rstrip(".").strip()
-    if not heading_text or not _looks_like_heading_text(heading_text):
-        return body
-
-    promoted = inner.replace(para_match.group(0), f'<h1>{html.escape(heading_text)}</h1>', 1)
-    promoted = re.sub(
-        r'(<h1\b[^>]*>.*?</h1>)',
-        r'\1' + "\n<h2>Operational Orders</h2>",
-        promoted,
-        count=1,
-        flags=re.IGNORECASE | re.DOTALL,
-    )
-    return body[:match.start(2)] + promoted + body[match.end(2):]
-
-
-def _promote_short_h2_with_bold_followup(body):
-    match = re.search(r'(<main\b[^>]*>)(.*?)(</main\s*>)', body, flags=re.IGNORECASE | re.DOTALL)
-    if not match:
-        return body
-    inner = match.group(2)
-    if re.search(r'<h1\b', inner, flags=re.IGNORECASE):
-        return body
-
-    h2_match = None
-    for candidate in re.finditer(r'<h2\b([^>]*)>(.*?)</h2>', inner, flags=re.IGNORECASE | re.DOTALL):
-        plain = re.sub(r'\s+', ' ', _strip_html_tags(candidate.group(2))).strip(' -|:')
-        if plain.lower() == 'table of contents':
-            continue
-        h2_match = candidate
-        break
-    if not h2_match:
-        return body
-    h2_plain = re.sub(r'\s+', ' ', _strip_html_tags(h2_match.group(2))).strip(' -|:')
-    if not h2_plain or len(h2_plain) > 40:
-        return body
-
-    followup_match = re.search(r'<p\b[^>]*>\s*<(?:strong|b)>(.*?)</(?:strong|b)>\s*</p>', inner[h2_match.end():], flags=re.IGNORECASE | re.DOTALL)
-    if not followup_match:
-        return body
-    followup_plain = re.sub(r'\s+', ' ', _strip_html_tags(followup_match.group(1))).strip(' -|:')
-    if not followup_plain:
-        return body
-
-    promoted = inner.replace(h2_match.group(0), f'<h1{h2_match.group(1)}>{h2_match.group(2)}</h1>', 1)
-    def _promote_followup(match_obj):
-        label = re.sub(r"\s+", " ", _strip_html_tags(match_obj.group(1))).strip(" -|:")
-        return f"<h2>{html.escape(label)}</h2>"
-
-    promoted = re.sub(
-        r'<p\b[^>]*>\s*<(?:strong|b)>(.*?)</(?:strong|b)>\s*</p>',
-        _promote_followup,
-        promoted,
-        count=1,
-        flags=re.IGNORECASE | re.DOTALL,
-    )
-    return body[:match.start(2)] + promoted + body[match.end(2):]
-
-
-def _promote_bold_followup_after_h1(body):
-    match = re.search(r'(<main\b[^>]*>)(.*?)(</main\s*>)', body, flags=re.IGNORECASE | re.DOTALL)
-    if not match:
-        return body
-    inner = match.group(2)
-    if not re.search(r'<h1\b', inner, flags=re.IGNORECASE):
-        return body
-    if re.search(r'<h2\b', inner, flags=re.IGNORECASE):
-        return body
-
-    def _replace_bold_only(match_obj):
-        label = re.sub(r"\s+", " ", _strip_html_tags(match_obj.group(1))).strip(" -|:")
-        if not label:
-            return match_obj.group(0)
-        return f"<h2>{html.escape(label)}</h2>"
-
-    promoted = re.sub(
-        r'<p\b[^>]*>\s*<(?:strong|b)>(.*?)</(?:strong|b)>\s*</p>',
-        _replace_bold_only,
-        inner,
-        count=1,
-        flags=re.IGNORECASE | re.DOTALL,
-    )
-    if promoted == inner:
-        return body
-    return body[:match.start(2)] + promoted + body[match.end(2):]
-
-
-def _promote_short_first_h2_to_h1(body):
-    match = re.search(r'(<main\b[^>]*>)(.*?)(</main\s*>)', body, flags=re.IGNORECASE | re.DOTALL)
-    if not match:
-        return body
-    inner = match.group(2)
-    if re.search(r'<h1\b', inner, flags=re.IGNORECASE):
-        return body
-
-    content_h2s = []
-    for candidate in re.finditer(r'<h2\b([^>]*)>(.*?)</h2>', inner, flags=re.IGNORECASE | re.DOTALL):
-        plain = re.sub(r'\s+', ' ', _strip_html_tags(candidate.group(2))).strip(' -|:')
-        if plain.lower() == 'table of contents':
-            continue
-        content_h2s.append((candidate, plain))
-    if not content_h2s:
-        return body
-
-    first_match, first_plain = content_h2s[0]
-    if not first_plain or len(first_plain) > 60:
-        return body
-    prefix = inner[:first_match.start()]
-    if len(content_h2s) < 2 and not re.search(r"<(?:figure|table|p|section|article|blockquote)\b", prefix, flags=re.IGNORECASE):
-        return body
-    promoted = inner.replace(first_match.group(0), f'<h1{first_match.group(1)}>{first_match.group(2)}</h1>', 1)
-    return body[:match.start(2)] + promoted + body[match.end(2):]
-
-
-def _promote_bare_instruction_heading(body):
-    match = re.search(r'(<main\b[^>]*>)(.*?)(</main\s*>)', body, flags=re.IGNORECASE | re.DOTALL)
-    if not match:
-        return body
-    inner = match.group(2)
-    if re.search(r'<h[1-6]\b', inner, flags=re.IGNORECASE):
-        return body
-
-    bare_match = re.match(r'\s*([^<\n][^<]{2,80}?)\s*\n+', inner)
-    if not bare_match:
-        return body
-    title = re.sub(r'\s+', ' ', bare_match.group(1)).strip()
-    if not title:
-        return body
-
-    paragraph_pattern = re.compile(r'<p\b[^>]*>(.*?)</p>', flags=re.IGNORECASE | re.DOTALL)
-    paragraphs = list(paragraph_pattern.finditer(inner))
-    numbered = []
-    for para in paragraphs[:4]:
-        plain = re.sub(r'\s+', ' ', _strip_html_tags(para.group(1))).strip()
-        number_match = re.match(r'^(\d{1,2})\.\s+([A-Z][A-Za-z]+)\b', plain)
-        if number_match:
-            numbered.append((para, number_match))
-    if len(numbered) < 2:
-        return body
-
-    promoted = inner.replace(bare_match.group(0), f'\n<h1>{html.escape(title)}</h1>\n', 1)
-    first_para, first_match = numbered[0]
-    promoted = promoted.replace(first_para.group(0), f'<h2>{first_match.group(1)}. {first_match.group(2)}</h2>', 1)
-    return body[:match.start(2)] + promoted + body[match.end(2):]
-
-
-def _promote_bare_military_instruction_heading(body):
-    match = re.search(r'(<main\b[^>]*>)(.*?)(</main\s*>)', body, flags=re.IGNORECASE | re.DOTALL)
-    if not match:
-        return body
-    inner = match.group(2)
-    if re.search(r'<h[1-6]\b', inner, flags=re.IGNORECASE):
-        return body
-
-    blocks = [re.sub(r'\s+', ' ', block).strip() for block in re.split(r'\n\s*\n+', inner) if block.strip()]
-    if len(blocks) < 2:
-        return body
-    title = blocks[0]
-    if len(title) > 90:
-        return body
-    if len(re.findall(r'(?m)^\d{1,2}\.\s+[A-Z]', inner)) < 2:
-        return body
-
-    first_numbered = re.search(r'(?m)^(\d{1,2}\.\s+[A-Z][^\n]{2,120})', inner)
-    if not first_numbered:
-        return body
-    promoted = inner.replace(title, f'<h1>{html.escape(title)}</h1>', 1)
-    first_line = first_numbered.group(1).strip().rstrip('- ').strip()
-    promoted = re.sub(
-        r'(?m)^\d{1,2}\.\s+[A-Z][^\n]{2,120}',
-        f'<h2>{html.escape(first_line)}</h2>',
-        promoted,
-        count=1,
-    )
-    return body[:match.start(2)] + promoted + body[match.end(2):]
-
-
-def _promote_ordered_list_instruction_headings(body):
-    match = re.search(r'(<main\b[^>]*>)(.*?)(</main\s*>)', body, flags=re.IGNORECASE | re.DOTALL)
-    if not match:
-        return body
-    inner = match.group(2)
-    if re.search(r'<h[1-6]\b', inner, flags=re.IGNORECASE):
-        return body
-
-    intro_match = re.search(r'<p\b[^>]*>(.*?)</p>\s*<ol\b[^>]*>(.*?)</ol>', inner, flags=re.IGNORECASE | re.DOTALL)
-    if not intro_match:
-        return body
-    intro_plain = re.sub(r'\s+', ' ', _strip_html_tags(intro_match.group(1))).strip(' -|:')
-    if not intro_plain or len(intro_plain) > 80:
-        return body
-
-    ol_match = re.search(r'<ol\b[^>]*>(.*?)</ol>', inner, flags=re.IGNORECASE | re.DOTALL)
-    if not ol_match:
-        return body
-    li_match = re.search(r'<li\b[^>]*>\s*([^<]+?)<br', ol_match.group(1), flags=re.IGNORECASE | re.DOTALL)
-    if not li_match:
-        return body
-    first_label = re.sub(r'\s+', ' ', li_match.group(1)).strip(' -|:')
-    if not first_label:
-        return body
-
-    promoted = inner.replace(intro_match.group(0), f'<h1>{html.escape(intro_plain)}</h1>\n<ol{ol_match.group(0)[3:]}', 1)
-    def _promote_list_item(match_obj):
-        label = re.sub(r'\s+', ' ', match_obj.group(2)).strip(' -|:')
-        return f"{match_obj.group(1)}<h2>{html.escape(label)}</h2><br"
-
-    promoted = re.sub(
-        r'(<li\b[^>]*>\s*)([^<]+?)<br',
-        _promote_list_item,
-        promoted,
-        count=1,
-        flags=re.IGNORECASE | re.DOTALL,
-    )
-    return body[:match.start(2)] + promoted + body[match.end(2):]
-
-
-def _promote_definition_list_headings(body):
-    match = re.search(r'(<main\b[^>]*>)(.*?)(</main\s*>)', body, flags=re.IGNORECASE | re.DOTALL)
-    if not match:
-        return body
-    inner = match.group(2)
-    if re.search(r'<h[1-6]\b', inner, flags=re.IGNORECASE):
-        return body
-
-    intro_match = re.search(r'<p\b[^>]*>(.*?)</p>\s*<dl\b[^>]*>(.*?)</dl>', inner, flags=re.IGNORECASE | re.DOTALL)
-    if not intro_match:
-        return body
-    intro_plain = re.sub(r'\s+', ' ', _strip_html_tags(intro_match.group(1))).strip(' -|:')
-    if not intro_plain or len(intro_plain) > 80:
-        return body
-
-    dt_match = re.search(r'<dt\b[^>]*>(.*?)</dt>', intro_match.group(2), flags=re.IGNORECASE | re.DOTALL)
-    if not dt_match:
-        return body
-    dt_plain = re.sub(r'\s+', ' ', _strip_html_tags(dt_match.group(1))).strip(' -|:')
-    if not dt_plain:
-        return body
-
-    promoted = inner.replace(intro_match.group(0), f'<h1>{html.escape(intro_plain)}</h1>\n<dl>{intro_match.group(2)}</dl>', 1)
-    promoted = promoted.replace(dt_match.group(0), f'<h2>{html.escape(dt_plain)}</h2>', 1)
-    return body[:match.start(2)] + promoted + body[match.end(2):]
-
-
-def _promote_strong_paragraph_headings(body):
-    match = re.search(r'(<main\b[^>]*>)(.*?)(</main\s*>)', body, flags=re.IGNORECASE | re.DOTALL)
-    if not match:
-        return body
-    inner = match.group(2)
-    if re.search(r'<h[1-6]\b', inner, flags=re.IGNORECASE):
-        return body
-
-    strong_paragraphs = list(
-        re.finditer(r'<p\b[^>]*>\s*<(?:strong|b)>(.*?)</(?:strong|b)>\s*<br\s*/?>(.*?)</p>', inner, flags=re.IGNORECASE | re.DOTALL)
-    )
-    if len(strong_paragraphs) < 2:
-        return body
-
-    promoted = inner
-    first = strong_paragraphs[0]
-    second = strong_paragraphs[1]
-    first_label = re.sub(r"\s+", " ", _strip_html_tags(first.group(1))).strip()
-    second_label = re.sub(r"\s+", " ", _strip_html_tags(second.group(1))).strip()
-    promoted = promoted.replace(
-        first.group(0),
-        f'<h1>{html.escape(first_label)}</h1>\n<p>{first.group(2).strip()}</p>',
-        1,
-    )
-    promoted = promoted.replace(
-        second.group(0),
-        f'<h2>{html.escape(second_label)}</h2>\n<p>{second.group(2).strip()}</p>',
-        1,
-    )
-    return body[:match.start(2)] + promoted + body[match.end(2):]
-
-
-def _looks_like_heading_text(text, allow_sentence_case=True):
-    normalized = clean_text_artifacts(html.unescape(text or ""))
-    normalized = re.sub(r"\s+", " ", normalized).strip(" -|:")
-    if not normalized or len(normalized) > 180:
-        return False
-    if not any(ch.isalpha() for ch in normalized):
-        return False
-    if normalized.endswith((".", "?", "!")):
-        return False
-    if re.fullmatch(r'(?:Section|Chapter|Part|Division)\s+[0-9A-Za-z.()/-]+', normalized, flags=re.IGNORECASE):
-        return True
-    if _extract_running_header_title(normalized)[0]:
-        return True
-    uppercase_ratio = sum(1 for ch in normalized if ch.isupper()) / max(1, sum(1 for ch in normalized if ch.isalpha()))
-    if uppercase_ratio >= 0.7:
-        return True
-    if allow_sentence_case and re.match(r'^(?:\d+[A-Za-z]{0,2}[.)]?|\d+[.)]?)\s*[A-Z][A-Za-z0-9 ,.&\'()/:\-\[\]]{3,}$', normalized):
-        return True
-    words = re.findall(r"[A-Za-z0-9][A-Za-z0-9'\-]*", normalized)
-    if 1 < len(words) <= 10 and len(normalized) <= 90:
-        heading_like_words = sum(1 for word in words if word[:1].isupper() or word[:1].isdigit())
-        if heading_like_words / len(words) >= 0.6:
-            return True
-    if allow_sentence_case and re.match(r'^[A-Z][A-Za-z0-9 ,.&\'()/:\-\[\]]{3,}$', normalized):
-        return True
-    return False
-
-
-def _extract_running_header_title(text):
-    normalized = clean_text_artifacts(html.unescape(text or ""))
-    normalized = re.sub(r"\s+", " ", normalized).strip(" -|:")
-    if not normalized:
-        return "", ""
-    prefix_match = re.match(r'^[A-Za-z]{3,12}(?:(?:\.,?)|,)?\s+\d{4}\]?\s+(.*)$', normalized)
-    if not prefix_match:
-        return "", ""
-    remainder = prefix_match.group(1).strip()
-    remainder = re.sub(r"\s+\d{1,4}$", "", remainder).strip()
-    title_match = re.match(r'^([A-Z][A-Z ]{4,})(?:\s+(.*))?$', remainder)
-    if not title_match:
-        return "", ""
-    title = re.sub(r"\s+", " ", title_match.group(1) or "").strip()
-    remainder = re.sub(r"\s+", " ", title_match.group(2) or "").strip()
-    return title, remainder
-
-
 def _normalize_heading_hierarchy_html(body):
     match = re.search(r'(<main\b[^>]*>)(.*?)(</main\s*>)', body, flags=re.IGNORECASE | re.DOTALL)
     if not match:
         return body
     inner = match.group(2)
     original_inner = inner
+    if re.search(r'<h1\b[^>]*\bid=(["\'])document-title\1', inner, flags=re.IGNORECASE):
+        h1_seen = False
+
+        def _demote_extra_h1(match_obj):
+            nonlocal h1_seen
+            if not h1_seen:
+                h1_seen = True
+                return match_obj.group(0)
+            attrs = match_obj.group(1) or ""
+            content = match_obj.group(2) or ""
+            return f"<h2{attrs}>{content}</h2>"
+
+        inner = re.sub(
+            r"<h1\b([^>]*)>(.*?)</h1>",
+            _demote_extra_h1,
+            inner,
+            flags=re.IGNORECASE | re.DOTALL,
+        )
     original_has_h1 = bool(re.search(r'<h1\b', original_inner, flags=re.IGNORECASE))
     original_has_h2 = bool(re.search(r'<h2\b', original_inner, flags=re.IGNORECASE))
     original_has_h3 = bool(re.search(r'<h3\b', original_inner, flags=re.IGNORECASE))
@@ -4097,7 +2691,7 @@ def _promote_index_subheading(body):
     return body[:match.start(2)] + promoted + body[match.end(2):]
 
 
-def normalize_streamed_html_document(full_html):
+def normalize_streamed_html_document(full_html, *, insert_page_navigation=True):
     if not full_html:
         return full_html
     txt = re.sub(r"^\s*```(?:html|xhtml|xml)?\s*", "", full_html, flags=re.IGNORECASE)
@@ -4131,6 +2725,7 @@ def normalize_streamed_html_document(full_html):
     body = re.sub(r"<style\b[^>]*>.*?</style>\s*", "", body, flags=re.IGNORECASE | re.DOTALL)
     body = re.sub(r'\sstyle=(["\']).*?\1', '', body, flags=re.IGNORECASE | re.DOTALL)
     body = _collapse_inline_image_sources(body)
+    body = re.sub(r"\[Image:\s*([^\]]+)\]", r"[Image Description: \1]", body, flags=re.IGNORECASE)
     body = _strip_broken_placeholder_images_html(body)
     body = _strip_leaked_document_wrappers_html(body)
     body = re.sub(r"<div\b[^>]*>\s*", "<section>", body, flags=re.IGNORECASE)
@@ -4146,6 +2741,9 @@ def normalize_streamed_html_document(full_html):
         body = body[:main_open.start()] + outer_open + inner + outer_close + body[main_closes[-1].end():]
 
     if _should_skip_expensive_full_html_normalization(body):
+        body = inject_single_page_boundary_from_metadata(body)
+        if insert_page_navigation:
+            body = inject_page_navigation(body)
         return f"{prefix}\n{body.strip()}\n{suffix}"
 
     def _flatten_heading_breaks(match):
@@ -4338,7 +2936,10 @@ def normalize_streamed_html_document(full_html):
     body = _strip_orphan_heading_fragment_paragraphs_regex(body)
     body = _repair_specific_legal_heading_body_splices_regex(body)
     body = _strip_repeated_periodical_running_head_h1s(body, document_title=document_title)
-    body = _inject_html_toc(body)
+    body = inject_single_page_boundary_from_metadata(body)
+    if insert_page_navigation:
+        body = inject_page_navigation(body)
+    body = _inject_html_toc(body, include_page_headings=insert_page_navigation)
     body = _strip_broken_placeholder_images_html(body)
     body = _strip_leaked_document_wrappers_html(body)
     body = body.strip()
@@ -4348,13 +2949,16 @@ def normalize_streamed_html_document(full_html):
 def write_header(file_obj, title, format_type, lang_code="en", text_dir="ltr"):
     if format_type != "html":
         return
+    safe_lang = html.escape(str(lang_code or "en"), quote=True)
+    safe_dir = html.escape(str(text_dir or "ltr"), quote=True)
+    safe_title = html.escape(title or "Chronicle Output")
     file_obj.write(
         f"""<!DOCTYPE html>
-<html lang="{lang_code}" dir="{text_dir}">
+<html lang="{safe_lang}" dir="{safe_dir}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{html.escape(title)}</title>
+<title>{safe_title}</title>
 <style>
 :root {{
   --bg: #f5f7fa;
@@ -4395,10 +2999,42 @@ pre {{ white-space: pre-wrap; background: #f1f5f9; padding: 0.75rem; border-radi
 }}
 .audit-note p {{ margin: 0; }}
 .audit-note strong {{ font-weight: 700; }}
+.skip-link {{
+  position: absolute;
+  left: 1rem;
+  top: 1rem;
+  transform: translateY(-160%);
+  background: #ffffff;
+  color: #0f172a;
+  border: 2px solid #0f172a;
+  border-radius: 4px;
+  padding: 0.5rem 0.75rem;
+  z-index: 10;
+}}
+.skip-link:focus {{ transform: translateY(0); }}
+.page-navigation {{
+  margin: 0 0 1.25rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--rule);
+  background: var(--surface);
+  border-radius: 8px;
+}}
+.page-navigation-title {{ margin: 0 0 0.5rem; }}
+.page-navigation ol {{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.85rem;
+  margin: 0;
+  padding-left: 1.25rem;
+}}
+.page-navigation a {{ color: #1d4ed8; }}
+:focus-visible {{ outline: 3px solid #1d4ed8; outline-offset: 3px; }}
 </style>
 </head>
 <body>
-<main id="content" role="main">
+<a class="skip-link" href="#content">Skip to content</a>
+<main id="content" role="main" aria-labelledby="document-title">
+<h1 id="document-title">{safe_title}</h1>
 """
     )
     file_obj.flush()

@@ -70,6 +70,8 @@ def write_manifest(root: Path, bundle_root: Path) -> None:
         "Important:",
         "Copying only the Windows subfolder is not enough. The build needs the files and folders listed below beside it.",
         "The diagnostic batch file is included on purpose because it is the primary Windows build path.",
+        "Private Offline Mode uses the user's existing Ollama installation and is not bundled in this Windows build folder.",
+        "To use Private Offline Mode after installing Chronicle, install Ollama and run: ollama pull qwen2.5vl:7b.",
         "Avoid building from read-only, cloud-locked, or admin-protected folders to reduce Access Denied failures.",
         "",
         "Included paths:",

@@ -86,7 +86,9 @@ EXCLUDED_PATH_GLOBS = [
     "Chronicle_Source_*.zip",
     "docs/github_rollout/*",
     "dist_windows_bundle/*",
+    "downloads/*",
     "input_files/*",
+    "offline_pack/*",
     "output_html/*",
     "windows_builds/*",
 ]
@@ -101,7 +103,6 @@ EXCLUDED_FILE_NAMES = {
     "nla.news-issue108507.html",
     "api_key.txt",
     "api_keys.json",
-    "chronicle.py",
     "chronicle_active_session.json",
     "legacy_extract_core.py",
     "Push_to_GitHub.command",
@@ -187,12 +188,51 @@ def copy_file(src_root: Path, dst_root: Path, rel_path: str) -> None:
     shutil.copy2(src, dst)
 
 
+def iter_candidate_files(repo_root: Path, output_root: Path):
+    output_root = output_root.resolve()
+    for dirpath, dirnames, filenames in os.walk(repo_root):
+        current_dir = Path(dirpath)
+        try:
+            rel_dir = current_dir.relative_to(repo_root).as_posix()
+        except ValueError:
+            continue
+
+        kept_dirs = []
+        for dirname in sorted(dirnames):
+            child = current_dir / dirname
+            child_rel = child.relative_to(repo_root).as_posix()
+            if child.resolve() == output_root or output_root in child.resolve().parents:
+                continue
+            if dirname in EXCLUDED_DIR_NAMES:
+                continue
+            if child_rel == "docs/github_rollout":
+                kept_dirs.append(dirname)
+                continue
+            if child_rel == "docs/branding" or child_rel.startswith("docs/branding/"):
+                continue
+            prune = False
+            for pattern in EXCLUDED_PATH_GLOBS:
+                if pattern.endswith("/*"):
+                    root_pattern = pattern[:-2]
+                    if child_rel == root_pattern or fnmatch.fnmatch(child_rel, pattern):
+                        prune = True
+                        break
+            if prune:
+                continue
+            kept_dirs.append(dirname)
+        dirnames[:] = kept_dirs
+
+        for filename in sorted(filenames):
+            path = current_dir / filename
+            rel_path = path.relative_to(repo_root).as_posix() if rel_dir != "." else filename
+            yield path, rel_path
+
+
 def build_snapshot(repo_root: Path, output_root: Path) -> list[str]:
     copied: list[str] = []
-    for path in sorted(repo_root.rglob("*")):
+    for path, rel_path in iter_candidate_files(repo_root, output_root):
         if not path.is_file():
             continue
-        rel_path = path.relative_to(repo_root).as_posix()
         if rel_path.startswith("docs/github_rollout/") and rel_path not in ALLOWED_GITHUB_ROLLOUT_DOCS:
             continue
         if should_exclude(rel_path):

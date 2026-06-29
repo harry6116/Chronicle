@@ -1,12 +1,15 @@
+import os
 import time
 
 DEFAULT_CLAUDE_MODEL = "claude-sonnet-4-20250514"
+OFFLINE_PRIVATE_MODEL = "chronicle-offline-private"
 GEMINI_FILE_POLL_TIMEOUT_MS = 30_000
 LEGACY_MODEL_ALIASES = {
     "claude-3-5-sonnet-20241022": DEFAULT_CLAUDE_MODEL,
 }
 
 MODEL_VENDOR_BY_PREFIX = (
+    ("chronicle-offline", "offline"),
     ("claude", "claude"),
     ("gpt", "openai"),
     ("gemini", "gemini"),
@@ -35,7 +38,122 @@ MODEL_FALLBACK_ORDER = {
         "gemini-2.5-pro",
         "gemini-2.5-flash",
     ),
+    OFFLINE_PRIVATE_MODEL: (
+        OFFLINE_PRIVATE_MODEL,
+    ),
 }
+
+
+def _bounded_env_float(env, name, default, *, min_value, max_value):
+    raw = env.get(name)
+    if raw is None or str(raw).strip() == "":
+        return default
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        return default
+    return max(min_value, min(max_value, value))
+
+
+def _bounded_env_int(env, name, default, *, min_value, max_value):
+    raw = env.get(name)
+    if raw is None or str(raw).strip() == "":
+        return default
+    try:
+        value = int(str(raw).strip())
+    except (TypeError, ValueError):
+        return default
+    return max(min_value, min(max_value, value))
+
+
+def get_online_engine_settings(
+    *,
+    env=None,
+    api_min_request_interval_sec=1.0,
+    api_backoff_base_sec=8,
+    api_backoff_max_sec=90,
+    api_max_retries=6,
+    api_max_concurrent_requests=1,
+    api_max_pending_requests=24,
+    api_request_queue_poll_sec=0.25,
+    api_cache_max_entries=3000,
+    stream_chunk_timeout_sec=300.0,
+    gemini_generate_timeout_ms=300_000,
+):
+    """Return bounded online-provider runtime settings, with optional env overrides."""
+    env = os.environ if env is None else env
+    return {
+        "api_min_request_interval_sec": _bounded_env_float(
+            env,
+            "CHRONICLE_API_MIN_REQUEST_INTERVAL_SEC",
+            api_min_request_interval_sec,
+            min_value=0.25,
+            max_value=10.0,
+        ),
+        "api_backoff_base_sec": _bounded_env_int(
+            env,
+            "CHRONICLE_API_BACKOFF_BASE_SEC",
+            api_backoff_base_sec,
+            min_value=1,
+            max_value=120,
+        ),
+        "api_backoff_max_sec": _bounded_env_int(
+            env,
+            "CHRONICLE_API_BACKOFF_MAX_SEC",
+            api_backoff_max_sec,
+            min_value=5,
+            max_value=600,
+        ),
+        "api_max_retries": _bounded_env_int(
+            env,
+            "CHRONICLE_API_MAX_RETRIES",
+            api_max_retries,
+            min_value=1,
+            max_value=12,
+        ),
+        "api_max_concurrent_requests": _bounded_env_int(
+            env,
+            "CHRONICLE_API_MAX_CONCURRENT_REQUESTS",
+            api_max_concurrent_requests,
+            min_value=1,
+            max_value=2,
+        ),
+        "api_max_pending_requests": _bounded_env_int(
+            env,
+            "CHRONICLE_API_MAX_PENDING_REQUESTS",
+            api_max_pending_requests,
+            min_value=1,
+            max_value=100,
+        ),
+        "api_request_queue_poll_sec": _bounded_env_float(
+            env,
+            "CHRONICLE_API_REQUEST_QUEUE_POLL_SEC",
+            api_request_queue_poll_sec,
+            min_value=0.05,
+            max_value=5.0,
+        ),
+        "api_cache_max_entries": _bounded_env_int(
+            env,
+            "CHRONICLE_API_CACHE_MAX_ENTRIES",
+            api_cache_max_entries,
+            min_value=0,
+            max_value=20_000,
+        ),
+        "stream_chunk_timeout_sec": _bounded_env_float(
+            env,
+            "CHRONICLE_STREAM_CHUNK_TIMEOUT_SEC",
+            stream_chunk_timeout_sec,
+            min_value=30.0,
+            max_value=900.0,
+        ),
+        "gemini_generate_timeout_ms": _bounded_env_int(
+            env,
+            "CHRONICLE_GEMINI_GENERATE_TIMEOUT_MS",
+            gemini_generate_timeout_ms,
+            min_value=60_000,
+            max_value=900_000,
+        ),
+    }
 
 
 def normalize_model_name(model_name):
@@ -43,6 +161,10 @@ def normalize_model_name(model_name):
     if not key:
         return "gemini-2.5-flash"
     return LEGACY_MODEL_ALIASES.get(key, key)
+
+
+def is_offline_model(model_name):
+    return normalize_model_name(model_name).lower().startswith("chronicle-offline")
 
 
 def persist_runtime_settings_to_cfg(cfg, settings):
@@ -69,6 +191,8 @@ def get_model_vendor(model_name):
 
 def resolve_model_for_available_keys(model_name, *, has_vendor_key_fn):
     preferred_model = normalize_model_name(model_name)
+    if is_offline_model(preferred_model):
+        return preferred_model
     for candidate in MODEL_FALLBACK_ORDER.get(preferred_model, (preferred_model,)):
         if has_vendor_key_fn(get_model_vendor(candidate)):
             return candidate
@@ -76,30 +200,9 @@ def resolve_model_for_available_keys(model_name, *, has_vendor_key_fn):
 
 
 def get_pdf_chunk_pages(model_name, doc_profile, total_pages, *, file_size_mb=None):
-    model = normalize_model_name(model_name).lower()
-    profile = str(doc_profile or "").lower()
-    avg_page_mb = None
-    if file_size_mb is not None and total_pages:
-        try:
-            avg_page_mb = float(file_size_mb) / max(1, int(total_pages))
-        except (TypeError, ValueError):
-            avg_page_mb = None
-    periodical_profiles = {"newspaper", "modern_newspaper", "magazine"}
-    if profile in periodical_profiles and avg_page_mb is not None and avg_page_mb >= 0.9:
-        return 1
-    if total_pages >= 30 and profile in periodical_profiles:
-        if "claude" in model or "gpt" in model:
-            return 1
-        if "gemini-2.5-pro" in model:
-            return 2
-    if profile in {"legal", "government"}:
-        if total_pages >= 150:
-            return 1
-        if "gemini-2.5-pro" in model and total_pages >= 60:
-            return 2
-    if profile == "comic":
-        return 1
-    return 2
+    # One source page per model request is more reliable for layout fidelity,
+    # page boundaries, retries, and difficult scans than multi-page PDF chunks.
+    return 1
 
 
 def wait_for_gemini_upload_ready(
@@ -146,6 +249,8 @@ def get_model_tradeoff_text(model_name):
         return "Strong on polished structure and difficult instructions, but slower on large visual batches."
     if "gpt" in key:
         return "Broad multimodal fallback with strong general reasoning, but slower than the fastest Gemini path."
+    if is_offline_model(key):
+        return "Private local mode for sensitive documents. Documents stay on this computer; accuracy depends on Chronicle's included offline model."
     return "General-purpose model."
 
 

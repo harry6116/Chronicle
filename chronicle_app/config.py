@@ -1,4 +1,4 @@
-from chronicle_app.services.runtime_policies import DEFAULT_CLAUDE_MODEL
+from chronicle_app.services.runtime_policies import DEFAULT_CLAUDE_MODEL, OFFLINE_PRIVATE_MODEL
 
 TRANSLATION_TARGETS = [
     ("English", "en"),
@@ -190,7 +190,7 @@ PROFILE_PRESETS = {
         "modernize_punctuation": False,
         "unit_conversion": False,
         "abbrev_expansion": False,
-        "image_descriptions": False,
+        "image_descriptions": True,
         "preserve_original_page_numbers": False,
         "large_print": False,
         "merge_files": True,
@@ -294,7 +294,7 @@ PROFILE_PRESETS = {
         "modernize_punctuation": False,
         "unit_conversion": False,
         "abbrev_expansion": False,
-        "image_descriptions": False,
+        "image_descriptions": True,
         "preserve_original_page_numbers": False,
         "large_print": False,
         "merge_files": False,
@@ -320,7 +320,7 @@ PROFILE_PRESETS = {
         "modernize_punctuation": True,
         "unit_conversion": False,
         "abbrev_expansion": False,
-        "image_descriptions": False,
+        "image_descriptions": True,
         "preserve_original_page_numbers": True,
         "large_print": False,
         "merge_files": False,
@@ -333,7 +333,7 @@ PROFILE_PRESETS = {
         "modernize_punctuation": False,
         "unit_conversion": False,
         "abbrev_expansion": False,
-        "image_descriptions": False,
+        "image_descriptions": True,
         "preserve_original_page_numbers": False,
         "large_print": False,
         "merge_files": False,
@@ -375,6 +375,7 @@ MODEL_LABEL_BY_KEY = {
     "gemini-2.5-pro": "Gemini 2.5 Pro",
     DEFAULT_CLAUDE_MODEL: "Claude Sonnet 4",
     "gpt-4o": "GPT-4o",
+    OFFLINE_PRIVATE_MODEL: "Private Offline Mode",
 }
 
 MODEL_OVERRIDE_CHOICES = [
@@ -383,4 +384,5 @@ MODEL_OVERRIDE_CHOICES = [
     ("gemini-2.5-pro", "Gemini 2.5 Pro"),
     (DEFAULT_CLAUDE_MODEL, "Claude Sonnet 4"),
     ("gpt-4o", "GPT-4o"),
+    (OFFLINE_PRIVATE_MODEL, "Private Offline Mode"),
 ]

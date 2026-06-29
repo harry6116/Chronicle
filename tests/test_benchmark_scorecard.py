@@ -1,9 +1,11 @@
 import unittest
+import itertools
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from tools.local_benchmark_pack_accessibility import (
     Case,
+    accessibility_gate_failures,
     audit_html_output,
     build_markdown_summary,
     build_config,
@@ -28,6 +30,25 @@ class BenchmarkScorecardTest(unittest.TestCase):
         self.assertTrue(cfg["preserve_original_page_numbers"])
         self.assertEqual(cfg["doc_profile"], "legal")
         self.assertEqual(cfg["model_name"], "gemini-2.5-pro")
+
+    def test_benchmark_scan_profiles_keep_conservative_engines_and_flags(self):
+        from tools.local_benchmark_pack_accessibility import CASES
+
+        deep_scan_profiles = {"academic", "archival", "intelligence", "legal", "military", "newspaper"}
+        for case in CASES:
+            cfg = build_config(case, output_dir="out")
+            with self.subTest(case=case.key):
+                self.assertEqual(cfg["doc_profile"], case.profile)
+                self.assertEqual(cfg["format_type"], "html")
+                self.assertFalse(cfg["merge_files"])
+                self.assertTrue(cfg["image_descriptions"])
+                if case.profile in deep_scan_profiles:
+                    self.assertEqual(case.model, "gemini-2.5-pro")
+                if case.profile == "newspaper":
+                    self.assertTrue(cfg["preserve_original_page_numbers"])
+                    self.assertFalse(cfg["modernize_punctuation"])
+                    self.assertFalse(cfg["abbrev_expansion"])
+                    self.assertTrue(cfg["unit_conversion"])
 
     def test_a_plus_requires_perfect_score(self):
         self.assertEqual(grade_from_score(100.0, True), "A+")
@@ -335,7 +356,7 @@ class BenchmarkScorecardTest(unittest.TestCase):
                     return Result()
                 return original_stat(path_obj)
 
-            ticks = iter([0.0, 0.0, 2.0, 6.5] + [6.6] * 20)
+            ticks = itertools.chain([0.0, 0.0, 2.0, 6.5], itertools.count(6.6, 0.1))
             case = Case(key="sample", relative_path="sample.pdf", profile="legal", model="gemini-2.5-pro")
             try:
                 Path.stat = fake_stat
@@ -437,6 +458,46 @@ class BenchmarkScorecardTest(unittest.TestCase):
         self.assertIn("Average score: 100.0/100", markdown)
         self.assertIn("Overall grade: A+", markdown)
         self.assertIn("## trove_age", markdown)
+
+    def test_accessibility_gate_fails_below_threshold_and_errors(self):
+        report = {
+            "results": [
+                {
+                    "case": {"key": "weak_case"},
+                    "status": "ok",
+                    "scorecard": {
+                        "score": 80.0,
+                        "breakdown": [
+                            {"label": "Output has a main landmark", "passed": False},
+                        ],
+                    },
+                },
+                {
+                    "case": {"key": "error_case"},
+                    "status": "error",
+                    "error": "provider failed",
+                },
+            ]
+        }
+
+        failures = accessibility_gate_failures(report, fail_under=100.0)
+
+        self.assertEqual(len(failures), 2)
+        self.assertIn("weak_case: accessibility score 80.0 is below 100.0", failures[0])
+        self.assertIn("Output has a main landmark", failures[0])
+        self.assertIn("error_case: benchmark status is error", failures[1])
+
+    def test_accessibility_gate_can_disable_score_threshold_but_not_errors(self):
+        report = {
+            "results": [
+                {"case": {"key": "weak_case"}, "status": "ok", "scorecard": {"score": 10.0, "breakdown": []}},
+                {"case": {"key": "missing_case"}, "status": "missing"},
+            ]
+        }
+
+        failures = accessibility_gate_failures(report, fail_under=0)
+
+        self.assertEqual(failures, ["missing_case: benchmark status is missing"])
 
 
 if __name__ == "__main__":

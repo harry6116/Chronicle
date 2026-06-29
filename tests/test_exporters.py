@@ -26,6 +26,21 @@ class ExportersTest(unittest.TestCase):
             def set_font(self, family, size=11):
                 events.append(("font", family, size))
 
+            def set_title(self, value):
+                events.append(("title", value))
+
+            def set_author(self, value):
+                events.append(("author", value))
+
+            def set_creator(self, value):
+                events.append(("creator", value))
+
+            def set_subject(self, value):
+                events.append(("subject", value))
+
+            def set_keywords(self, value):
+                events.append(("keywords", value))
+
             def write_html(self, _content):
                 raise RuntimeError("html unsupported")
 
@@ -35,9 +50,19 @@ class ExportersTest(unittest.TestCase):
             def output(self, path):
                 events.append(("output", path))
 
-        save_pdf("/tmp/out.pdf", "Body", large_print=True, fpdf_cls=FakePdf, sanitize_latin1_fn=lambda text: f"safe:{text}")
+        save_pdf(
+            "/tmp/out.pdf",
+            "Body",
+            large_print=True,
+            fpdf_cls=FakePdf,
+            sanitize_latin1_fn=lambda text: f"safe:{text}",
+            title="Sample PDF",
+        )
 
         self.assertIn(("font", "Helvetica", 18), events)
+        self.assertIn(("title", "Sample PDF"), events)
+        self.assertIn(("author", "Chronicle"), events)
+        self.assertTrue(any(event[0] == "subject" and "Untagged PDF output" in event[1] for event in events))
         self.assertIn(("multi_cell", 0, 16, "safe:Body"), events)
 
     def test_save_docx_maps_headings_and_bullets(self):

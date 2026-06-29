@@ -12,6 +12,8 @@ from chronicle_app.services.document_processors import (
     RENDERABLE_DOCUMENT_EXTENSIONS,
     SOURCE_TEXT_EXTENSIONS,
 )
+from chronicle_app.services.local_provider_runtime import process_offline_document
+from chronicle_app.services.runtime_policies import is_offline_model
 
 
 def build_confidence_callback(*, enabled, file_name, describe_quality_score_fn, log_cb):
@@ -124,6 +126,18 @@ def dispatch_processing_for_job(
     resume_from_unit=0,
     original_total_units=None,
 ):
+    if is_offline_model(model):
+        return process_offline_document(
+            client=client,
+            path=path,
+            ext=ext,
+            fmt=fmt,
+            prompt=prompt,
+            doc_profile=job_cfg.get("doc_profile", "standard"),
+            file_obj=file_obj,
+            memory=memory,
+            log_cb=processing_log,
+        )
     if ext == '.pdf':
         return process_pdf_fn(
             client, path, temp_path, fmt, prompt, model, file_obj, memory,

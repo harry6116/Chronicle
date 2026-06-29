@@ -12,6 +12,7 @@ from chronicle_app.services.run_start_runtime import (
     validate_output_destination,
     validate_pending_pdf_page_scopes,
 )
+from chronicle_app.services.runtime_policies import OFFLINE_PRIVATE_MODEL
 
 
 class RunStartRuntimeTest(unittest.TestCase):
@@ -202,6 +203,21 @@ class RunStartRuntimeTest(unittest.TestCase):
             model_from_label_fn=lambda label: "fallback-model",
             label_from_model_fn=lambda model: f"Label:{model}",
             has_vendor_key_fn=lambda vendor: vendor == "claude",
+        )
+
+        self.assertIsNone(missing)
+
+    def test_find_missing_api_key_requirement_skips_private_offline_mode(self):
+        rows = [
+            {"engine": "Private Offline Mode", "settings": {"model_name": OFFLINE_PRIVATE_MODEL}},
+        ]
+
+        missing = find_missing_api_key_requirement(
+            rows,
+            normalize_row_settings_fn=lambda row: row["settings"],
+            model_from_label_fn=lambda label: OFFLINE_PRIVATE_MODEL,
+            label_from_model_fn=lambda model: f"Label:{model}",
+            has_vendor_key_fn=lambda vendor: False,
         )
 
         self.assertIsNone(missing)

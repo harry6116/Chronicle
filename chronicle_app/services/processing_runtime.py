@@ -7,11 +7,12 @@ import threading
 import time
 from collections import OrderedDict
 
-from chronicle_app.services.runtime_policies import normalize_model_name
+from chronicle_app.services.runtime_policies import get_online_engine_settings, normalize_model_name
 
 CLAUDE_FILES_API_BETA = "files-api-2025-04-14"
-GEMINI_GENERATE_TIMEOUT_MS = 300_000
-STREAM_CHUNK_TIMEOUT_SEC = 120.0
+_ONLINE_ENGINE_SETTINGS = get_online_engine_settings()
+GEMINI_GENERATE_TIMEOUT_MS = _ONLINE_ENGINE_SETTINGS["gemini_generate_timeout_ms"]
+STREAM_CHUNK_TIMEOUT_SEC = _ONLINE_ENGINE_SETTINGS["stream_chunk_timeout_sec"]
 DEFAULT_MAX_CACHE_TEXT_CHARS = 250_000
 
 
