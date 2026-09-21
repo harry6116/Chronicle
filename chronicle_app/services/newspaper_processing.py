@@ -2,6 +2,8 @@ import html
 import os
 import re
 
+from chronicle_app.services.pdf_auth import authenticate_pdf_document
+
 try:
     import fitz
 except ImportError:  # pragma: no cover - optional dependency in lightweight test envs
@@ -116,6 +118,7 @@ class _FitzPdfReaderAdapter:
         if fitz is None:
             raise RuntimeError("PyMuPDF (fitz) is required for PDF metadata recovery.")
         self._doc = fitz.open(path)
+        authenticate_pdf_document(self._doc, path)
         meta = self._doc.metadata or {}
         self.metadata = {
             "/Author": meta.get("author", "") or "",

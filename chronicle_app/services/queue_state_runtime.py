@@ -97,6 +97,76 @@ def format_scan_log_message(msg):
     if not text:
         return text
 
+    def model_label(model):
+        compact = str(model or "").strip()
+        known = {
+            "gemini-2.5-pro": "Gemini 2.5 Pro",
+            "gemini-2.5-flash": "Gemini 2.5 Flash",
+        }
+        return known.get(compact.lower(), compact)
+
+    def page_from_slice_name(name):
+        match = re.search(r"_(\d+)_(\d+)\.pdf$", str(name or ""))
+        if not match:
+            return None
+        first, last = match.groups()
+        return first if first == last else f"{first}-{last}"
+
+    match = re.match(r"^\[Mac\]\s*Keeping Chronicle active during extraction.*$", text)
+    if match:
+        return "Mac: preventing sleep or background pauses during extraction."
+
+    match = re.match(r"^\[Progress\]\s*In-progress recovery file:\s*(.+)$", text)
+    if match:
+        return f"Progress backup: saving recoverable work to {match.group(1)}"
+
+    match = re.match(
+        r"^\[Gemini PDF\]\s*Uploading slice (.+?) \((\d+) bytes\)\.$",
+        text,
+    )
+    if match:
+        pdf_name, byte_count = match.groups()
+        page = page_from_slice_name(pdf_name)
+        size_kb = max(1, int(round(int(byte_count) / 1024)))
+        if page:
+            return f"Preparing PDF page {page} for Gemini ({size_kb} KB)."
+        return f"Preparing PDF section for Gemini ({size_kb} KB)."
+
+    match = re.match(r"^\[Gemini PDF\]\s*Waiting for slice (.+?) to become ready\.$", text)
+    if match:
+        page = page_from_slice_name(match.group(1))
+        return f"Waiting for Gemini to accept PDF page {page}." if page else "Waiting for Gemini to accept the PDF section."
+
+    match = re.match(r"^\[Gemini PDF\]\s*Slice (.+?) is ready\.$", text)
+    if match:
+        page = page_from_slice_name(match.group(1))
+        return f"PDF page {page} is ready for reading." if page else "PDF section is ready for reading."
+
+    match = re.match(
+        r"^\[Gemini PDF\]\s*Requesting model output for page (\d+) of (\d+) pages via (.+?)\.$",
+        text,
+    )
+    if match:
+        page, total, model = match.groups()
+        return f"Reading page {page} of {total} with {model_label(model)}."
+
+    match = re.match(
+        r"^\[Page\]\s*(\d+)/(\d+) pages processed \(source page (\d+), run total: (\d+)\)\.$",
+        text,
+    )
+    if match:
+        done, total, source_page, _run_total = match.groups()
+        if done == source_page:
+            return f"Finished page {done} of {total}."
+        return f"Finished page {done} of {total} (source page {source_page})."
+
+    match = re.match(
+        r"^\[Memory\]\s*Cleared buffered page text at run page (\d+)(?: \(buffer cadence: every \d+ pages\))?\.$",
+        text,
+    )
+    if match:
+        return f"Memory: released temporary page text after page {match.group(1)}."
+
     match = re.match(
         r"^\[Gemini Image\] Requesting dense newspaper strip (\d+)/(\d+) for source page (\d+) via (?:streaming )?inline REST on (.+?)\.$",
         text,

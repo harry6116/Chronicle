@@ -2,7 +2,7 @@
 
 Use this checklist when replacing the outdated public repository with the current Chronicle codebase.
 
-Target public app release: `1.0.7`
+Target public app release: `1.1.1`
 
 ## Phase 1: Pre-Migration Controls
 
@@ -48,7 +48,7 @@ Target public app release: `1.0.7`
 ## Phase 4: Release Preparation
 
 - [ ] Draft release notes in `RELEASE_NOTES_CURRENT.md`.
-- [ ] Prepare version tag `v1.0.7` and changelog entry.
+- [ ] Prepare version tag `v1.1.1` and changelog entry.
 - [ ] Confirm API/privacy wording is current and accurate.
 - [ ] Confirm install and quick-start instructions are current.
 - [ ] Validate links (donation, docs, issue tracker).
@@ -57,7 +57,7 @@ Target public app release: `1.0.7`
 ## Phase 5: Public Launch
 
 - [ ] Push updated repository state.
-- [ ] Create release tag `v1.0.7` + publish release notes.
+- [ ] Create release tag `v1.1.1` + publish release notes.
 - [ ] Attach or link `Chronicle.mac.zip` and `Chronicle.windows.zip`.
 - [ ] Post short announcement.
 - [ ] Open post-release tracking issue for early bug reports.

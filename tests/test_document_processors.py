@@ -485,7 +485,6 @@ class DocumentProcessorsTest(unittest.TestCase):
     def test_prepare_image_for_scan_converts_pil_staged_formats(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             src = os.path.join(tmpdir, "img.gif")
-            staged = os.path.join(tmpdir, "img_staged.png")
             with open(src, "wb") as fh:
                 fh.write(b"gif")
 

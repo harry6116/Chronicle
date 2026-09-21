@@ -52,7 +52,7 @@ Offline mode is best for clear modern typed documents:
 
 It is an emergency/private fallback, not a full replacement for Chronicle's strongest online Gemini path. Avoid offline mode for degraded handwriting, historical newspapers, magazines, comics, manga, graphic novels, long books, complex diagrams, equation-heavy papers, and public accessibility-remediation work that needs final compliance sign-off.
 
-Current offline validation for the 1.0.2 test line favors the optional `qwen2.5vl:7b` model pack. The full 13-case offline suite averaged 99.43, with 12/13 cases emergency-usable and 11/13 in the private A range; the modern typed PDF cases reached 4/4 A+.
+The published offline benchmark baseline was recorded during 1.0.2 testing with `qwen2.5vl:7b`. The full 13-case offline suite averaged 99.43, with 12/13 cases emergency-usable and 11/13 in the private A range; the modern typed PDF cases reached 4/4 A+.
 
 Similarly sized alternatives were checked. `qwen3-vl:8b` is about the same local size, but under Chronicle's current offline runtime contract it was much slower and did not produce reliable final document content at the normal output budget. Larger 12B-class candidates did not improve the grade enough to justify the footprint, and an 11B Llama vision candidate did not load reliably in the local Ollama runtime path.
 
@@ -73,7 +73,7 @@ Full guidance: `docs/user/PRIVATE_OFFLINE_MODE.md`.
 - Accessibility-first GUI with keyboard and screen-reader oriented workflows
 - Multi-provider AI support:
   - Google Gemini (`gemini-2.5-flash`, `gemini-2.5-pro`)
-  - Anthropic Claude (`claude-sonnet-4-20250514`)
+  - Anthropic Claude (`claude-sonnet-4-6`)
   - OpenAI (`gpt-4o`)
 - Input support:
   - `PDF`, `DOCX`, `TXT`, `MD`, `RTF`, `CSV`, `XLSX`, `PPTX`, `EPUB`, common image formats
@@ -97,7 +97,7 @@ Full guidance: `docs/user/PRIVATE_OFFLINE_MODE.md`.
 
 ## Current Public Release
 
-Chronicle `1.0.2` focuses on Private Offline Mode through local Ollama, PDF reliability, accessibility cleanup, and clearer guidance for sensitive-document workflows.
+Chronicle `1.1.1` improves PDF extraction reliability, accessibility, security, packaging, recovery-workbench output, and Private Offline Mode through user-managed local Ollama.
 
 Current release downloads:
 
@@ -111,16 +111,6 @@ Current release downloads:
 - Release page: `https://github.com/harry6116/Chronicle/releases`
 
 Public email contact addresses have been temporarily removed from the repository while the dedicated Chronicle account setup and authentication are being stabilized.
-
-## Free for Non-Commercial Use
-
-The packaged Chronicle desktop app is intended to be free to use for non-commercial work.
-
-That includes personal use, study, home archiving, family history, volunteer/community work, nonprofit use, and other genuinely non-commercial use.
-
-Commercial use of the packaged desktop app requires a paid Chronicle license.
-
-If you want to use Chronicle for paid professional work, client services, business operations, or commercial organizational workflows, open a GitHub issue requesting the current contact path.
 
 ## Support Chronicle
 
@@ -164,8 +154,8 @@ Chronicle stores API keys locally, but extracted content is sent to the selected
 - Chronicle cannot enforce provider retention/training policy.
 - Provider privacy/confidentiality behavior depends on account tier and provider settings.
 - Google Gemini API keys from Google AI Studio can work on Google's free tier, subject to current quotas, rate limits, model availability, and region support.
-- Important practical warning: free Gemini API keys may be enough to test Chronicle, but they can hit quota or rate-limit failures quickly on hard PDFs, long batches, magazines, newspapers, or repeated reruns. If you need dependable extraction rather than casual testing, a paid Gemini API setup is strongly recommended.
-- Anthropic Claude API access is separate from Claude.ai chat plans and should be treated as requiring Claude Console/API billing or prepaid credits.
+- Important practical warning: free Gemini API keys may be enough to test Chronicle, but they can hit quota or rate-limit failures quickly on hard PDFs, long batches, magazines, newspapers, or repeated reruns. If you need dependable extraction rather than casual testing, a higher-quota Gemini API setup is strongly recommended.
+- Anthropic Claude API access is separate from Claude.ai chat plans and should be treated as requiring Claude Console/API billing or credits.
 
 Detailed guidance:
 
@@ -184,12 +174,3 @@ Detailed guidance:
 Current source-repository license: GNU AGPLv3.
 
 That means the source code published in this repository is available under AGPLv3 terms.
-
-Chronicle's packaged desktop-app licensing position is intended to be:
-
-- free for non-commercial use
-- paid commercial licensing for business and paid professional use
-
-These desktop-app terms should be presented as a separate distribution/licensing path. They do not retroactively replace the AGPL terms attached to copies of the source code distributed from this repository.
-
-If you need commercial desktop-app licensing, use the repository issue tracker to request the current contact path.

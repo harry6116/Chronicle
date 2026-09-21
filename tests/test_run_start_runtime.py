@@ -194,7 +194,7 @@ class RunStartRuntimeTest(unittest.TestCase):
 
     def test_find_missing_api_key_requirement_accepts_claude_vendor_key(self):
         rows = [
-            {"engine": "Claude", "settings": {"model_name": "claude-sonnet-4-20250514"}},
+            {"engine": "Claude", "settings": {"model_name": "claude-sonnet-4-6"}},
         ]
 
         missing = find_missing_api_key_requirement(

@@ -118,18 +118,6 @@ from chronicle_app.services.app_files import (
     update_continuity_runtime_status as shared_update_continuity_runtime_status,
     write_processing_log as shared_write_processing_log,
 )
-try:
-    from chronicle_app.services.licensing import (
-        format_license_status as shared_format_license_status,
-        install_license_file as shared_install_license_file,
-        load_installed_license as shared_load_installed_license,
-        resolve_public_key as shared_resolve_public_key,
-    )
-except ImportError:  # pragma: no cover - optional in bare system python before deps are installed
-    shared_format_license_status = None
-    shared_install_license_file = None
-    shared_load_installed_license = None
-    shared_resolve_public_key = None
 from chronicle_app.services.document_processors import (
     RESUMABLE_UNIT_EXTENSIONS,
     RENDERABLE_DOCUMENT_EXTENSIONS,
@@ -150,6 +138,9 @@ from chronicle_app.services.diagnostics import (
     compare_output_files as shared_compare_output_files,
     create_support_bundle as shared_create_support_bundle,
 )
+from chronicle_app.services.recovery_workstation import build_workstation_plan
+from chronicle_app.services.recovery_workstation import format_workstation_plan_text
+from chronicle_app.services.pdf_auth import authenticate_pdf_document_with_cache, clear_cached_pdf_password
 from chronicle_app.services.pdf_processor import process_pdf as shared_process_pdf
 from chronicle_app.services.exporters import (
     dispatch_save as shared_dispatch_save,
@@ -331,10 +322,36 @@ class PdfReader:
             raise RuntimeError("PyMuPDF (fitz) is required for PDF reading.")
         self._path = str(path)
         self._document = fitz.open(self._path)
+        self.pdf_password = authenticate_pdf_document_with_cache(
+            self._document,
+            self._path,
+            password_provider=_prompt_for_pdf_password,
+        )
         self.pages = [_FitzPageAdapter(self._document, idx) for idx in range(len(self._document))]
 
     def close(self):
         self._document.close()
+
+
+def _prompt_for_pdf_password(path, invalid_previous=False):
+    if wx is None:
+        return None
+    message = "Enter the password for this protected PDF before Chronicle scans it."
+    if invalid_previous:
+        message = "That password was not accepted. Enter the PDF password again."
+    dialog = wx.PasswordEntryDialog(
+        None,
+        message,
+        "Password Protected PDF",
+        "",
+    )
+    try:
+        result = dialog.ShowModal()
+        if result != wx.ID_OK:
+            return None
+        return dialog.GetValue()
+    finally:
+        dialog.Destroy()
 
 
 class PdfWriter:
@@ -416,7 +433,7 @@ if getattr(sys, 'frozen', False):
 
 # --- CONSTANTS ---
 APP_NAME = "Chronicle"
-APP_VERSION = "1.0.2"
+APP_VERSION = "1.1.1"
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
@@ -432,10 +449,14 @@ def _get_gui_app_data_dir():
 
 APP_DATA_DIR = _get_gui_app_data_dir()
 os.makedirs(APP_DATA_DIR, exist_ok=True)
+if os.name != "nt":
+    try:
+        os.chmod(APP_DATA_DIR, 0o700)
+    except Exception:
+        pass
 KEYS_FILE = os.path.join(APP_DATA_DIR, "api_keys.json")
 CONFIG_FILE = os.path.join(APP_DATA_DIR, "user_config.json")
 SESSION_FILE = os.path.join(APP_DATA_DIR, "chronicle_active_session.json")
-LICENSE_FILE = os.path.join(APP_DATA_DIR, "chronicle-license.json")
 HELP_FILE = os.path.join(SCRIPT_DIR, "docs", "user", "chronicle_help.html")
 DONATE_BUYMEACOFFEE_URL = "https://buymeacoffee.com/thevoiceguy"
 DONATE_PAYPAL_URL = "https://paypal.me/MarshallVoiceovers"
@@ -575,7 +596,7 @@ def profile_tooltip_text(profile_key):
         "poetry": "Use this when line breaks, indentation, and stanza shape must be preserved.",
         "handwritten": "Use this for handwritten notes, personal diary pages, drafts, and photographed handwritten pages. Use Military Records for war diaries and unit logs; use Medical only when the page is clearly clinical.",
         "archival": "Use this for historical papers, archives, manuscripts, ledgers, and older source material.",
-        "medical": "Use this for clinical notes, referral letters, charts, forms, and doctor handwriting when the content is clearly medical.",
+        "medical": "Use this for clinical notes, referral letters, charts, forms, lab results, pathology reports, blood results, and doctor handwriting when the content is clearly medical.",
         "military": "Use this for war diaries, unit logs, operational orders, service records, casualty rolls, and other military files.",
         "intelligence": "Use this for cables, signals traffic, intelligence briefings, routing headers, and codewords.",
         "museum": "Use this for object labels, captions, wall text, provenance notes, and exhibit metadata.",
@@ -826,7 +847,6 @@ def migrate_legacy_gui_app_data():
         os.path.join(SCRIPT_DIR, "api_keys.json"): KEYS_FILE,
         os.path.join(SCRIPT_DIR, "user_config.json"): CONFIG_FILE,
         os.path.join(SCRIPT_DIR, "chronicle_active_session.json"): SESSION_FILE,
-        os.path.join(SCRIPT_DIR, "chronicle-license.json"): LICENSE_FILE,
     }
 
     for legacy_path, target_path in legacy_paths.items():
@@ -836,6 +856,8 @@ def migrate_legacy_gui_app_data():
             continue
         try:
             shutil.copy2(legacy_path, target_path)
+            if os.name != "nt":
+                os.chmod(target_path, 0o600)
         except Exception:
             continue
         try:
@@ -871,7 +893,8 @@ def enhance_image(file_path):
         temp_path = file_path + "_enhanced.png"
         cv2.imwrite(temp_path, gray)
         return temp_path
-    except: return file_path
+    except Exception:
+        return file_path
 
 def clean_text(text):
     return core_clean_text_artifacts(text)
@@ -1013,9 +1036,11 @@ def normalize_streamed_html_document(full_html):
     return core_normalize_streamed_html_document(full_html)
 
 def normalize_streamed_html_document_for_job(full_html, *, job_cfg=None):
+    job_cfg = job_cfg or {}
     return core_normalize_streamed_html_document(
         full_html,
-        insert_page_navigation=bool((job_cfg or {}).get("page_navigation_links", True)),
+        insert_page_navigation=bool(job_cfg.get("page_navigation_links", True)),
+        preserve_page_headings=bool(job_cfg.get("preserve_original_page_numbers", False)),
     )
 
 def apply_output_integrity_contract(content, fmt, doc_profile=None):
@@ -1070,7 +1095,6 @@ def run_pdf_textlayer_audit(pdf_path, extracted_text, *, page_scope=""):
 
     norm_source = normalize_audit_text(source_text)
     norm_output = normalize_audit_text(extracted_for_audit)
-    source_space_norm = " ".join(source_text.lower().split())
     output_space_norm = " ".join(extracted_for_audit.lower().split())
     coverage = min(1.0, len(norm_output) / max(1, len(norm_source)))
 
@@ -1408,10 +1432,6 @@ class MainFrame(wx.Frame):
         self.current_processing_index = -1
         self.queue = []
         self.clients = {}
-        self.license_status_text = "License status unavailable"
-        self.license_validation = None
-        self.license_public_key = None
-        self.license_public_key_error = ""
         self.processing_log_lines = []
         self.total_pages_processed = 0
         self.current_file_page_total = 0
@@ -1432,7 +1452,6 @@ class MainFrame(wx.Frame):
             self.cfg['scheduled_start_ts'] = None
             save_json(CONFIG_FILE, self.cfg)
         self._session_lock = threading.Lock()
-        self.RefreshLicenseStatus()
         self.session_timer = wx.Timer(self)
         self.Bind(wx.EVT_TIMER, self.OnSessionCheckpoint, self.session_timer)
         self.session_timer.Start(2000)
@@ -1744,6 +1763,7 @@ class MainFrame(wx.Frame):
                 self.SaveActiveSession()
 
         self.session_timer.Stop()
+        clear_cached_pdf_password()
         if self._has_incomplete_items(self.queue):
             self.SaveActiveSession()
         else:
@@ -2029,7 +2049,7 @@ class MainFrame(wx.Frame):
             'Automatic': "Chronicle chooses the engine from the preset and a quick document preflight, with bounded PDF escalation when needed.",
             'Gemini 2.5 Flash': "Best for speed and lower cost on large batches. Good default for most standard extraction jobs.",
             'Gemini 2.5 Pro': "Best for difficult scans, nuanced documents, and maximum extraction fidelity. Slower and higher cost than Flash.",
-            'Claude Sonnet 4': "Best for strong structured writing quality and complex instruction-following. Good for polished narrative outputs.",
+            'Claude Sonnet 4.6': "Best for strong structured writing quality and complex instruction-following. Good for polished narrative outputs.",
             'GPT-4o': "Best for broad multimodal reasoning and mixed document/image tasks. Strong general-purpose fallback across formats.",
             'Private Offline Mode': (
                 "Runs your local Ollama model on this computer for sensitive documents. "
@@ -2185,7 +2205,7 @@ class MainFrame(wx.Frame):
         if output_dir and not os.access(output_dir, os.W_OK):
             readiness_notes.append("Output folder may not be writable.")
         if effort in {"long", "very long"} and "gemini" in selected_model:
-            readiness_notes.append("Long Gemini runs can hit free-tier quota limits; a paid Gemini setup is safer for sustained hard PDFs.")
+            readiness_notes.append("Long Gemini runs can hit free-tier quota limits; a higher-quota Gemini setup is safer for sustained hard PDFs.")
         readiness = "Ready" if not readiness_notes else "Needs attention: " + " ".join(readiness_notes)
         summary = (
             f"Preflight for {file_name}: {profile_label}, {mode_label}. "
@@ -3106,6 +3126,40 @@ class MainFrame(wx.Frame):
                 wx.OK | wx.ICON_ERROR,
             )
 
+    def OnRecoveryWorkbenchPlan(self, e):
+        idx = self.GetPreflightTargetIndex()
+        path = ""
+        settings = self.BuildSettingsFromControls()
+        output_path = ""
+        total_units = 0
+        routing = None
+        selected_model = settings.get("model_name", "automatic")
+        if 0 <= idx < len(self.queue):
+            path = self.queue[idx].get("path", "")
+            settings = self.NormalizeRowSettings(self.queue[idx])
+            try:
+                report = self.BuildPreflightReport(path, settings)
+                routing = report.get("routing")
+                selected_model = report.get("selected_model", selected_model)
+            except Exception:
+                routing = None
+            try:
+                total_units = self._estimate_path_work_units(path, settings).get("total_units", 0)
+            except Exception:
+                total_units = 0
+        plan = build_workstation_plan(
+            path=path,
+            output_path=output_path,
+            job_cfg=settings,
+            fmt=settings.get("format_type", "html"),
+            selected_model=selected_model,
+            total_units=total_units,
+            routing=routing,
+        )
+        text = format_workstation_plan_text(plan)
+        wx.MessageBox(text[:5000], "Recovery Workbench Plan", wx.OK | wx.ICON_INFORMATION)
+        self.Log("Opened Recovery Workbench plan.")
+
     def SetQueueStatus(self, index, status):
         if 0 <= index < len(self.queue):
             self.queue[index]['status'] = status
@@ -3808,14 +3862,12 @@ class MainFrame(wx.Frame):
                 )
 
     def OnAboutBuild(self, e):
-        self.RefreshLicenseStatus()
         wx.MessageBox(
             (
                 f"{APP_NAME} {APP_VERSION}\n\n"
                 f"Runtime: {sys.executable if getattr(sys, 'frozen', False) else __file__}\n"
                 f"Python: {sys.version.split()[0]}\n"
-                f"wx: {wx.version()}\n\n"
-                f"{self.license_status_text}"
+                f"wx: {wx.version()}"
             ),
             f"About {APP_NAME}",
             wx.OK | wx.ICON_INFORMATION,
@@ -3852,7 +3904,6 @@ class MainFrame(wx.Frame):
         dlg.Destroy()
 
     def OnPrefs(self, e):
-        self.RefreshLicenseStatus()
         d = PrefsDialog(
             self,
             self.cfg,
@@ -3861,8 +3912,6 @@ class MainFrame(wx.Frame):
             get_translation_target=get_translation_target,
             profile_tooltip_text=profile_tooltip_text,
             apply_profile_preset=apply_profile_preset,
-            license_status_text=self.license_status_text,
-            import_license_handler=self.OnImportLicense,
         )
         d.ShowModal()
         d.Destroy()
@@ -3876,119 +3925,6 @@ class MainFrame(wx.Frame):
             self.RefreshQueue()
         self._sync_controls_from_cfg()
         self.SaveActiveSession()
-
-    def RefreshLicenseStatus(self):
-        self.license_validation = None
-        self.license_public_key = None
-        self.license_public_key_error = ""
-
-        if (
-            shared_format_license_status is None
-            or shared_install_license_file is None
-            or shared_load_installed_license is None
-            or shared_resolve_public_key is None
-        ):
-            self.license_status_text = (
-                "License system unavailable\n\n"
-                "The optional licensing dependency is not installed in this Python environment."
-            )
-            return self.license_status_text
-
-        try:
-            self.license_public_key = shared_resolve_public_key(
-                app_data_dir=APP_DATA_DIR,
-                script_dir=SCRIPT_DIR,
-            )
-        except Exception as ex:
-            self.license_public_key_error = f"Unable to load the Chronicle public verification key.\n\nDetails: {ex}"
-
-        if self.license_public_key_error:
-            self.license_status_text = shared_format_license_status(
-                None,
-                public_key_available=False,
-                public_key_error=self.license_public_key_error,
-            )
-            return self.license_status_text
-
-        if self.license_public_key is not None:
-            try:
-                self.license_validation = shared_load_installed_license(
-                    app_data_dir=APP_DATA_DIR,
-                    public_key=self.license_public_key,
-                )
-            except Exception as ex:
-                self.license_public_key_error = f"Unable to read the installed Chronicle license.\n\nDetails: {ex}"
-
-        self.license_status_text = shared_format_license_status(
-            self.license_validation,
-            public_key_available=self.license_public_key is not None,
-            public_key_error=self.license_public_key_error,
-        )
-        return self.license_status_text
-
-    def OnImportLicense(self, e=None):
-        self.RefreshLicenseStatus()
-        if shared_install_license_file is None or shared_resolve_public_key is None:
-            wx.MessageBox(
-                self.license_status_text,
-                "License Import Unavailable",
-                wx.OK | wx.ICON_WARNING,
-            )
-            return self.license_status_text
-
-        if self.license_public_key is None:
-            wx.MessageBox(
-                self.license_status_text,
-                "License Verification Key Missing",
-                wx.OK | wx.ICON_WARNING,
-            )
-            return self.license_status_text
-
-        dlg = wx.FileDialog(
-            self,
-            "Import Chronicle License",
-            wildcard="Chronicle license (*.json)|*.json|All files (*.*)|*.*",
-            style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST,
-        )
-        try:
-            if dlg.ShowModal() != wx.ID_OK:
-                return self.license_status_text
-
-            selected_path = dlg.GetPath()
-        finally:
-            dlg.Destroy()
-
-        try:
-            result = shared_install_license_file(
-                selected_path,
-                app_data_dir=APP_DATA_DIR,
-                public_key=self.license_public_key,
-            )
-        except Exception as ex:
-            wx.MessageBox(
-                f"Unable to import the selected license file.\n\nDetails: {ex}",
-                "License Import Error",
-                wx.OK | wx.ICON_ERROR,
-            )
-            return self.RefreshLicenseStatus()
-
-        self.RefreshLicenseStatus()
-        if result.valid and result.license_data:
-            licensed_to = result.license_data.get("issued_to", "Unknown")
-            tier = result.license_data.get("tier", "unknown")
-            self.Log(f"Installed Chronicle license for {licensed_to} ({tier}).")
-            wx.MessageBox(
-                self.license_status_text,
-                "License Imported",
-                wx.OK | wx.ICON_INFORMATION,
-            )
-        else:
-            wx.MessageBox(
-                self.license_status_text,
-                "License Not Accepted",
-                wx.OK | wx.ICON_WARNING,
-            )
-        return self.license_status_text
 
     def GetClient(self, model):
         if shared_is_offline_model(model):
@@ -4631,6 +4567,7 @@ class MainFrame(wx.Frame):
                 set_running_state_fn=lambda value: wx.CallAfter(self.SetRunningState, value),
             )
             request_runtime.clear_cache()
+            clear_cached_pdf_password()
             self._mac_activity_guard_process = shared_stop_mac_activity_guard(
                 getattr(self, "_mac_activity_guard_process", None),
                 log_cb=lambda message: self.Log(message, engine_event=True),

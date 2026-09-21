@@ -211,7 +211,6 @@ def _promote_leading_paragraph_headings(body):
 
     return body[:match.start(2)] + promoted + body[match.end(2):]
 
-
 def _is_probable_running_head_title_text(text):
     normalized = clean_text_artifacts(html.unescape(text or ""))
     normalized = re.sub(r"\s+", " ", normalized).strip(" -|")
@@ -745,5 +744,3 @@ def _promote_strong_paragraph_headings(body):
         1,
     )
     return body[:match.start(2)] + promoted + body[match.end(2):]
-
-

@@ -4,7 +4,7 @@
 
 Perform a controlled public release.
 
-Current target release: `Chronicle 1.0.7`
+Current target release: `Chronicle 1.1.1`
 
 ## T-48h
 
@@ -17,7 +17,7 @@ Current target release: `Chronicle 1.0.7`
 
 ## T-24h
 
-- Create release candidate tag for `v1.0.7`.
+- Create release candidate tag for `v1.1.1`.
 - Run CI dual-platform build and verify artifact integrity.
 - Validate basic smoke test from built binaries:
   - app opens
@@ -40,7 +40,7 @@ Current target release: `Chronicle 1.0.7`
 ## T-0 (Launch)
 
 1. Push the verified public repository package.
-2. Publish the GitHub release `v1.0.7`.
+2. Publish the GitHub release `v1.1.1`.
 3. Publish or attach `Chronicle.mac.zip` and `Chronicle.windows.zip`.
 4. Announce release.
 

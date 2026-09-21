@@ -54,6 +54,7 @@ ALLOWED_DOC_PATHS = {
     "docs/reference/README.md",
     "docs/user/EXAMPLES.md",
     "docs/user/METHODOLOGY.md",
+    "docs/user/PRIVATE_OFFLINE_MODE.md",
     "docs/user/README.md",
     "docs/user/SYSTEM_REQUIREMENTS.md",
     "docs/user/chronicle_help.html",
@@ -70,6 +71,7 @@ EXCLUDED_DIR_NAMES = {
     ".pyinstaller-cache",
     ".venv",
     ".venv-grizzly",
+    ".hoover_compare",
     "Chronicle.app",
     "__pycache__",
     "build",
@@ -105,6 +107,7 @@ EXCLUDED_FILE_NAMES = {
     "api_keys.json",
     "chronicle_active_session.json",
     "legacy_extract_core.py",
+    "make_prefects_party_midi.py",
     "Push_to_GitHub.command",
     "Resume_Chronicle.command",
     "Run_Safe_Batch.command",
@@ -140,9 +143,11 @@ EXCLUDED_RELATIVE_PATHS = {
 }
 
 ALLOWED_TOOL_PATHS = {
+    "tools/audit_handwriting_outputs.py",
     "tools/build_source_archive.py",
     "tools/check_platform_layout.sh",
     "tools/install_git_hooks.sh",
+    "tools/local_benchmark_pack_accessibility.py",
     "tools/precommit_secret_scan.sh",
     "tools/prepare_public_repo_snapshot.py",
     "tools/release_fileset_check.py",

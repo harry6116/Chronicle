@@ -532,7 +532,17 @@ def _inject_html_toc(text_content, *, include_page_headings=True):
             break
 
     if not visible_headings:
-        return cleaned
+        if not include_page_headings:
+            return cleaned
+        document_title_match = re.search(
+            r'<h1\b([^>]*)\bid=(["\'])document-title\2([^>]*)>(.*?)</h1>',
+            cleaned,
+            flags=re.IGNORECASE | re.DOTALL,
+        )
+        if not document_title_match:
+            return cleaned
+        title_text = _strip_html_tags(document_title_match.group(4)) or "Document"
+        visible_headings = [(1, "document-title", title_text)]
 
     nav_lines = [
         '<nav role="navigation" aria-label="Table of Contents">',
@@ -552,6 +562,24 @@ def _inject_html_toc(text_content, *, include_page_headings=True):
             count=1,
             flags=re.IGNORECASE,
         )
+    return cleaned
+
+
+def _strip_page_boundary_headings_html(body):
+    if not body:
+        return body
+    cleaned = re.sub(
+        r'<nav\b[^>]*aria-label=(["\'])Page navigation\1[^>]*>.*?</nav>\s*',
+        "",
+        body,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    cleaned = re.sub(
+        r'<h2\b[^>]*>\s*(?:Source\s+)?Page\s+[0-9]+[A-Za-z]?\s*</h2>\s*',
+        "",
+        cleaned,
+        flags=re.IGNORECASE,
+    )
     return cleaned
 
 
@@ -1246,7 +1274,6 @@ def _strip_duplicate_split_legal_headings_regex(body):
         full_level = match.group(1)
         full_attrs = match.group(2) or ""
         full_text = re.sub(r"\s+", " ", _strip_html_tags(match.group(3))).strip(" -|:")
-        dup_level = match.group(4)
         dup_text = re.sub(r"\s+", " ", _strip_html_tags(match.group(5))).strip(" -|:")
         continuation = re.sub(r"\s+", " ", _strip_html_tags(match.group(6))).strip(" -|:")
         combined = f"{dup_text} {continuation}".strip()
@@ -2264,7 +2291,6 @@ def _apply_html_integrity_contract(text_content, doc_profile):
             flags=re.IGNORECASE | re.DOTALL,
         )
         def _rewrite_heading_tag(match):
-            level = match.group(1)
             attrs = match.group(2) or ""
             inner = match.group(3) or ""
             text = re.sub(r"\s+", " ", _strip_html_tags(inner)).strip(" -|:")
@@ -2691,7 +2717,7 @@ def _promote_index_subheading(body):
     return body[:match.start(2)] + promoted + body[match.end(2):]
 
 
-def normalize_streamed_html_document(full_html, *, insert_page_navigation=True):
+def normalize_streamed_html_document(full_html, *, insert_page_navigation=True, preserve_page_headings=True):
     if not full_html:
         return full_html
     txt = re.sub(r"^\s*```(?:html|xhtml|xml)?\s*", "", full_html, flags=re.IGNORECASE)
@@ -2742,8 +2768,12 @@ def normalize_streamed_html_document(full_html, *, insert_page_navigation=True):
 
     if _should_skip_expensive_full_html_normalization(body):
         body = inject_single_page_boundary_from_metadata(body)
-        if insert_page_navigation:
+        if not preserve_page_headings:
+            body = _strip_page_boundary_headings_html(body)
+        elif insert_page_navigation:
             body = inject_page_navigation(body)
+        if insert_page_navigation:
+            body = _inject_html_toc(body, include_page_headings=preserve_page_headings)
         return f"{prefix}\n{body.strip()}\n{suffix}"
 
     def _flatten_heading_breaks(match):
@@ -2937,9 +2967,11 @@ def normalize_streamed_html_document(full_html, *, insert_page_navigation=True):
     body = _repair_specific_legal_heading_body_splices_regex(body)
     body = _strip_repeated_periodical_running_head_h1s(body, document_title=document_title)
     body = inject_single_page_boundary_from_metadata(body)
-    if insert_page_navigation:
+    if not preserve_page_headings:
+        body = _strip_page_boundary_headings_html(body)
+    elif insert_page_navigation:
         body = inject_page_navigation(body)
-    body = _inject_html_toc(body, include_page_headings=insert_page_navigation)
+    body = _inject_html_toc(body, include_page_headings=preserve_page_headings if insert_page_navigation else False)
     body = _strip_broken_placeholder_images_html(body)
     body = _strip_leaked_document_wrappers_html(body)
     body = body.strip()

@@ -32,7 +32,7 @@ Current provider/PDF routing state:
 - Claude PDF handling now prefers Anthropic's Files API for PDF slices when the local SDK exposes that route, then falls back to inline PDF document blocks if Files API upload is unavailable.
 - OpenAI support remains available, but Chronicle's current OpenAI integration does not yet use OpenAI's newer dedicated PDF file-input route. In Chronicle, OpenAI PDF handling should therefore be treated as a fallback path rather than the primary PDF engine.
 - Automatic engine selection now avoids providers whose API keys are missing instead of preserving an unavailable preset recommendation.
-- Operational billing note: Gemini can still be exercised from Google AI Studio free-tier API keys within Google's current quotas, but Claude API usage should be assumed to require Claude Console billing/prepaid credits rather than a consumer Claude.ai chat subscription.
+- Operational billing note: Gemini can still be exercised from Google AI Studio free-tier API keys within Google's current quotas, but Claude API usage should be assumed to require Claude Console billing or credits rather than a consumer Claude.ai chat subscription.
 - Operational availability note: because Chronicle is an online-provider orchestrator, temporary provider-demand events can still surface as `503 UNAVAILABLE`, quota pressure, or transient retry/fallback behavior during otherwise healthy runs. Repeating the same benchmark later can be necessary to separate provider noise from a true Chronicle defect.
 
 ## 2. Ingestion and Chunking Strategy

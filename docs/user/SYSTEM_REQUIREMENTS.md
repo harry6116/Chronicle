@@ -18,12 +18,12 @@ For online provider mode:
 - Minimum: 8 GB RAM, 64-bit dual-core CPU, stable internet, and at least 5 GB free disk space
 - Recommended: 16 GB RAM or more, modern 4+ core CPU, SSD storage, and at least 20 GB free space
 
-For Private Offline Mode after installing the optional offline components:
+For Private Offline Mode after installing Ollama and the recommended local model:
 
 - Constrained/emergency: 8 GB RAM may work for very small, clean, short-document offline runs, but users should expect slower performance or swapping
 - Recommended: 16 GB RAM or more for regular offline use
 - Comfortable: 24-32 GB RAM for repeated offline batches, larger PDFs, or long sessions
-- Disk: at least 12 GB free for the offline components plus working room
+- Disk: at least 12 GB free for the local model, Ollama, and working room
 - Recommended disk: 20 GB or more free SSD space
 
 For larger extraction jobs:
@@ -115,7 +115,7 @@ At least one valid API key is required:
 - Claude (`claude`)
 - OpenAI (`openai`)
 
-This requirement applies to online provider mode. Private Offline Mode can run without API keys when the packaged offline model/runtime is included.
+This requirement applies to online provider mode. Private Offline Mode does not require an API key, but it does require a local Ollama installation with `qwen2.5vl:7b` available.
 
 Operational guidance:
 
@@ -135,15 +135,15 @@ Operational guidance:
   - privacy posture may be weaker or less predictable depending on the provider
 - **Paid API access**:
   - higher throughput and better operational consistency
-  - generally clearer privacy/commercial controls for production workloads
+  - generally clearer privacy controls for production workloads
 
 ### Gemini Note
 
-Gemini API keys from Google AI Studio can work on Google's free API tier, subject to current model availability, quota, rate limits, and region support. Google documents separate Free and Paid Gemini API tiers, and some Gemini models are explicitly available free of charge on the free tier. In practice, this means a Gemini key may be enough for Chronicle testing without paid billing enabled. Production and sensitive workloads should still generally use paid plans/settings with explicit privacy guarantees.
+Gemini API keys from Google AI Studio can work on Google's free API tier, subject to current model availability, quota, rate limits, and region support. Google documents separate Free and higher-quota Gemini API tiers, and some Gemini models are explicitly available free of charge on the free tier. In practice, this means a Gemini key may be enough for Chronicle testing without provider billing enabled. Production and sensitive workloads should still generally use provider plans/settings with explicit privacy guarantees.
 
 ### Claude Note
 
-Claude API access should be treated differently from Gemini. Anthropic's current help center says Claude Console/API access is separate from Claude.ai chat subscriptions, and Console/API usage requires Console billing or prepaid credits. In practice, a Claude free chat account is not enough for Chronicle API use, and even a paid Claude chat subscription does not automatically provide API access. For Chronicle, think of Claude API access as a separate paid developer setup, not as part of the ordinary Claude chat product.
+Claude API access should be treated differently from Gemini. Anthropic's current help center says Claude Console/API access is separate from Claude.ai chat subscriptions, and Console/API usage requires Console billing or credits. In practice, a Claude free chat account is not enough for Chronicle API use, and a Claude chat subscription does not automatically provide API access. For Chronicle, think of Claude API access as a separate developer setup, not as part of the ordinary Claude chat product.
 
 ## Legal and Privacy Reminder
 

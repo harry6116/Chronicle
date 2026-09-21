@@ -38,6 +38,13 @@ jobs:
           pip install -r requirements.txt
           pip install pyinstaller
 
+      - name: Verify source and tests
+        run: |
+          python -m compileall -q chronicle_app chronicle_core.py chronicle_gui.py chronicle_runtime.py tools tests
+          python -m unittest discover -s tests -p 'test_*.py'
+          python tools/release_fileset_check.py
+          bash tools/precommit_secret_scan.sh --all
+
       - name: Build macOS app
         run: |
           python Mac/build_mac.py
@@ -71,6 +78,13 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pyinstaller
+
+      - name: Verify source and tests
+        shell: pwsh
+        run: |
+          python -m compileall -q chronicle_app chronicle_core.py chronicle_gui.py chronicle_runtime.py tools tests
+          python -m unittest discover -s tests -p "test_*.py"
+          python tools/release_fileset_check.py
 
       - name: Build Windows app
         shell: pwsh

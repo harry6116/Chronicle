@@ -14,6 +14,7 @@ from chronicle_app.services.document_processors import (
     SOURCE_TEXT_EXTENSIONS,
 )
 from chronicle_app.services.nla_newspaper import should_skip_pdf_textlayer_audit_for_nla_source
+from chronicle_app.services.security import sanitize_log_text
 from chronicle_app.services.worker_finalize_runtime import (
     FINALIZE_FILESYSTEM_OPERATION_TIMEOUT_SECONDS,
     _promote_temp_output,
@@ -24,6 +25,10 @@ from chronicle_app.services.worker_finalize_runtime import (
 PROGRESS_STATE_HEADER_PREFIX = "[[CHRONICLE_PROGRESS_STATE::"
 PROGRESS_STATE_HEADER_SUFFIX = "]]\n"
 PROGRESS_STATE_HEADER_SIZE = 8192
+
+
+def _safe_error(value):
+    return sanitize_log_text(value)
 
 
 def build_worker_run_plan(cfg, jobs, *, normalize_row_settings_fn, streamable_formats):
@@ -303,7 +308,7 @@ def recover_completed_output_artifacts(
                 log_cb(f"[Recovery] Removed stale completed progress file: {progress_temp_path}")
         except Exception as cleanup_ex:
             if log_cb:
-                log_cb(f"[Recovery] Warning: could not remove stale completed progress file ({cleanup_ex})")
+                log_cb(f"[Recovery] Warning: could not remove stale completed progress file ({_safe_error(cleanup_ex)})")
     return output_exists
 
 

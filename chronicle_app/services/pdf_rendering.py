@@ -1,5 +1,7 @@
 import io
 
+from chronicle_app.services.pdf_auth import authenticate_pdf_document
+
 
 class PdfPageRenderer:
     def __init__(
@@ -39,6 +41,11 @@ class PdfPageRenderer:
             doc = None
             try:
                 doc = self.fitz.open(self.path)
+                authenticate_pdf_document(
+                    doc,
+                    self.path,
+                    password=getattr(self.reader, "pdf_password", None),
+                )
                 page = doc.load_page(self.selected_page_indices[page_idx])
                 pix = page.get_pixmap(
                     matrix=self.fitz.Matrix(zoom, zoom),
@@ -60,6 +67,11 @@ class PdfPageRenderer:
         doc = None
         try:
             doc = self.fitz.open(self.path)
+            authenticate_pdf_document(
+                doc,
+                self.path,
+                password=getattr(self.reader, "pdf_password", None),
+            )
             page = doc.load_page(self.selected_page_indices[page_idx])
             width = float(getattr(page.rect, "width", 0) or 0)
             text_chars = len(page.get_text("text") or "")
@@ -86,6 +98,11 @@ class PdfPageRenderer:
             doc = None
             try:
                 doc = self.fitz.open(self.path)
+                authenticate_pdf_document(
+                    doc,
+                    self.path,
+                    password=getattr(self.reader, "pdf_password", None),
+                )
                 page = doc.load_page(self.selected_page_indices[page_idx])
                 rect = page.rect
                 overlap = rect.width * self.dense_newspaper_tile_overlap_ratio

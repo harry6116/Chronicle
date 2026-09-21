@@ -17,9 +17,23 @@ def build_session_payload(schema_version, cfg, queue, is_running, is_paused):
 def save_active_session_file(session_file, payload, *, session_lock):
     tmp_path = session_file + ".tmp"
     with session_lock:
-        with open(tmp_path, "w", encoding="utf-8") as fh:
+        parent = os.path.dirname(os.path.abspath(session_file))
+        if parent:
+            os.makedirs(parent, exist_ok=True)
+        fd = os.open(tmp_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
             json.dump(payload, fh, indent=2)
+        if os.name != "nt":
+            try:
+                os.chmod(tmp_path, 0o600)
+            except Exception:
+                pass
         os.replace(tmp_path, session_file)
+        if os.name != "nt":
+            try:
+                os.chmod(session_file, 0o600)
+            except Exception:
+                pass
 
 
 def delete_active_session_file(session_file):

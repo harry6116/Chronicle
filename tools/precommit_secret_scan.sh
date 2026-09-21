@@ -1,17 +1,42 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-repo_root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
-if [[ -z "${repo_root}" ]]; then
-  echo "[secret-scan] Not inside a git repository. Skipping."
-  exit 0
-fi
-cd "${repo_root}"
-
+scan_mode="${1:-staged}"
+scan_root=""
 staged_files=()
-while IFS= read -r path; do
-  [[ -n "${path}" ]] && staged_files+=("${path}")
-done < <(git diff --cached --name-only --diff-filter=ACMR)
+
+if [[ "${scan_mode}" == "--tree" ]]; then
+  if [[ -z "${2:-}" || ! -d "${2}" ]]; then
+    echo "Usage: $0 [--all | --tree DIRECTORY]" >&2
+    exit 2
+  fi
+  scan_root="$(cd "${2}" && pwd)"
+  cd "${scan_root}"
+  while IFS= read -r -d '' path; do
+    staged_files+=("${path#./}")
+  done < <(find . -type f -not -path './.git/*' -not -path '*/__pycache__/*' -print0)
+else
+  repo_root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+  if [[ -z "${repo_root}" ]]; then
+    echo "[secret-scan] Not inside a git repository. Skipping."
+    exit 0
+  fi
+  scan_root="${repo_root}"
+  cd "${scan_root}"
+fi
+
+if [[ "${scan_mode}" == "--all" ]]; then
+  while IFS= read -r path; do
+    [[ -n "${path}" ]] && staged_files+=("${path}")
+  done < <(git ls-files --cached --others --exclude-standard)
+elif [[ "${scan_mode}" == "staged" ]]; then
+  while IFS= read -r path; do
+    [[ -n "${path}" ]] && staged_files+=("${path}")
+  done < <(git diff --cached --name-only --diff-filter=ACMR)
+elif [[ "${scan_mode}" != "--tree" ]]; then
+  echo "Usage: $0 [--all | --tree DIRECTORY]" >&2
+  exit 2
+fi
 
 if [[ "${#staged_files[@]}" -eq 0 ]]; then
   exit 0
@@ -39,24 +64,32 @@ trap 'rm -f "${tmp_report}"' EXIT
 
 for path in "${staged_files[@]}"; do
   for forbidden in "${forbidden_paths[@]}"; do
-    if [[ "${path}" == "${forbidden}" ]]; then
+    if [[ "$(basename "${path}")" == "${forbidden}" ]]; then
       echo "[secret-scan] Blocked forbidden secret file: ${path}" | tee -a "${tmp_report}"
       failed=1
     fi
   done
 
-  if ! git cat-file -e ":${path}" 2>/dev/null; then
-    continue
-  fi
-
-  staged_blob="$(git show ":${path}" || true)"
-
-  for pattern in "${patterns[@]}"; do
-    if rg -n --pcre2 -e "${pattern}" <<<"${staged_blob}" >/dev/null 2>&1; then
-      echo "[secret-scan] Potential secret match in ${path} (pattern: ${pattern})" | tee -a "${tmp_report}"
-      failed=1
+  if [[ "${scan_mode}" == "--all" || "${scan_mode}" == "--tree" ]]; then
+    [[ -f "${path}" ]] || continue
+    for pattern in "${patterns[@]}"; do
+      if rg -I -n --pcre2 -e "${pattern}" -- "${path}" >/dev/null 2>&1; then
+        echo "[secret-scan] Potential secret match in ${path} (pattern: ${pattern})" | tee -a "${tmp_report}"
+        failed=1
+      fi
+    done
+  else
+    if ! git cat-file -e ":${path}" 2>/dev/null; then
+      continue
     fi
-  done
+    staged_blob="$(git show ":${path}" || true)"
+    for pattern in "${patterns[@]}"; do
+      if rg -n --pcre2 -e "${pattern}" <<<"${staged_blob}" >/dev/null 2>&1; then
+        echo "[secret-scan] Potential secret match in ${path} (pattern: ${pattern})" | tee -a "${tmp_report}"
+        failed=1
+      fi
+    done
+  fi
 done
 
 if [[ "${failed}" -ne 0 ]]; then

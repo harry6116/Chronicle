@@ -277,12 +277,17 @@ GENERAL THROUGHPUT RULES:
         )
     elif profile == "medical":
         base += (
-            "MEDICAL / CLINICAL NOTE RULES:\n"
+            "MEDICAL / CLINICAL NOTE, FORM, LAB, AND PATHOLOGY RULES:\n"
             "- Treat the page as high-stakes transcription support. Preserve exactly what is visible. Do not invent a cleaner medical reading when the handwriting is uncertain.\n"
             "- Preserve clinical abbreviations, medication names, dosages, frequencies, measurements, and shorthand exactly as written when legible. Do not silently expand them.\n"
             "- If a medication name, diagnosis term, dosage, frequency, body part, or clinician name is uncertain, mark it locally with `[Unclear Word: ...]` or `[Unclear Letters: ...]` instead of guessing from context.\n"
             "- Keep referral headings, patient identifiers, dates, provider names, signatures, and note sections such as history, assessment, plan, medications, and observations in visible source order.\n"
             "- Rebuild simple clinical forms, checklists, and observation tables into accessible structure when row/field relationships are clear.\n"
+            "- Untagged medical PDFs must be treated as scanned/form recovery work even when some text is selectable. Reconstruct visible labels, tables, checkboxes, stamps, and handwritten additions from the page image instead of trusting a broken PDF text layer alone.\n"
+            "- For blood results, pathology, imaging, and laboratory reports, preserve the test/analyte name, result value, unit, reference interval/range, abnormal flag, status, specimen type, collection date/time, received date/time, reported date/time, ordering provider, laboratory name, accession number, and comments exactly when visible.\n"
+            "- Use accessible HTML tables for lab panels and pathology result grids whenever row and column relationships are visible. Include clear column headers such as `Test`, `Result`, `Flag`, `Units`, and `Reference Range`; do not flatten result rows into prose if that would obscure which value belongs to which test.\n"
+            "- Preserve symbols and qualifiers such as `<`, `>`, `<=`, `>=`, `H`, `L`, `A`, `abnormal`, `positive`, `negative`, `detected`, `not detected`, and `pending` exactly. Do not reinterpret them into a diagnosis.\n"
+            "- Keep patient demographics and identifiers readable but do not invent missing demographics. If a field is blank, mark it as `[Blank]` only when the blank field is visibly meaningful.\n"
             "- Preserve illegible signatures, initials, and stamp lines explicitly. Do not replace them with guessed clinician names.\n"
             "- Do not normalize clinical shorthand into polished prose. If the source is fragmentary, keep it fragmentary.\n"
             "- If the page contains typed text plus handwritten additions, keep the typed base text and handwritten insertions clearly distinct in reading order.\n"

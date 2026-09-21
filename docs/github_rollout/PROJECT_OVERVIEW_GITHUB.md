@@ -4,7 +4,7 @@ Chronicle is an accessibility-first document recovery tool for archival, academi
 
 Chronicle is a desktop GUI application. The public repository is intended to publish the current app source code, build scripts, and documentation for that GUI app. There is no separate supported Chronicle CLI product.
 
-Current public release target: **Chronicle 1.0.7**.
+Current public release target: **Chronicle 1.1.1**.
 
 **Built for hard documents.**
 
@@ -35,7 +35,7 @@ Chronicle aims to help users reach review-ready output faster on difficult mater
 
 - Multi-provider AI engine support:
   - Google Gemini (`gemini-2.5-flash`, `gemini-2.5-pro`)
-  - Anthropic Claude (`claude-sonnet-4-20250514`)
+  - Anthropic Claude (`claude-sonnet-4-6`)
   - OpenAI (`gpt-4o`)
 - Input formats:
   - `PDF`, `DOCX`, `TXT`, `MD`, `RTF`, `CSV`, `XLSX`, `PPTX`, `EPUB`, and common image formats
@@ -95,15 +95,13 @@ Public email addresses are intentionally not listed in the repository until the 
 - Provider retention/training behavior depends on provider account/plan settings.
 - Google Gemini API keys from Google AI Studio can work on Google's free tier, subject to current quotas, rate limits, model availability, and region support.
 - Practical reliability note: free Gemini API keys are best treated as testing access, not guaranteed production capacity. Hard PDFs and long magazine/newspaper runs can still fail with provider quota errors even when Chronicle itself is healthy.
-- Anthropic Claude API access is separate from Claude.ai chat plans and should be treated as requiring Claude Console/API billing or prepaid credits.
+- Anthropic Claude API access is separate from Claude.ai chat plans and should be treated as requiring Claude Console/API billing or credits.
 - Users are responsible for validating privacy/compliance requirements for their workload.
 
 ## License
 
 Current source-repository license: GNU AGPLv3.
 
-If Chronicle is offered under separate commercial or proprietary terms later, that path should be described as a distinct licensing arrangement rather than implied to replace the AGPL terms already attached to public repository copies.
-
 ## Status
 
-This project is the active standalone Chronicle GUI app line. Chronicle 1.0.7 focuses on clearer preset taxonomy, modern newspaper/e-paper handling, historical newspaper safeguards, and more reliable image-only scanned PDF recovery.
+This project is the active standalone Chronicle GUI app line. Chronicle 1.1.1 focuses on PDF reliability, accessibility, privacy hardening, recovery-workbench output, and safer app-only packaging.

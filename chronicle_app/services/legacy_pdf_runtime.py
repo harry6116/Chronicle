@@ -8,6 +8,7 @@ except ImportError:  # pragma: no cover - optional dependency in lightweight tes
     fitz = None
 
 from chronicle_core import clean_text_artifacts, sanitize_model_output
+from chronicle_app.services.pdf_auth import authenticate_pdf_document
 from chronicle_app.services.processing_runtime import GEMINI_GENERATE_TIMEOUT_MS
 from chronicle_app.services.runtime_policies import wait_for_gemini_upload_ready
 
@@ -37,6 +38,7 @@ def process_pdf_gemini(client, path, fmt, prompt, model, file_obj, memory, pause
     if fitz is None:
         raise RuntimeError("PyMuPDF (fitz) is required for legacy PDF extraction.")
     doc = fitz.open(path)
+    authenticate_pdf_document(doc, path)
     try:
         total_pages = len(doc)
         done = 0

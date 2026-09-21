@@ -157,7 +157,7 @@
     .download-grid,
     .proof-grid,
     .contact-grid,
-    .pricing-grid,
+    .support-grid,
     .faq-grid {
       display: grid;
       gap: 18px;
@@ -171,7 +171,7 @@
     .grid-3,
     .download-grid,
     .contact-grid,
-    .pricing-grid,
+    .support-grid,
     .faq-grid {
       grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
     }
@@ -422,7 +422,7 @@
     }
   </style>
 </head>
-<body>
+<body id="top">
   <a class="skip-link" href="#main-content">Skip to main content</a>
   <div class="wrap">
     <header class="site-header" aria-label="Site header">
@@ -435,7 +435,6 @@
         <a href="#faq">FAQ</a>
         <a href="#transparency">Transparency</a>
         <a href="#support">Support</a>
-        <a href="#pricing">Pricing</a>
         <a href="#contact">Contact</a>
       </nav>
     </header>
@@ -468,7 +467,7 @@
               Built using AI-assisted ("vibe-coded") workflows, with final integration, review, and testing directed by the author.
             </p>
             <div class="release-note" aria-label="Current version">
-              <strong>Current version:</strong> Chronicle 1.0.2
+              <strong>Current version:</strong> Chronicle 1.1.1
             </div>
           </div>
 
@@ -752,7 +751,7 @@
 
       <section id="support" aria-labelledby="support-title">
         <h2 id="support-title">Support Chronicle</h2>
-        <div class="pricing-grid">
+        <div class="support-grid">
           <article class="card">
             <div class="kicker">Community Support</div>
             <h3>Optional donations</h3>
@@ -761,38 +760,6 @@
               <a class="cta primary" href="https://buymeacoffee.com/thevoiceguy">Buy Me a Coffee</a>
               <a class="cta secondary" href="https://paypal.me/MarshallVoiceovers">Donate via PayPal</a>
             </div>
-          </article>
-          <article class="card">
-            <div class="kicker">Commercial</div>
-            <h3>Need a commercial license?</h3>
-            <p>Non-commercial use is free. Paid licensing only applies to commercial, business, client-service, or paid professional use.</p>
-            <div class="cta-row">
-              <a class="cta warm" href="https://github.com/harry6116/Chronicle/issues">Request Commercial Licensing Contact</a>
-            </div>
-          </article>
-        </div>
-      </section>
-
-      <section id="pricing" aria-labelledby="pricing-title">
-        <h2 id="pricing-title">Pricing and Evaluation</h2>
-        <div class="pricing-grid">
-          <article class="card">
-            <div class="kicker">Personal</div>
-            <h3>Non-Commercial / Personal Use</h3>
-            <p><strong>Free</strong></p>
-            <p>For home use, students, educators, nonprofits, family historians, volunteer/community work, and other non-commercial use.</p>
-          </article>
-          <article class="card">
-            <div class="kicker">Professional</div>
-            <h3>Commercial</h3>
-            <p><strong>Paid license required</strong></p>
-            <p>For paid professional work, consulting, client services, business operations, and commercial organizational use.</p>
-          </article>
-          <article class="card">
-            <div class="kicker">Evaluation</div>
-            <h3>Commercial evaluation</h3>
-            <p><strong>On request</strong></p>
-            <p>If a business or organization needs Chronicle assessed before purchase, evaluation access and licensing questions can be routed through the repository issue tracker until a stable public contact channel is restored.</p>
           </article>
         </div>
       </section>
@@ -806,7 +773,7 @@
           </article>
           <article class="card">
             <h3>Do people need their own API key?</h3>
-            <p>Yes. Chronicle is designed so each user can use their own provider key on their own machine. Free Gemini API keys may be fine for initial testing, but hard PDFs and long magazine-style jobs can still hit quota errors, so paid API billing is the safer choice for dependable use.</p>
+            <p>Yes. Chronicle is designed so each user can use their own provider key on their own machine. Free Gemini API keys may be fine for initial testing, but hard PDFs and long magazine-style jobs can still hit quota errors, so a higher-quota API setup is the safer choice for dependable use.</p>
           </article>
           <article class="card">
             <h3>Is Cloudflare Pages a problem for accessibility?</h3>
@@ -842,7 +809,7 @@
             <div class="kicker">Feedback</div>
             <h3>General feedback and questions</h3>
             <p><a href="https://github.com/harry6116/Chronicle/issues">GitHub Issues</a></p>
-            <p class="small">Feedback is welcome. Use this for general questions, evaluation requests, and public discussion.</p>
+            <p class="small">Feedback is welcome. Use this for general questions, support requests, and public discussion.</p>
           </article>
           <article class="card">
             <div class="kicker">Downloads</div>

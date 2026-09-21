@@ -39,7 +39,7 @@ Google AI Studio Gemini API keys can work on Google's free tier, subject to curr
 
 Treat free Gemini access as a test path, not as dependable operating capacity. In practice, difficult PDFs, long queue runs, and dense magazine/newspaper jobs can still stop with quota or rate-limit errors before the document is finished, even when the app is otherwise working correctly.
 
-The safest public guidance is simple: use paid Gemini API billing for sustained work and treat free-tier Gemini as best-effort only.
+The safest public guidance is simple: use a higher-quota Gemini API setup for sustained work and treat free-tier Gemini as best-effort only.
 
 Practical planning examples (rough only, can change):
 
@@ -57,7 +57,7 @@ Actual throughput depends on:
 
 - Do not assume “API usage” automatically means “no training.”
 - Confirm current Google terms and product-level privacy controls for your specific plan.
-- For sensitive workloads, prefer paid plans/settings with explicit data-use guarantees.
+- For sensitive workloads, prefer provider plans/settings with explicit data-use guarantees.
 
 ### 4) Recommended Compliance Posture
 
@@ -71,8 +71,8 @@ Anthropic should be treated differently from Google's free-tier Gemini guidance:
 
 - Claude API access is separate from the consumer Claude.ai chat product.
 - A free Claude.ai account is not enough for Chronicle API use.
-- Even paid Claude chat plans do not automatically include Claude Console/API usage.
-- Current Anthropic help guidance describes Claude Console/API use as requiring separate billing or prepaid credits.
+- Claude chat subscriptions do not automatically include Claude Console/API usage.
+- Current Anthropic help guidance describes Claude Console/API use as requiring separate billing or credits.
 
 OpenAI follows the same broad principle that account tier and settings determine privacy posture. Chronicle cannot enforce upstream provider policy.
 
@@ -85,4 +85,4 @@ OpenAI follows the same broad principle that account tier and settings determine
 
 ## Suggested README Disclaimer Snippet
 
-“Chronicle stores API keys locally. When available, keys are saved to OS keychain/keyring (including macOS Keychain) as the preferred storage path, with local app-data/key files as fallback. Extracted content is sent to the selected provider for processing. Provider retention/training and confidentiality terms are controlled by your provider plan/settings. For sensitive data, use paid plans/settings with explicit privacy guarantees and verify provider terms before use.”
+“Chronicle stores API keys locally. When available, keys are saved to OS keychain/keyring (including macOS Keychain) as the preferred storage path, with local app-data/key files as fallback. Extracted content is sent to the selected provider for processing. Provider retention/training and confidentiality terms are controlled by your provider plan/settings. For sensitive data, use provider settings with explicit privacy guarantees and verify provider terms before use.”

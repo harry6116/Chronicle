@@ -7,7 +7,6 @@ Key public docs:
 - `WHY_CHRONICLE.md`
 - `CHRONICLE_ONE_PAGE.md`
 - `CHRONICLE_BLURBS.md`
-- `LICENSING_OVERVIEW_DRAFT.md`
 - `../user/PRIVATE_OFFLINE_MODE.md`
 
 Use these files for:

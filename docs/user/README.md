@@ -58,7 +58,7 @@ For example, a 14-page historical newspaper PDF may behave more like a much larg
 
 When Chronicle release notes mention NLA newspaper fixes, NLA means the [National Library of Australia](https://www.nla.gov.au/). Many Australian historical newspaper examples come from [Trove](https://trove.nla.gov.au/), which is created and maintained by the National Library of Australia.
 
-For a short product summary focused specifically on hard-document workflows, see [public/WHY_CHRONICLE.md](public/WHY_CHRONICLE.md).
+For a short product summary focused specifically on hard-document workflows, see [WHY_CHRONICLE.md](../public/WHY_CHRONICLE.md).
 
 It is designed for:
 
@@ -127,7 +127,7 @@ Supported providers/models in the current GUI:
   - `Gemini 2.5 Flash`
   - `Gemini 2.5 Pro`
 - Anthropic
-  - `Claude Sonnet 4`
+  - `Claude Sonnet 4.6`
 - OpenAI
   - `GPT-4o`
 
@@ -142,7 +142,7 @@ Current provider guidance:
 
 ### Private Offline Mode
 
-Private Offline Mode is Chronicle's local-only fallback for sensitive documents and internet outages. Chronicle can download and install the offline components from inside the app, so end users do not need to find model files, install Ollama, open a separate download page, or manage segmented downloads themselves.
+Private Offline Mode is Chronicle's local-only fallback for sensitive documents and internet outages. Install and open Ollama, then make the recommended local model available with `ollama pull qwen2.5vl:7b`.
 
 Users who already run Ollama can instead choose **File > Use Existing Ollama**. Chronicle checks the local Ollama service and looks for the required model, `qwen2.5vl:7b`. If the model is missing, Chronicle shows the exact command:
 
@@ -182,7 +182,7 @@ Disadvantages:
 - it is not the right default for difficult scans or complex visual layouts
 - human review is required before legal, medical, financial, or accessibility reliance
 
-Current 1.0.2 validation favors `qwen2.5vl:7b` for the optional offline model pack. The full 13-case offline suite averaged 99.43, with 12/13 cases emergency-usable and 11/13 in the private A range; the modern typed PDF benchmark reached 4/4 A+ cases.
+The published offline benchmark baseline was recorded during 1.0.2 testing with `qwen2.5vl:7b`. The full 13-case offline suite averaged 99.43, with 12/13 cases emergency-usable and 11/13 in the private A range; the modern typed PDF benchmark reached 4/4 A+ cases.
 
 Other local model candidates were checked. `qwen3-vl:8b` is similarly sized but was slower and unreliable at Chronicle's normal offline output budget. Larger 12B-class candidates did not improve the grade enough to justify the package footprint, and an 11B Llama vision candidate did not load reliably in the local Ollama runtime path. See the full offline guide in `docs/user/PRIVATE_OFFLINE_MODE.md`.
 
@@ -354,7 +354,7 @@ Key protections include:
 Chronicle exposes detailed behavior controls through Preferences, including:
 
 - default document profile
-- engine override (`Automatic`, Gemini 2.5 Flash, Gemini 2.5 Pro, Claude Sonnet 4, or GPT-4o)
+- engine override (`Automatic`, Gemini 2.5 Flash, Gemini 2.5 Pro, Claude Sonnet 4.6, or GPT-4o)
 - translation mode
 - translation target language
 - legacy punctuation mode
@@ -569,10 +569,10 @@ Current provider billing/access notes:
 
 - Google Gemini keys created in Google AI Studio can work on Google's free API tier, subject to current free-tier quotas, rate limits, and region availability.
 - Google documents separate Free and Paid tiers for the Gemini API, and some Gemini models are explicitly listed as free of charge on the free tier.
-- In practice, a Gemini API key may be enough for Chronicle testing without enabling paid billing first.
-- Anthropic Claude API access is separate from the consumer Claude.ai chat plans. A Claude free account does not include API access, and even paid Claude chat subscriptions do not include Claude Console/API usage automatically.
-- Anthropic's current help center says Claude Console/API usage requires Console access plus billing or prepaid credits on the Console side.
-- In practice, treat Claude API access for Chronicle as a separate paid developer setup, not as part of a normal Claude chat subscription.
+- In practice, a Gemini API key may be enough for Chronicle testing before enabling provider billing.
+- Anthropic Claude API access is separate from the consumer Claude.ai chat plans. A Claude free account does not include API access, and Claude chat subscriptions do not include Claude Console/API usage automatically.
+- Anthropic's current help center says Claude Console/API usage requires Console access plus billing or credits on the Console side.
+- In practice, treat Claude API access for Chronicle as a separate developer setup, not as part of a normal Claude chat subscription.
 
 If confidentiality matters:
 
@@ -651,8 +651,6 @@ Chronicle is licensed under the GNU Affero General Public License v3.0.
 
 See the top-level `LICENSE` file.
 
-If you want commercial or proprietary licensing arrangements, treat those as separate licensing terms rather than as a replacement for the AGPL terms attached to this source distribution.
-
 ## Legal and Safety Reminder
 
 Chronicle is an AI-assisted document-reading and restructuring tool, not a substitute for professional review or qualified advice.
@@ -668,10 +666,6 @@ Do not rely on Chronicle output as the sole basis for:
 Always verify important outputs against the original source documents.
 
 ## Support the Project
-
-The packaged Chronicle desktop app is intended to be free for non-commercial use. If you are using Chronicle for paid professional or business work, commercial desktop-app licensing should be handled separately.
-
-This does not replace the AGPL terms attached to the source distribution in this repository.
 
 If Chronicle helps your work and you want to support ongoing development, community support is appreciated.
 

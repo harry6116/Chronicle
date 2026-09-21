@@ -7,10 +7,36 @@ import zipfile
 from chronicle_app.services.security import redact_sensitive, sanitize_log_text
 
 
+PATH_KEY_NAMES = {"path", "source_root", "output_dir", "custom_dest", "scan_output_dir", "last_browse_dir"}
+
+
+def _redact_path_value(value):
+    if not value:
+        return value
+    text = str(value)
+    base = os.path.basename(text.rstrip(os.sep))
+    return base or "[redacted path]"
+
+
+def redact_support_bundle_paths(value):
+    if isinstance(value, dict):
+        redacted = {}
+        for key, item in value.items():
+            lowered = str(key).lower()
+            if lowered in PATH_KEY_NAMES or lowered.endswith("_path") or lowered.endswith("_dir"):
+                redacted[key] = _redact_path_value(item)
+            else:
+                redacted[key] = redact_support_bundle_paths(item)
+        return redacted
+    if isinstance(value, list):
+        return [redact_support_bundle_paths(item) for item in value]
+    return value
+
+
 def build_provider_capability_matrix(keys, *, has_provider_key_fn=None):
     provider_rows = [
-        ("Google Gemini", "gemini", "Gemini 2.5 Flash / Gemini 2.5 Pro", "Best default path for PDFs; paid setup is safer for sustained hard batches."),
-        ("Anthropic Claude", "claude", "Claude Sonnet 4", "Strong structured fallback; API billing is separate from Claude chat plans."),
+        ("Google Gemini", "gemini", "Gemini 2.5 Flash / Gemini 2.5 Pro", "Best default path for PDFs; higher-quota setup is safer for sustained hard batches."),
+        ("Anthropic Claude", "claude", "Claude Sonnet 4.6", "Strong structured fallback; API billing is separate from Claude chat plans."),
         ("OpenAI", "openai", "GPT-4o", "General multimodal fallback; Chronicle still treats OpenAI PDF handling as a fallback path."),
     ]
     lines = ["Provider Capability Matrix", ""]
@@ -77,13 +103,16 @@ def create_support_bundle(
         zf.writestr("provider_matrix.txt", str(provider_matrix_text or "").rstrip() + "\n")
         safe_processing_log = [sanitize_log_text(line) for line in (processing_log_lines or [])]
         zf.writestr("processing_log.txt", "\n".join(safe_processing_log).rstrip() + "\n")
-        zf.writestr("config_redacted.json", json.dumps(redact_sensitive(cfg or {}), indent=2, sort_keys=True))
-        zf.writestr("queue_redacted.json", json.dumps(redact_sensitive(queue or []), indent=2, sort_keys=True))
+        safe_cfg = redact_sensitive(redact_support_bundle_paths(cfg or {}))
+        safe_queue = redact_sensitive(redact_support_bundle_paths(queue or []))
+        zf.writestr("config_redacted.json", json.dumps(safe_cfg, indent=2, sort_keys=True))
+        zf.writestr("queue_redacted.json", json.dumps(safe_queue, indent=2, sort_keys=True))
         if session_file and os.path.exists(session_file):
             try:
                 with open(session_file, "r", encoding="utf-8") as fh:
                     session = json.load(fh)
-                zf.writestr("active_session_redacted.json", json.dumps(redact_sensitive(session), indent=2, sort_keys=True))
+                safe_session = redact_sensitive(redact_support_bundle_paths(session))
+                zf.writestr("active_session_redacted.json", json.dumps(safe_session, indent=2, sort_keys=True))
             except Exception as ex:
                 zf.writestr("active_session_read_error.txt", sanitize_log_text(ex))
     return bundle_path

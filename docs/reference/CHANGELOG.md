@@ -2,6 +2,16 @@
 
 All notable changes to Chronicle will be documented in this file.
 
+## [1.1.1] - 2026-09-21
+### Changed
+- **Supported Claude Model:** Replaced the retired Claude Sonnet 4 API model with Claude Sonnet 4.6 and added automatic migration for older saved Claude selections.
+- **Offline Privacy Boundary:** Restricted Private Offline Mode to loopback Ollama endpoints so document content cannot be redirected to a remote host through endpoint configuration.
+- **Release Documentation:** Aligned public version, packaging, offline setup, provider, runbook, and system-requirement guidance with the shipped 1.1.1 behavior.
+
+### Fixed
+- **Runtime Import Failures:** Restored imports needed by local offline path resolution and legacy completion sounds, and repaired a benchmark type annotation that referenced an unavailable module name.
+- **Public Documentation Accessibility:** Repaired broken local links, missing page landmarks, an invalid top-page link, and a missing sample-document heading.
+
 ## [1.0.7] - 2026-04-27
 ### Added
 - **Modern Newspapers / E-Papers Preset:** Added a dedicated contemporary newspaper preset for clean print-edition PDFs, e-paper pages, article cards, bylines, timestamps, section labels, photos/captions, advertisements, sponsored content, jump lines, and digital publication furniture without invoking historical OCR/newsprint rules.
@@ -66,8 +76,8 @@ All notable changes to Chronicle will be documented in this file.
 - **Visible In-Progress Temp Outputs:** Every extraction format now creates a readable `.progress.txt.tmp` sidecar in the destination folder during processing so long scans have a visible work-in-progress artifact even when the final format is DOCX, PDF, EPUB, JSON, or CSV.
 - **Timestamped Processing Logs:** Engine-event log lines now include wall-clock timestamps and elapsed run time so long extraction runs are easier to judge at a glance.
 - **Preferences Engine Override:** Added an `Engine Override` control in Preferences so users can keep automatic preset routing or force Gemini 2.5 Flash, Gemini 2.5 Pro, Claude 3.5 Sonnet, or GPT-4o from one place.
-- **Claude Model Alias Upgrade:** Chronicle now transparently upgrades the retired Anthropic model id `claude-3-5-sonnet-20241022` to `claude-sonnet-4-20250514` so older saved settings keep working.
-- **Provider Billing Guidance Refresh:** Core docs now explicitly distinguish Google Gemini free-tier API access from Anthropic Claude Console billing, so users are told that Gemini keys can work on Google's free tier while Claude API usage still requires separate Console/API billing or prepaid credits.
+- **Claude Model Alias Upgrade:** Chronicle now transparently upgrades retired Claude 3.5 and Claude Sonnet 4 model IDs to `claude-sonnet-4-6` so older saved settings keep working.
+- **Provider Billing Guidance Refresh:** Core docs now explicitly distinguish Google Gemini free-tier API access from Anthropic Claude Console billing, so users are told that Gemini keys can work on Google's free tier while Claude API usage still requires separate Console/API billing or credits.
 ## [1.0.0] - 2026-04-06
 ### Added
 - **First Standalone Public App Release:** Chronicle now has a clear first public app release line separate from the older terminal-first public repository history.
@@ -87,7 +97,7 @@ All notable changes to Chronicle will be documented in this file.
 - **Automatic Engine Documentation:** Public and user docs now explain that `Automatic` can use the faster engine first on easier PDFs, while a manual engine override disables that adaptive path.
 - **File Collision Guidance:** User docs and help now explicitly explain `Skip`, `Overwrite`, and `Auto-Number`, plus the rule that source deletion only happens after a successful run.
 - **Standard Profile Defaults:** The general `Standard` preset now leans harder toward accessible recovery for ordinary PDFs and mixed office documents, with punctuation modernization and abbreviation expansion enabled by default.
-- **Claude Engine Defaults:** Claude-facing defaults, labels, and overrides now point to Claude Sonnet 4 instead of the retired Claude 3.5 Sonnet id.
+- **Claude Engine Defaults:** Claude-facing defaults, labels, and overrides now point to Claude Sonnet 4.6 instead of retired Claude model IDs.
 - **Preset Surface Expansion:** Chronicle's preset guidance now explicitly covers `Office Docs / Reports / Word / HTML`, `Government Reports / Public Records`, `Books / Novels / Long-Form Prose`, and the existing specialist profiles in README/help/methodology docs.
 - **Word Output Guidance:** Documentation and prompt rules now explain that DOCX output is structured for headings, lists, tables, and major section/page boundaries rather than merely acting as plain dumped text.
 - **Readable Progress Logging:** File headers now identify each queued file once, page progress lines are shorter, and a quiet-run heartbeat reports that work is still continuing during long pauses.
@@ -241,7 +251,7 @@ All notable changes to Chronicle will be documented in this file.
 ## [1.3.2] - 2026-02-28
 ### Added
 - **TIF Support:** Explicitly added `.tif` to the supported extensions list and routing logic.
-- **API Privacy Documentation:** Restored the API tier pricing and data privacy breakdown to the README.
+- **API Privacy Documentation:** Restored the API tier and data privacy breakdown to the README.
 ### Fixed
 - **Syntax Error:** Removed a stray character in the extensions list that prevented the script from launching.
 

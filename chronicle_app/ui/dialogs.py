@@ -569,8 +569,6 @@ class PrefsDialog(wx.Dialog):
         get_translation_target,
         profile_tooltip_text,
         apply_profile_preset,
-        license_status_text="",
-        import_license_handler=None,
     ):
         super().__init__(parent, title="Chronicle Preferences", size=(640, 760))
         self.cfg = cfg
@@ -579,27 +577,9 @@ class PrefsDialog(wx.Dialog):
         self._get_translation_target = get_translation_target
         self._profile_tooltip_text = profile_tooltip_text
         self._apply_profile_preset = apply_profile_preset
-        self._import_license_handler = import_license_handler
 
         panel = wx.Panel(self)
         vbox = wx.BoxSizer(wx.VERTICAL)
-
-        license_box = wx.StaticBox(panel, label="License Status")
-        license_sizer = wx.StaticBoxSizer(license_box, wx.VERTICAL)
-        self.tc_license_status = wx.TextCtrl(panel, style=wx.TE_MULTILINE | wx.TE_READONLY)
-        self.tc_license_status.SetMinSize((-1, 124))
-        self.tc_license_status.SetValue(str(license_status_text or "License status unavailable"))
-        self.tc_license_status.SetToolTip("Shows the currently installed Chronicle license status for this machine.")
-        license_sizer.Add(self.tc_license_status, 1, wx.LEFT | wx.RIGHT | wx.TOP | wx.EXPAND, 8)
-        license_hint = wx.StaticText(
-            panel,
-            label="Use Import License to install a signed offline Chronicle license file on this machine.",
-        )
-        license_sizer.Add(license_hint, 0, wx.LEFT | wx.RIGHT | wx.TOP, 8)
-        self.btn_import_license = wx.Button(panel, label="Import License...")
-        self.btn_import_license.Bind(wx.EVT_BUTTON, self.OnImportLicenseRequested)
-        license_sizer.Add(self.btn_import_license, 0, wx.LEFT | wx.RIGHT | wx.TOP | wx.BOTTOM, 8)
-        vbox.Add(license_sizer, 0, wx.LEFT | wx.RIGHT | wx.TOP | wx.EXPAND, 10)
 
         vbox.Add(wx.StaticText(panel, label="Document Profile:"), flag=wx.LEFT | wx.TOP, border=10)
         self.dp = wx.Choice(panel, choices=[label for _, label in PROFILE_CHOICES])
@@ -800,14 +780,6 @@ class PrefsDialog(wx.Dialog):
         btns.Realize()
         vbox.Add(btns, flag=wx.ALIGN_RIGHT | wx.ALL, border=10)
         panel.SetSizer(vbox)
-
-    def OnImportLicenseRequested(self, event):
-        if callable(self._import_license_handler):
-            updated_text = self._import_license_handler()
-            if updated_text:
-                self.tc_license_status.SetValue(str(updated_text))
-        if event:
-            event.Skip()
 
     def OnSave(self, event):
         trev = {0: "none", 1: "both", 2: "english_only"}

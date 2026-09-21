@@ -281,7 +281,6 @@ def build_settings_section(panel, *, cfg, profile_choices, get_pdf_page_items_fn
     btn_start.SetName('Start Reading')
     btn_start.SetToolTip('Start reading everything that is currently queued.')
     bind(btn_start, 'start')
-    set_button_icon = None
     run_actions.Add(btn_start, 2, wx.RIGHT, 8)
 
     btn_schedule = wx.Button(panel, label='Schedule Reading...', size=(-1, 42))
