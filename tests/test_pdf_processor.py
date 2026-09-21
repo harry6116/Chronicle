@@ -80,7 +80,7 @@ class PdfProcessorTest(unittest.TestCase):
                 cleanup()
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            result = process_pdf(
+            process_pdf(
                 client=Client(),
                 path="dummy.pdf",
                 out="out.html",
@@ -1026,7 +1026,7 @@ class PdfProcessorTest(unittest.TestCase):
             with open(pdf_path, "wb") as fh:
                 fh.write(b"x" * int(8.9 * 1024 * 1024))
             try:
-                result = process_pdf(
+                process_pdf(
                 client="client",
                 path=pdf_path,
                 out="out.html",

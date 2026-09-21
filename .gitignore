@@ -70,6 +70,10 @@ Desktop.ini
 
 # Local worktrees and historical backups
 .worktrees/
+.hoover_compare/
 back5_dns_folder/
+downloads/
+make_prefects_party_midi.py
+nla.news-issue*.html
 review_archives_*/
 Chronicle_Source_*.zip

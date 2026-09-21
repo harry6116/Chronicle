@@ -2,6 +2,8 @@ import re
 import unittest
 from pathlib import Path
 
+from bs4 import BeautifulSoup
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -45,6 +47,21 @@ RELEASE_NOTES_PRIVATE_PATTERNS = [
     re.compile(r"\bchronicle_core\.py\b", re.IGNORECASE),
     re.compile(r"\bchronicle_runtime\.py\b", re.IGNORECASE),
     re.compile(r"\bprocess_pdf\(", re.IGNORECASE),
+]
+
+INTERNAL_RULE_PATTERNS = [
+    re.compile(r"\binternal assistant instructions?\b", re.IGNORECASE),
+    re.compile(r"\bimplementation constraints?\b", re.IGNORECASE),
+    re.compile(r"\bplanning instructions?\b", re.IGNORECASE),
+    re.compile(r"\bdocumentation rule:\b", re.IGNORECASE),
+    re.compile(r"\bdo not use Markdown hash heading markers\b", re.IGNORECASE),
+]
+
+STALE_PRODUCT_PATTERNS = [
+    re.compile(r"\bpackaged Private Offline Mode\b", re.IGNORECASE),
+    re.compile(r"\bpackaged offline (?:model|runtime|components?)\b", re.IGNORECASE),
+    re.compile(r"\bincluded `?qwen2\.5vl:7b`? (?:model|local model|model pack)\b", re.IGNORECASE),
+    re.compile(r"\bclaude-sonnet-4-20250514\b", re.IGNORECASE),
 ]
 
 
@@ -100,6 +117,84 @@ class PublicDocsSecurityTest(unittest.TestCase):
             [],
             "Current release notes are public-facing copy; do not include local build/deployment state, private paths, source archives, or internal implementation handoff details.",
         )
+
+    def test_public_docs_do_not_expose_internal_rules_or_stale_product_claims(self):
+        leaks = []
+        for path in _public_doc_paths():
+            text = path.read_text(encoding="utf-8", errors="ignore")
+            for pattern in INTERNAL_RULE_PATTERNS + STALE_PRODUCT_PATTERNS:
+                for match in pattern.finditer(text):
+                    rel_path = path.relative_to(REPO_ROOT)
+                    line = text.count("\n", 0, match.start()) + 1
+                    leaks.append(f"{rel_path}:{line}: {match.group(0)}")
+
+        self.assertEqual(
+            leaks,
+            [],
+            "Public documentation contains internal rule text or a stale product claim.",
+        )
+
+    def test_current_release_identity_is_consistent(self):
+        release_notes = PUBLIC_RELEASE_NOTES.read_text(encoding="utf-8")
+        expected = re.search(r"^# Chronicle (\d+\.\d+\.\d+)$", release_notes, re.MULTILINE).group(1)
+        checks = {
+            "chronicle_gui.py": (REPO_ROOT / "chronicle_gui.py", r'^APP_VERSION = "([^"]+)"$'),
+            "README.md": (REPO_ROOT / "README.md", r"Current public release line: \*\*Chronicle ([^*]+)\*\*"),
+            "README_PUBLIC_FINAL.md": (
+                REPO_ROOT / "docs/github_rollout/README_PUBLIC_FINAL.md",
+                r"Current public release line: \*\*Chronicle ([^*]+)\*\*",
+            ),
+            "PROJECT_OVERVIEW_GITHUB.md": (
+                REPO_ROOT / "docs/github_rollout/PROJECT_OVERVIEW_GITHUB.md",
+                r"Current public release target: \*\*Chronicle ([^*]+)\*\*",
+            ),
+            "README_GITHUB_ROLLOUT_PACK.md": (
+                REPO_ROOT / "docs/github_rollout/README_GITHUB_ROLLOUT_PACK.md",
+                r"Current target release: `Chronicle ([^`]+)`",
+            ),
+            "LAUNCH_RUNBOOK.md": (
+                REPO_ROOT / "docs/github_rollout/LAUNCH_RUNBOOK.md",
+                r"Current target release: `Chronicle ([^`]+)`",
+            ),
+            "public/index.html": (
+                REPO_ROOT / "docs/public/index.html",
+                r"Current version:</strong> Chronicle ([0-9.]+)",
+            ),
+        }
+        mismatches = []
+        for label, (path, pattern) in checks.items():
+            match = re.search(pattern, path.read_text(encoding="utf-8"), re.MULTILINE)
+            actual = match.group(1) if match else "missing"
+            if actual != expected:
+                mismatches.append(f"{label}: expected {expected}, found {actual}")
+        self.assertEqual(mismatches, [])
+
+    def test_public_html_has_basic_accessibility_structure(self):
+        issues = []
+        html_paths = sorted((REPO_ROOT / "docs/public").rglob("*.html"))
+        html_paths.extend(sorted((REPO_ROOT / "docs/user").rglob("*.html")))
+        for path in html_paths:
+            soup = BeautifulSoup(path.read_text(encoding="utf-8", errors="ignore"), "html.parser")
+            rel_path = path.relative_to(REPO_ROOT)
+            ids = [tag.get("id") for tag in soup.find_all(id=True)]
+            duplicate_ids = sorted({value for value in ids if ids.count(value) > 1})
+            if duplicate_ids:
+                issues.append(f"{rel_path}: duplicate IDs {duplicate_ids}")
+            if not soup.html or not soup.html.get("lang"):
+                issues.append(f"{rel_path}: missing document language")
+            if not soup.find("main"):
+                issues.append(f"{rel_path}: missing main landmark")
+            if len(soup.find_all("h1")) != 1:
+                issues.append(f"{rel_path}: expected exactly one h1")
+            for image in soup.find_all("img"):
+                if not image.has_attr("alt"):
+                    issues.append(f"{rel_path}: image missing alt text")
+            for link in soup.find_all("a", href=True):
+                href = link.get("href", "")
+                if href.startswith("#") and href[1:] not in ids:
+                    issues.append(f"{rel_path}: missing fragment target {href}")
+
+        self.assertEqual(issues, [])
 
 
 if __name__ == "__main__":

@@ -52,7 +52,6 @@ def _split_fused_book_front_matter(text: str) -> str:
     )
     return cleaned
 
-
 def _normalize_book_page_markers(text: str) -> str:
     if not text:
         return ""
@@ -132,5 +131,3 @@ def _apply_book_plain_text_cleanup(text: str, preserve_original_page_numbers: bo
         cleaned = _normalize_book_page_markers(cleaned)
     cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
     return cleaned
-
-

@@ -29,8 +29,18 @@ def load_json_file(filepath, default_val):
 
 
 def save_json_file(filepath, data):
-    with open(filepath, "w", encoding="utf-8") as fh:
+    parent = os.path.dirname(os.path.abspath(filepath))
+    if parent:
+        os.makedirs(parent, exist_ok=True)
+    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
+    fd = os.open(filepath, flags, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
         json.dump(data, fh, indent=4)
+    if os.name != "nt":
+        try:
+            os.chmod(filepath, 0o600)
+        except Exception:
+            pass
 
 
 def resolve_continuity_file_path(*, script_dir):

@@ -146,6 +146,7 @@ class RuntimePoliciesTest(unittest.TestCase):
 
     def test_normalize_model_name_maps_retired_claude_model(self):
         self.assertEqual(normalize_model_name("claude-3-5-sonnet-20241022"), DEFAULT_CLAUDE_MODEL)
+        self.assertEqual(normalize_model_name("claude-sonnet-4-20250514"), DEFAULT_CLAUDE_MODEL)
 
     def test_get_preferred_profile_model_uses_override_when_present(self):
         model = get_preferred_profile_model(

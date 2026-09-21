@@ -78,7 +78,6 @@ def _collapse_inline_image_sources(text: str) -> str:
     cleaned = re.sub(r"about:blank[a-z0-9+\/=\s_-]{240,}", "about:blank", cleaned, flags=re.IGNORECASE)
     return cleaned
 
-
 def _strip_html_page_wrapper_noise(text: str) -> str:
     if not text:
         return ""
@@ -300,5 +299,3 @@ def strip_internal_chronicle_output_labels(text_content, format_type):
         cleaned = re.sub(r"\btext\s+layer\s+fallback\b", "", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
     return cleaned
-
-

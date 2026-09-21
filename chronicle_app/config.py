@@ -373,7 +373,7 @@ PROFILE_KEY_TO_LABEL = {key: label for key, label in PROFILE_CHOICES}
 MODEL_LABEL_BY_KEY = {
     "gemini-2.5-flash": "Gemini 2.5 Flash",
     "gemini-2.5-pro": "Gemini 2.5 Pro",
-    DEFAULT_CLAUDE_MODEL: "Claude Sonnet 4",
+    DEFAULT_CLAUDE_MODEL: "Claude Sonnet 4.6",
     "gpt-4o": "GPT-4o",
     OFFLINE_PRIVATE_MODEL: "Private Offline Mode",
 }
@@ -382,7 +382,7 @@ MODEL_OVERRIDE_CHOICES = [
     ("", "Automatic (Chronicle Chooses)"),
     ("gemini-2.5-flash", "Gemini 2.5 Flash"),
     ("gemini-2.5-pro", "Gemini 2.5 Pro"),
-    (DEFAULT_CLAUDE_MODEL, "Claude Sonnet 4"),
+    (DEFAULT_CLAUDE_MODEL, "Claude Sonnet 4.6"),
     ("gpt-4o", "GPT-4o"),
     (OFFLINE_PRIVATE_MODEL, "Private Offline Mode"),
 ]

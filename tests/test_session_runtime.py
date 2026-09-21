@@ -30,6 +30,8 @@ class SessionRuntimeTest(unittest.TestCase):
 
             save_active_session_file(path, payload, session_lock=threading.Lock())
             self.assertTrue(os.path.exists(path))
+            if os.name != "nt":
+                self.assertEqual(os.stat(path).st_mode & 0o777, 0o600)
 
             delete_active_session_file(path)
             self.assertFalse(os.path.exists(path))

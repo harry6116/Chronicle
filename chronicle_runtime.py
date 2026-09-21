@@ -14,6 +14,7 @@ import io
 import hashlib
 import tempfile
 import gc
+import subprocess
 from collections import OrderedDict
 import threading
 
@@ -66,6 +67,7 @@ from chronicle_app.services.prompting import (
     enforce_archival_heading_structure as shared_enforce_archival_heading_structure,
 )
 from chronicle_app.services.runtime_policies import get_online_engine_settings
+from chronicle_app.services.pdf_auth import authenticate_pdf_document
 from chronicle_app.config import (
     PROFILE_CHOICES,
     PROFILE_PRESETS,
@@ -175,15 +177,6 @@ GEMINI_UPLOAD_POLL_SEC = 2.5
 GEMINI_UPLOAD_MAX_WAIT_SEC = 180.0
 SUPPORTED_EXTENSIONS = sorted(SHARED_SUPPORTED_EXTENSIONS - {".xls", ".ppt"})
 PROTECTED_INPUT_DIR_BASENAMES = {"checking documents"}
-TRANSLATION_TARGETS = [
-    ("English", "en"),
-    ("Spanish", "es"),
-    ("French", "fr"),
-    ("German", "de"),
-    ("Italian", "it"),
-    ("Portuguese", "pt"),
-]
-RTL_LANGUAGE_CODES = {"ar", "fa", "he", "ur", "yi", "ps", "sd", "ug"}
 _api_request_lock = threading.Lock()
 _api_last_request_ts = 0.0
 _api_request_semaphore = threading.Semaphore(API_MAX_CONCURRENT_REQUESTS)
@@ -369,6 +362,7 @@ def write_footer(file_obj, format_type):
 def _probe_pdf_text_layer(pdf_path, sample_pages=3, min_chars_per_page=200):
     try:
         doc = fitz.open(pdf_path)
+        authenticate_pdf_document(doc, pdf_path)
     except Exception:
         return False
     try:
@@ -477,7 +471,8 @@ def save_as_json(json_path, text_content):
     text_content = text_content.strip()
     if text_content.startswith("```json"): text_content = text_content[7:-3].strip()
     try: data = json.loads(text_content)
-    except: data = {"chronicle_extracted_content": text_content}
+    except json.JSONDecodeError:
+        data = {"chronicle_extracted_content": text_content}
     with open(json_path, 'w', encoding='utf-8') as f: json.dump(data, f, indent=4)
 
 def save_as_csv(csv_path, text_content):
@@ -818,6 +813,7 @@ def process_pdf(client, pdf_path, output_path, format_type, prompt_text, model_n
     allow_text_layer_fallback = os.environ.get("CHRONICLE_ALLOW_PDF_TEXT_LAYER_FALLBACK") == "1"
 
     doc = fitz.open(pdf_path)
+    authenticate_pdf_document(doc, pdf_path)
     try:
         total_pages = len(doc)
         current_page = 0
@@ -856,7 +852,7 @@ def process_pdf(client, pdf_path, output_path, format_type, prompt_text, model_n
                             try:
                                 client.files.delete(name=uploaded.name)
                             except Exception as cleanup_ex:
-                                print(f"Warning: could not delete temporary Gemini upload {uploaded.name}: {cleanup_ex}")
+                                print(f"Warning: could not delete temporary Gemini upload {uploaded.name}: {sanitize_log_text(cleanup_ex)}")
 
                         return response, _cleanup_upload
 
@@ -979,6 +975,7 @@ def process_fitz_text_document_cli(client, file_path, output_path, format_type, 
     if fitz is None:
         raise RuntimeError("This ebook format requires PyMuPDF.")
     doc = fitz.open(file_path)
+    authenticate_pdf_document(doc, file_path)
     try:
         full_text = ""
         for page_index in range(len(doc)):
@@ -1030,7 +1027,7 @@ def process_image(client, file_path, output_path, format_type, prompt_text, mode
                     try:
                         client.files.delete(name=uploaded.name)
                     except Exception as cleanup_ex:
-                        print(f"Warning: could not delete temporary Gemini upload {uploaded.name}: {cleanup_ex}")
+                        print(f"Warning: could not delete temporary Gemini upload {uploaded.name}: {sanitize_log_text(cleanup_ex)}")
                 return response, _cleanup_upload
             stream_with_cache(
                 cache_key,
@@ -1053,6 +1050,7 @@ def process_rendered_document_cli(client, file_path, output_path, format_type, p
     if fitz is None:
         raise RuntimeError("Renderable document support requires PyMuPDF.")
     doc = fitz.open(file_path)
+    authenticate_pdf_document(doc, file_path)
     try:
         for page_index in range(len(doc)):
             page = doc[page_index]
@@ -1182,13 +1180,13 @@ def process_pptx_document(client, file_path, output_path, format_type, prompt_te
                     if getattr(getattr(uploaded, "state", None), "name", "") == "FAILED":
                         raise Exception("Google API failed to process the PPTX document.")
                 except Exception as poll_ex:
-                    print(f"Warning: PPTX upload polling failed ({poll_ex}); attempting generation anyway.")
+                    print(f"Warning: PPTX upload polling failed ({sanitize_log_text(poll_ex)}); attempting generation anyway.")
                 response = generate_with_retry(client, model_name, [uploaded, prompt_text])
                 def _cleanup_upload():
                     try:
                         client.files.delete(name=uploaded.name)
                     except Exception as cleanup_ex:
-                        print(f"Warning: could not delete temporary Gemini upload {uploaded.name}: {cleanup_ex}")
+                        print(f"Warning: could not delete temporary Gemini upload {uploaded.name}: {sanitize_log_text(cleanup_ex)}")
                 return response, _cleanup_upload
 
             stream_with_cache(
@@ -1201,7 +1199,7 @@ def process_pptx_document(client, file_path, output_path, format_type, prompt_te
             )
             return
         except Exception as upload_ex:
-            print(f"Warning: native PPTX vision failed ({upload_ex}); falling back to structured slide extraction.")
+            print(f"Warning: native PPTX vision failed ({sanitize_log_text(upload_ex)}); falling back to structured slide extraction.")
 
     prs = pptx.Presentation(file_path)
     full_text = ""

@@ -22,6 +22,7 @@ class ChronicleMenuBar:
         existing_ollama_id = wx.NewIdRef()
         resume_center_id = wx.NewIdRef()
         compare_outputs_id = wx.NewIdRef()
+        recovery_workstation_id = wx.NewIdRef()
 
         file_menu.Append(wx.ID_PREFERENCES, "&Preferences...\tAlt+P")
         file_menu.Append(api_keys_id, "API &Keys...\tAlt+K")
@@ -33,6 +34,7 @@ class ChronicleMenuBar:
         file_menu.Append(provider_matrix_id, "Provider Capability &Matrix...")
         file_menu.Append(resume_center_id, "Open &Resume Center...")
         file_menu.Append(compare_outputs_id, "Compare Two &Outputs...")
+        file_menu.Append(recovery_workstation_id, "Recovery &Workbench Plan...")
 
         mac_access_id = None
         if platform.system() == "Darwin":
@@ -58,6 +60,7 @@ class ChronicleMenuBar:
         self.frame.Bind(wx.EVT_MENU, self.frame.OnProviderCapabilityMatrix, id=provider_matrix_id)
         self.frame.Bind(wx.EVT_MENU, self.frame.OnResumeCenter, id=resume_center_id)
         self.frame.Bind(wx.EVT_MENU, self.frame.OnCompareOutputs, id=compare_outputs_id)
+        self.frame.Bind(wx.EVT_MENU, self.frame.OnRecoveryWorkbenchPlan, id=recovery_workstation_id)
         self.frame.Bind(wx.EVT_MENU, self.frame.OnAppQuitRequested, id=wx.ID_EXIT)
         self.frame.Bind(wx.EVT_MENU, self.frame.OnOpenHelp, id=help_open_id)
         self.frame.Bind(wx.EVT_MENU, self.frame.OnAboutBuild, id=help_about_build_id)

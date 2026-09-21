@@ -50,6 +50,20 @@ class LocalProviderRuntimeTest(unittest.TestCase):
         self.assertEqual(client.model_store, "")
         self.assertEqual(client.ollama_bin, "")
 
+    def test_offline_client_rejects_non_loopback_endpoint(self):
+        with self.assertRaises(runtime.OfflineModelUnavailable):
+            runtime.LocalOllamaClient(base_url="https://example.com:11434")
+
+    def test_offline_client_accepts_ipv6_loopback_endpoint(self):
+        client = runtime.LocalOllamaClient(base_url="http://[::1]:11434/")
+
+        self.assertEqual(client.base_url, "http://[::1]:11434")
+
+    def test_user_offline_root_defaults_to_current_platform(self):
+        root = runtime.resolve_user_offline_root(env={}, home="/tmp/example")
+
+        self.assertEqual(root.name, "Chronicle")
+
     def test_pull_existing_ollama_model_runs_expected_command(self):
         completed = mock.Mock(returncode=0, stdout="pulled")
         with mock.patch.object(runtime, "find_ollama_cli", return_value="/usr/local/bin/ollama"), mock.patch.object(

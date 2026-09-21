@@ -6,6 +6,8 @@ import time
 
 from chronicle_app.services.nla_newspaper import should_skip_cleanup_for_nla_ocr_output
 from chronicle_app.services.output_quality import analyze_output_quality, build_run_health_summary
+from chronicle_app.services.recovery_workstation import write_recovery_workstation_artifacts
+from chronicle_app.services.security import sanitize_log_text
 
 
 FINALIZE_FILESYSTEM_OPERATION_TIMEOUT_SECONDS = 2.0
@@ -13,6 +15,10 @@ FINALIZE_TEXT_CLEANUP_TIMEOUT_SECONDS = 20.0
 FINALIZE_REDUNDANT_CLEANUP_SKIP_CHARS = 400_000
 FINALIZE_REDUNDANT_CLEANUP_SKIP_PROFILES = {"archival", "military"}
 FINALIZE_POST_SAVE_CLEANUP_DEFAULT = False
+
+
+def _safe_error(value):
+    return sanitize_log_text(value)
 
 
 def _approx_visible_text(content, *, fmt):
@@ -183,7 +189,7 @@ def _close_finalize_stream(file_obj, *, label, description, log_cb, operation_ti
         _run_filesystem_call_with_timeout(file_obj.close, timeout_s=operation_timeout_s)
         return True
     except Exception as ex:
-        log_cb(f"[Finalize] {label}: warning: could not close {description} within finalization guard ({ex}).")
+        log_cb(f"[Finalize] {label}: warning: could not close {description} within finalization guard ({_safe_error(ex)}).")
         return False
 
 
@@ -299,7 +305,7 @@ def _cleanup_saved_output(
             timeout_s=cleanup_timeout_s,
         )
     except Exception as cleanup_ex:
-        log_cb(f"Warning: {cleanup_label} cleanup skipped ({cleanup_ex})")
+        log_cb(f"Warning: {cleanup_label} cleanup skipped ({_safe_error(cleanup_ex)})")
         return
     try:
         reject_cleaned, stats = should_reject_cleaned_output(raw_content, cleaned, fmt=fmt)
@@ -326,7 +332,7 @@ def _cleanup_saved_output(
             timeout_s=operation_timeout_s,
         )
     except Exception as cleanup_ex:
-        log_cb(f"Warning: {cleanup_label} cleanup skipped ({cleanup_ex})")
+        log_cb(f"Warning: {cleanup_label} cleanup skipped ({_safe_error(cleanup_ex)})")
         try:
             if path_exists(cleanup_temp_path):
                 _run_filesystem_call_with_timeout(remove_fn, cleanup_temp_path, timeout_s=operation_timeout_s)
@@ -362,7 +368,7 @@ def _promote_temp_output(
         except Exception as ex:
             last_error = ex
             if attempt < 3:
-                log_cb(f"[Finalize] {label}: temp promotion retry {attempt}/3 after filesystem error ({ex}).")
+                log_cb(f"[Finalize] {label}: temp promotion retry {attempt}/3 after filesystem error ({_safe_error(ex)}).")
                 try:
                     sleep_fn(0.25 * attempt)
                 except Exception:
@@ -378,7 +384,7 @@ def _promote_temp_output(
         try:
             _run_filesystem_call_with_timeout(remove_fn, temp_path, timeout_s=operation_timeout_s)
         except Exception as cleanup_ex:
-            log_cb(f"[Finalize] {label}: warning: saved fallback output but could not remove temp file ({cleanup_ex}).")
+            log_cb(f"[Finalize] {label}: warning: saved fallback output but could not remove temp file ({_safe_error(cleanup_ex)}).")
         log_cb(
             f"[Finalize] {label}: warning: could not replace final output ({last_error}); "
             f"saved completed output as {fallback_path}."
@@ -387,7 +393,7 @@ def _promote_temp_output(
     except Exception as fallback_ex:
         log_cb(
             f"[Finalize] {label}: warning: could not promote temp output ({last_error}) "
-            f"or save fallback copy ({fallback_ex}); completed temp file preserved at {temp_path}."
+            f"or save fallback copy ({_safe_error(fallback_ex)}); completed temp file preserved at {temp_path}."
         )
         return temp_path
 
@@ -408,7 +414,7 @@ def _remove_finalize_sidecar(
     try:
         _run_filesystem_call_with_timeout(remove_fn, path, timeout_s=operation_timeout_s)
     except Exception as ex:
-        log_cb(f"[Finalize] {label}: warning: could not remove {description} ({ex}).")
+        log_cb(f"[Finalize] {label}: warning: could not remove {description} ({_safe_error(ex)}).")
 
 
 def finalize_single_output(
@@ -441,7 +447,7 @@ def finalize_single_output(
             dispatch_save_fn(job_cfg, temp_path, memory, base)
         except Exception as dispatch_ex:
             log_cb(
-                f"[Finalize] {original_label}: warning: final {fmt.upper()} save failed ({dispatch_ex}); "
+                f"[Finalize] {original_label}: warning: final {fmt.upper()} save failed ({_safe_error(dispatch_ex)}); "
                 "writing emergency text fallback."
             )
             output_path = _write_emergency_text_output(
@@ -458,7 +464,7 @@ def finalize_single_output(
         try:
             _run_filesystem_call_with_timeout(write_footer_fn, file_obj, fmt, timeout_s=operation_timeout_s)
         except Exception as footer_ex:
-            log_cb(f"[Finalize] {original_label}: warning: footer write skipped by finalization guard ({footer_ex}).")
+            log_cb(f"[Finalize] {original_label}: warning: footer write skipped by finalization guard ({_safe_error(footer_ex)}).")
         _close_finalize_stream(
             file_obj,
             label=original_label,
@@ -534,7 +540,7 @@ def maybe_delete_source_file(path, *, delete_source_on_success, is_protected_pat
         log_cb(f"Deleted source file: {path}")
         return True
     except Exception as ex:
-        log_cb(f"Warning: could not delete source file ({path}): {ex}")
+        log_cb(f"Warning: could not delete source file ({path}): {_safe_error(ex)}")
         return False
 
 
@@ -570,7 +576,7 @@ def finalize_merged_output(
         try:
             _run_filesystem_call_with_timeout(write_footer_fn, master_file_obj, merge_fmt, timeout_s=operation_timeout_s)
         except Exception as footer_ex:
-            log_cb(f"[Finalize] {label}: warning: merged footer write skipped by finalization guard ({footer_ex}).")
+            log_cb(f"[Finalize] {label}: warning: merged footer write skipped by finalization guard ({_safe_error(footer_ex)}).")
         _close_finalize_stream(
             master_file_obj,
             label=label,
@@ -659,7 +665,7 @@ def finalize_worker_completion(
         if auto_log_path:
             log_cb(f"Auto-saved processing log: {auto_log_path}")
     except Exception as auto_log_ex:
-        log_cb(f"Warning: could not auto-save processing log ({auto_log_ex})")
+        log_cb(f"Warning: could not auto-save processing log ({_safe_error(auto_log_ex)})")
     if not all_items_completed:
         log_cb("--- RUN ENDED WITH ATTENTION NEEDED ---")
         log_cb("[Finalize] Run completion: completion sound skipped because one or more queued items did not finish.")
@@ -709,6 +715,7 @@ def finalize_job_success(
     set_queue_status_fn,
     log_cb,
     get_peak_rss_mb_fn,
+    receipt_writer_fn=write_recovery_workstation_artifacts,
     progress_temp_path=None,
     progress_file_obj=None,
     resume_state_path=None,
@@ -754,6 +761,25 @@ def finalize_job_success(
             total_units=current_file_page_total,
         ).replace("\n", " | ")
     )
+    if not merge_mode and receipt_writer_fn:
+        try:
+            artifacts = receipt_writer_fn(
+                source_path=source_path,
+                output_path=output_path,
+                fmt=fmt,
+                job_cfg=job_cfg,
+                file_name=file_name,
+                engine_label=job_cfg.get("model_name", "automatic"),
+                total_units=current_file_page_total,
+            )
+            if artifacts:
+                log_cb(
+                    "[Review] "
+                    f"Receipt: {artifacts.get('receipt_path', '')} | "
+                    f"Workbench: {artifacts.get('review_workbench_path', '')}"
+                )
+        except Exception as ex:
+            log_cb(f"[Review] Warning: could not create recovery workbench artifacts ({_safe_error(ex)})")
     if memory_telemetry:
         log_cb(f'[Memory] Peak RSS after task: {get_peak_rss_mb_fn():.1f} MB')
     return result

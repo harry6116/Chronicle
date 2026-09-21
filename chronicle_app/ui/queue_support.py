@@ -12,7 +12,6 @@ def build_queue_accessibility_name(row_count, selected_count):
 def build_queue_accessibility_description(row_count, selected_count, current_row_summary=""):
     if row_count <= 0:
         return "Queue is empty. Use Add Files or Add Folder to load items."
-    row_phrase = "row is" if row_count == 1 else "rows are"
     selected_phrase = "row is" if selected_count == 1 else "rows are"
     base = (
         f"{row_count} queued rows are available. "

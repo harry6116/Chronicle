@@ -2,7 +2,7 @@
 
 Use this when you are ready to replace content in the public Chronicle repository.
 
-Suggested public tag: `v1.0.7`
+Suggested public tag: `v1.1.1`
 
 ## Step 1: Core Repo Files
 

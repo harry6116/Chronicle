@@ -1,5 +1,6 @@
 import unittest
 
+from chronicle_core import normalize_streamed_html_document
 from chronicle_app.services.html_page_navigation import inject_page_navigation
 from chronicle_app.services.html_page_navigation import inject_single_page_boundary_from_metadata
 
@@ -40,6 +41,43 @@ class HtmlPageNavigationTest(unittest.TestCase):
 
         self.assertNotIn('aria-label="Page navigation"', cleaned)
         self.assertNotIn('id="page-1"', cleaned)
+
+    def test_normalizer_removes_page_headings_when_page_references_are_disabled(self):
+        raw = """<!DOCTYPE html>
+<html><body><main id="content">
+<h1 id="document-title">Report</h1>
+<h2>Page 1</h2><p>One.</p>
+<h2>Source Page 2</h2><p>Two.</p>
+<h2>Findings</h2><p>Body.</p>
+</main></body></html>"""
+
+        cleaned = normalize_streamed_html_document(
+            raw,
+            insert_page_navigation=True,
+            preserve_page_headings=False,
+        )
+
+        self.assertNotIn(">Page 1</h2>", cleaned)
+        self.assertNotIn(">Source Page 2</h2>", cleaned)
+        self.assertNotIn('aria-label="Page navigation"', cleaned)
+        self.assertIn('aria-label="Table of Contents"', cleaned)
+        self.assertIn(">Findings</h2>", cleaned)
+
+    def test_normalizer_keeps_top_toc_when_page_links_are_enabled(self):
+        raw = """<!DOCTYPE html>
+<html><body><main id="content">
+<h1 id="document-title">Single Heading Report</h1>
+<p>Body.</p>
+</main></body></html>"""
+
+        cleaned = normalize_streamed_html_document(
+            raw,
+            insert_page_navigation=True,
+            preserve_page_headings=False,
+        )
+
+        self.assertIn('aria-label="Table of Contents"', cleaned)
+        self.assertIn('href="#document-title"', cleaned)
 
 
 if __name__ == "__main__":

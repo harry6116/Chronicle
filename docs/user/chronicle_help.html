@@ -225,7 +225,7 @@
               </tr>
               <tr>
                 <th scope="row"><code>claude</code> (Anthropic key)</th>
-                <td>Claude Sonnet 4</td>
+                <td>Claude Sonnet 4.6</td>
               </tr>
               <tr>
                 <th scope="row"><code>openai</code> (OpenAI key)</th>
@@ -240,12 +240,12 @@
             <li>Google Gemini API keys from Google AI Studio can work on Google's free tier, subject to current model availability, region support, quotas, and rate limits.</li>
             <li>Important practical warning: free Gemini keys may be enough to test Chronicle, but they can still fail on difficult PDFs, long batches, magazines, newspapers, or repeated reruns with quota or rate-limit errors.</li>
             <li>Even with valid keys, live providers can occasionally return temporary high-demand or unavailable responses during busy periods. A later rerun may succeed without any Chronicle code change.</li>
-            <li>Anthropic Claude API access is separate from the consumer Claude.ai chat plans. A free Claude account does not include API access, and even paid Claude chat plans still require separate Claude Console/API billing setup.</li>
+            <li>Anthropic Claude API access is separate from the consumer Claude.ai chat plans. A free Claude account does not include API access, and Claude chat plans still require separate Claude Console/API billing setup.</li>
             <li>Provider retention/training behavior depends on your provider account tier and settings.</li>
             <li>Chronicle stores keys locally, but extraction content is sent to the selected provider for processing.</li>
           </ul>
           <table>
-            <caption>Free vs paid provider access (general guidance)</caption>
+            <caption>Free vs higher-quota provider access (general guidance)</caption>
             <thead>
               <tr>
                 <th scope="col">Access type</th>
@@ -259,7 +259,7 @@
               </tr>
               <tr>
                 <th scope="row">Paid API access</th>
-                <td>Usually offers higher throughput, more stable operational limits, and clearer privacy/commercial terms for production or sensitive workloads.</td>
+                <td>Usually offers higher throughput, more stable operational limits, and clearer privacy terms for production or sensitive workloads.</td>
               </tr>
             </tbody>
           </table>
@@ -267,7 +267,7 @@
             <p><strong>Provider difference:</strong> Gemini and Claude do not behave the same here. Gemini API use may be possible on Google's free API tier. Claude API use should be treated as a separate developer product from Claude.ai chat plans, with its own billing/access setup.</p>
           </div>
           <div class="warning">
-            <p>If confidentiality is critical, avoid free tiers and use paid provider plans/settings that explicitly disable training on your submitted content.</p>
+            <p>If confidentiality is critical, avoid free tiers and use provider plans/settings that explicitly disable training on your submitted content.</p>
           </div>
           <div class="warning">
             <p>Confidentiality boundary: Chronicle cannot enforce provider retention/training policy. Treat free-tier processing as non-confidential unless your provider terms explicitly guarantee otherwise.</p>
@@ -276,7 +276,7 @@
             <p>User responsibility: you are solely responsible for reviewing extracted/scanned material and confirming that your provider tier/settings satisfy your confidentiality and compliance requirements.</p>
           </div>
           <div class="note">
-            <p><strong>Practical summary:</strong> a free Gemini API key may be enough to test Chronicle, but it should be treated as best-effort only. For dependable real-world extraction, especially on hard PDFs or modern magazine/newspaper files, paid Gemini API billing is strongly recommended. A Claude.ai free account or paid chat subscription is not the same thing as Claude API access for Chronicle.</p>
+            <p><strong>Practical summary:</strong> a free Gemini API key may be enough to test Chronicle, but it should be treated as best-effort only. For dependable real-world extraction, especially on hard PDFs or modern magazine/newspaper files, a higher-quota Gemini API setup is strongly recommended. A Claude.ai free account or chat subscription is not the same thing as Claude API access for Chronicle.</p>
           </div>
           <div class="note">
             <p><strong>Free-tier planning example (rough only):</strong> Gemini 2.5 Pro may handle around 500 pages/day, while Gemini 2.5 Flash may handle around 1,000 pages/day. Actual throughput varies by document complexity, retries/rate limits, file types, and provider-side limits.</p>
@@ -322,7 +322,7 @@
             <li>Limitations: offline accuracy is not equal to the strongest online Gemini path on hard documents, local RAM/disk/CPU resources are used, and human review remains required.</li>
           </ul>
           <h3>Current validation</h3>
-          <p>Current 1.0.2 testing favors the included <code>qwen2.5vl:7b</code> local model pack. The full 13-case offline suite averaged 99.43, with 12/13 cases emergency-usable and 11/13 in the private A range. The modern typed PDF cases reached 4/4 A+.</p>
+          <p>The published offline benchmark baseline was recorded during 1.0.2 testing with <code>qwen2.5vl:7b</code>. The full 13-case offline suite averaged 99.43, with 12/13 cases emergency-usable and 11/13 in the private A range. The modern typed PDF cases reached 4/4 A+.</p>
           <p>The one persistent miss was a handwriting-heavy war-diary cover page that produced too little text to count as emergency-usable. That is why Private Offline Mode is described as best for clean, text-based PDFs and simple sensitive documents, not for handwriting, dense images, historical newspapers, comics, magazines, or layout-heavy scans.</p>
           <h3>Local model comparison</h3>
           <ul>
@@ -489,7 +489,7 @@
                 <td>Higher cost and slower than Flash.</td>
               </tr>
               <tr>
-                <th scope="row">Claude Sonnet 4</th>
+                <th scope="row">Claude Sonnet 4.6</th>
                 <td>High-quality narrative and instruction adherence; currently the strongest non-Gemini PDF option in Chronicle.</td>
                 <td>Can be slower/pricey depending on workload; dense PDFs can still require chunking or fallback.</td>
               </tr>
@@ -576,7 +576,7 @@
           </ul>
           <ul>
             <li>Document Profile</li>
-            <li>Engine Override (Automatic, Gemini 2.5 Flash, Gemini 2.5 Pro, Claude Sonnet 4, or GPT-4o)</li>
+            <li>Engine Override (Automatic, Gemini 2.5 Flash, Gemini 2.5 Pro, Claude Sonnet 4.6, or GPT-4o)</li>
             <li>Language Translation</li>
             <li>Translation Target Language</li>
             <li>Legacy Punctuation Mode</li>
@@ -859,7 +859,7 @@
               </tr>
               <tr>
                 <th scope="row">Storage</th>
-                <td>5 GB free for online-only use; 12 GB free for packaged Private Offline Mode</td>
+                <td>5 GB free for online-only use; 12 GB free for Ollama, the local model, and Private Offline Mode working files</td>
                 <td>20 GB+ free SSD space for app package, scans, temp files, local offline working files, and outputs</td>
               </tr>
               <tr>
@@ -869,7 +869,7 @@
               </tr>
               <tr>
                 <th scope="row">API access</th>
-                <td>At least one valid provider key for online mode; no key required for packaged Private Offline Mode</td>
+                <td>At least one valid provider key for online mode; no key required for Private Offline Mode, which requires local Ollama</td>
                 <td>Paid API tier for higher quotas and stronger privacy controls when using online providers</td>
               </tr>
             </tbody>
@@ -884,7 +884,7 @@
           </ul>
           <p>Offline processing is kept conservative by default: one parallel offline request at a time and small PDF page batches rather than one huge local model request.</p>
           <div class="warning">
-            <p>Free API tiers are suitable for testing, but production workloads should generally use paid tiers for throughput and policy stability.</p>
+            <p>Free API tiers are suitable for testing, but production workloads should generally use higher-quota tiers for throughput and policy stability.</p>
           </div>
           <p class="top-link"><a href="#page-title">Back to top</a></p>
         </section>

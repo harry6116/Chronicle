@@ -563,6 +563,7 @@ class WorkerFinalizeRuntimeTest(unittest.TestCase):
     def test_finalize_job_success_updates_status_and_logs(self):
         logs = []
         statuses = []
+        receipts = []
         result = finalize_job_success(
             merge_mode=False,
             job_cfg={'doc_profile': 'standard'},
@@ -585,14 +586,21 @@ class WorkerFinalizeRuntimeTest(unittest.TestCase):
             set_queue_status_fn=statuses.append,
             log_cb=logs.append,
             get_peak_rss_mb_fn=lambda: 12.5,
+            receipt_writer_fn=lambda **kwargs: receipts.append(kwargs) or {
+                "receipt_path": "/tmp/out.chronicle_receipt.md",
+                "review_workbench_path": "/tmp/out.chronicle_review.html",
+            },
             progress_temp_path='/tmp/out.html.progress.txt.tmp',
         )
 
         self.assertEqual(statuses, ['Done'])
+        self.assertEqual(receipts[0]["source_path"], "/tmp/source.pdf")
+        self.assertEqual(receipts[0]["output_path"], "/tmp/out.html")
         self.assertTrue(result['set_page_done_to_total'])
         self.assertEqual(result['page_total_increment'], 3)
         self.assertIn('Saved: /tmp/out.html', logs)
         self.assertTrue(any(entry.startswith('[Health]') for entry in logs))
+        self.assertTrue(any(entry.startswith('[Review] Receipt:') for entry in logs))
         self.assertIn('[Memory] Peak RSS after task: 12.5 MB', logs)
 
     def test_handle_job_error_cleans_temp_file(self):

@@ -1,11 +1,12 @@
 import os
 import time
 
-DEFAULT_CLAUDE_MODEL = "claude-sonnet-4-20250514"
+DEFAULT_CLAUDE_MODEL = "claude-sonnet-4-6"
 OFFLINE_PRIVATE_MODEL = "chronicle-offline-private"
 GEMINI_FILE_POLL_TIMEOUT_MS = 30_000
 LEGACY_MODEL_ALIASES = {
     "claude-3-5-sonnet-20241022": DEFAULT_CLAUDE_MODEL,
+    "claude-sonnet-4-20250514": DEFAULT_CLAUDE_MODEL,
 }
 
 MODEL_VENDOR_BY_PREFIX = (
@@ -250,7 +251,7 @@ def get_model_tradeoff_text(model_name):
     if "gpt" in key:
         return "Broad multimodal fallback with strong general reasoning, but slower than the fastest Gemini path."
     if is_offline_model(key):
-        return "Private local mode for sensitive documents. Documents stay on this computer; accuracy depends on Chronicle's included offline model."
+        return "Private local mode for sensitive documents. Documents stay on this computer; accuracy depends on the installed local model."
     return "General-purpose model."
 
 
@@ -336,7 +337,7 @@ def build_profile_selection_summary(profile_key, current_model_name, *, profile_
     model_label_map = {
         "gemini-2.5-flash": "Fast Engine (Gemini 2.5 Flash)",
         "gemini-2.5-pro": "Deep Engine (Gemini 2.5 Pro)",
-        DEFAULT_CLAUDE_MODEL: "Claude Sonnet 4",
+        DEFAULT_CLAUDE_MODEL: "Claude Sonnet 4.6",
         "gpt-4o": "GPT-4o",
     }
     profile_notes = {
@@ -360,7 +361,7 @@ def build_profile_selection_summary(profile_key, current_model_name, *, profile_
         "poetry": "Poetry / Verse favors preserving stanza shape, line breaks, and indentation.",
         "handwritten": "Handwritten Notes / Personal Diaries favor conservative reading with strong uncertainty tagging instead of guessed cleanups.",
         "archival": "Archives / Historical favor high-fidelity reading of historical handwriting and ledger structure.",
-        "medical": "Medical Records / Clinical Handwriting favors conservative transcription, explicit uncertainty tags, and exact preservation of clinical abbreviations.",
+        "medical": "Medical Records / Clinical Handwriting favors conservative transcription, lab/pathology table recovery, explicit uncertainty tags, and exact preservation of clinical abbreviations.",
         "military": "Military Records benefit from deeper reading on dense metadata, chronology, and marginal notes.",
         "intelligence": "Intelligence / Cables favor routing headers, codewords, classifications, and terse signal-style formatting.",
         "museum": "Museum Labels / Captions favor short descriptive text, object metadata, and provenance notes.",

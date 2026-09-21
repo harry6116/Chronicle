@@ -10,6 +10,7 @@ from chronicle_app.services.diagnostics import (
     build_resume_center_summary,
     compare_output_files,
     create_support_bundle,
+    redact_support_bundle_paths,
     redact_sensitive,
 )
 from chronicle_app.services.security import sanitize_log_text
@@ -37,6 +38,18 @@ class DiagnosticsTest(unittest.TestCase):
 
         self.assertNotIn("AIza", text)
         self.assertIn("x-goog-api-key: [redacted]", text)
+
+    def test_sanitize_log_text_removes_additional_secret_spellings(self):
+        text = sanitize_log_text(
+            "x-api-key: sk-ant-" + ("a" * 30)
+            + " apiKey='sk-proj-" + ("b" * 30) + "'"
+            + " access_token=" + ("c" * 30)
+        )
+
+        self.assertNotIn("sk-ant", text)
+        self.assertNotIn("sk-proj", text)
+        self.assertNotIn("cccccccccccc", text)
+        self.assertIn("x-api-key: [redacted]", text)
 
     def test_provider_capability_matrix_reports_configured_providers(self):
         text = build_provider_capability_matrix(
@@ -73,7 +86,7 @@ class DiagnosticsTest(unittest.TestCase):
                 destination_dir=tmpdir,
                 build_stamp="build",
                 cfg={"api_key": "secret", "format_type": "html"},
-                queue=[{"path": "/tmp/a.pdf", "settings": {"token": "abc"}}],
+                queue=[{"path": "/tmp/private-client/a.pdf", "source_root": "/tmp/private-client", "settings": {"token": "abc"}}],
                 processing_log_lines=["line one", f"provider said api_key={self._fake_gemini_key('2')}"],
                 session_file=session_path,
                 provider_matrix_text="matrix",
@@ -83,12 +96,29 @@ class DiagnosticsTest(unittest.TestCase):
             with zipfile.ZipFile(bundle) as zf:
                 self.assertIn("diagnostic_summary.txt", zf.namelist())
                 cfg = json.loads(zf.read("config_redacted.json").decode("utf-8"))
+                queue = json.loads(zf.read("queue_redacted.json").decode("utf-8"))
                 session = json.loads(zf.read("active_session_redacted.json").decode("utf-8"))
                 processing_log = zf.read("processing_log.txt").decode("utf-8")
 
             self.assertEqual(cfg["api_key"], "[redacted]")
+            self.assertEqual(queue[0]["path"], "a.pdf")
+            self.assertEqual(queue[0]["source_root"], "private-client")
+            self.assertNotIn("private-client/a.pdf", json.dumps(queue))
             self.assertEqual(session["api_key"], "[redacted]")
             self.assertNotIn("AIza", processing_log)
+
+    def test_redact_support_bundle_paths_preserves_basenames_only(self):
+        redacted = redact_support_bundle_paths(
+            {
+                "path": "/Users/person/Documents/Client Matter/file.pdf",
+                "custom_dest": "/Users/person/Documents/Client Matter/output",
+                "safe": "value",
+            }
+        )
+
+        self.assertEqual(redacted["path"], "file.pdf")
+        self.assertEqual(redacted["custom_dest"], "output")
+        self.assertEqual(redacted["safe"], "value")
 
     def test_compare_output_files_returns_unified_diff(self):
         with tempfile.TemporaryDirectory() as tmpdir:

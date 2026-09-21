@@ -8,6 +8,5 @@ Typical contents include:
 - contributing guidance
 - disclaimer language
 - security guidance
-- licensing/purchase terms drafts
 
 Use these documents when working on contribution, governance, or public-release hygiene.

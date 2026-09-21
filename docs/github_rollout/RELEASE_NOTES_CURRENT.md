@@ -1,6 +1,38 @@
 # Chronicle 1.1.1
 
+Chronicle now uses Claude Sonnet 4.6, Anthropic's supported replacement for the retired Claude Sonnet 4 API model. Older saved Claude Sonnet 4 and Claude 3.5 selections are upgraded automatically.
+
+Private Offline Mode now enforces a loopback-only Ollama endpoint so its local-only privacy promise cannot be redirected to a remote host through configuration.
+
+Chronicle's Gemini fallback path has been tidied internally so REST request payload handling and response parsing are more consistent while preserving the existing timeout, streaming, fallback, and API-key behavior.
+
+Chronicle has received an additional security and privacy hardening pass. Local configuration, session, and API-key writes now use owner-only file permissions where the operating system supports them. Migrated app-data files are also tightened after copy.
+
+Support bundles now redact local directory paths from configuration, queue, and session data while preserving useful basenames and run settings for troubleshooting. This reduces accidental disclosure of home folders, client folders, case names, and other local workspace structure when a user shares a support bundle.
+
+Processing logs and provider fallback paths now apply broader secret redaction before exception text is written, including additional API-key header spellings and token formats. Gemini REST fallback continues to use fixed HTTPS endpoints with API keys passed in headers rather than subprocess command arguments.
+
+Review workbench sidecars now avoid copying extracted document text. They remain useful for accessibility QA, receipts, warnings, and review planning, but they no longer create an extra copy of sensitive document content by default.
+
+Chronicle now begins the move toward a fuller recovery-workstation workflow. Successful single-output extractions can produce an accessible extraction receipt and a review workbench sidecar so users have a clearer place to inspect output quality, warnings, source/output details, run posture, and follow-up review recommendations.
+
+The new review artifacts are designed around accessibility from the start, with semantic headings, landmarks, skip navigation, readable metadata, and screen-reader-friendly warning lists. They are intended to make Chronicle's existing caution and transparency easier to review after a run, especially for documents that need human verification before legal, medical, financial, academic, or public accessibility use.
+
+Chronicle also now has a structured foundation for future recovery-workstation features: pre-run triage, corpus/project manifests, profile variants, retry guidance, sensitive-document posture, domain packs, newspaper and book reconstruction planning, confidence review points, batch-effort guidance, export personas, and maintainability roadmap notes.
+
 Chronicle 1.1.1 improves PDF extraction reliability, accessibility, security, and packaging. This release also keeps Private Offline Mode available for clean sensitive documents through a user-managed local Ollama setup.
+
+Chronicle now handles password-protected PDF inputs more gracefully. When a protected PDF is added for reading or scan merging, Chronicle can authenticate it before page inspection and reuse that access during page rendering, instead of failing later with a low-level PDF error.
+
+Password-protected PDFs now keep the accepted password in memory for the current app session, so changing presets, viewing preflight details, and pressing Start Reading do not ask for the same password again.
+
+The Medical Records / Clinical Handwriting preset has also been strengthened for untagged medical PDFs, forms, blood results, pathology reports, imaging reports, and laboratory result tables. Chronicle now gives clearer instructions to preserve test names, values, units, reference ranges, flags, specimen and collection metadata, accession numbers, and visible form fields in accessible structure without turning results into diagnosis-like interpretation.
+
+Medical abbreviation expansion is now broader when users enable abbreviation expansion for the medical preset. Chronicle can expand many common clinical, lab, imaging, immunisation, vital-sign, and health-record abbreviations while still avoiding unsafe highly ambiguous dose shorthand.
+
+HTML output now follows page-reference settings more strictly. When printed page references are disabled, Chronicle removes standalone page headings such as `Page 1` and `Source Page 2` from the final document. When page jump links are enabled, Chronicle also keeps a Table of Contents near the top of the output so the document has a consistent navigation entry point.
+
+Password-protected PDF access remains temporary and in-memory. The accepted-password cache is capped and cleared after runs and when Chronicle closes.
 
 Private Offline Mode no longer ships as a large Chronicle-hosted offline pack. Release packaging now creates and publishes only the Mac and Windows app downloads, while Chronicle guides users to install Ollama locally and run `ollama pull qwen2.5vl:7b` when they want offline processing.
 
@@ -10,7 +42,7 @@ The release publisher now also detects app ZIPs that exceed GitHub release asset
 
 The local offline backend is stopped after each offline extraction so model memory is released promptly after use.
 
-The File menu has also been simplified by removing the dormant license-import action while license work remains paused. Scanner capture options have been held back from this release because flatbed and multifunction printer/scanner support needs broader device, driver, and operating-system testing before it should be exposed to users.
+Scanner capture options have been held back from this release because flatbed and multifunction printer/scanner support needs broader device, driver, and operating-system testing before it should be exposed to users.
 
 ## Highlights
 
@@ -25,7 +57,11 @@ The File menu has also been simplified by removing the dormant license-import ac
 - The API key setup flow now explains that if no API keys are entered, Chronicle will still open, but only Private Offline Mode will be available.
 - The offline model path targets a compact local vision-language pack instead of a very large 20 GB-class model bundle.
 - Private Offline Mode remains intended for clean PDFs and simple sensitive documents, not difficult handwriting, historical newspapers, comics, magazines, or visually complex scans.
-- The File menu no longer exposes the paused license-import workflow.
+- Password-protected PDF inputs can now be unlocked before Chronicle inspects or renders their pages.
+- Chronicle now reuses that unlocked PDF access during the current app session instead of prompting again during preset changes or Start Reading.
+- Medical lab and pathology-style reports now have stronger extraction rules for accessible result tables and visible form fields.
+- Medical abbreviation expansion now covers a wider set of common clinical, lab, imaging, immunisation, vital-sign, and health-record terms.
+- Page-reference suppression now removes standalone page headings, while enabled page jump links keep a top Table of Contents available.
 - Flatbed scanner capture is being deferred to a later release so it can receive proper hardware and driver validation.
 - More reliable page boundaries for PDF extraction across HTML, EPUB, TXT, Markdown, DOCX, and PDF outputs.
 - One source page is now processed per model request for PDF workflows, improving isolation and recovery when difficult pages fail.
@@ -47,7 +83,7 @@ After an offline extraction completes, Chronicle stops its bundled local backend
 
 Current offline testing favors `qwen2.5vl:7b` as the local vision-language model users should install through Ollama. Accuracy remains under active validation and should be treated as a secure offline option for clean sensitive PDFs, not a replacement for top-tier online extraction on the hardest scans.
 
-Additional local candidates were also checked during this round. A 12B Gemma vision model completed the private-document acceptance set, but it did not improve the overall grade and was substantially slower while increasing the model footprint. An 11B Llama vision candidate was rejected for this package because it failed to load reliably in the local Ollama runtime path. A similarly sized Qwen 3-VL 8B candidate was also tested; it was much slower under Chronicle's current local runtime contract and did not produce reliable final document content at the normal output budget. For this release, Qwen 2.5-VL 7B remains the best balance of included size, speed, and emergency offline usability.
+Additional local candidates were also checked during this round. A 12B Gemma vision model completed the private-document acceptance set, but it did not improve the overall grade and was substantially slower while increasing the model footprint. An 11B Llama vision candidate was rejected because it failed to load reliably in the local Ollama runtime path. A similarly sized Qwen 3-VL 8B candidate was also tested; it was much slower under Chronicle's current local runtime contract and did not produce reliable final document content at the normal output budget. For this release, Qwen 2.5-VL 7B remains the best balance of local size, speed, and emergency offline usability.
 
 Private Offline Mode includes an accessibility-first prompt contract and output guardrails. Offline HTML outputs are expected to preserve logical reading order, use semantic headings, paragraphs, lists, and tables where helpful, and avoid visual-only structure. If the local model echoes prompt instructions, returns unusable output for a text-backed PDF, invents remote image sources, or emits interactive form controls for a scanned document, Chronicle cleans or replaces that output before saving. Blank-form controls are represented as readable text markers such as checkbox, radio button, and text-field states rather than inaccessible pseudo-web forms.
 
@@ -106,4 +142,4 @@ This release was validated with focused coverage for PDF processing, page bounda
 
 Private Offline Mode validation included live local-runtime scans against sensitive-document-style benchmark PDFs, including government-form, legal, medical-claim, blank-medical-form, and private text examples. The final Qwen 2.5-VL 7B full offline benchmark suite averaged 99.43 across 13 cases, with 12/13 cases emergency-usable and 11/13 in the private A range. The blank medical form cleanup produced A+ accessible HTML with no generated form controls, and the modern typed PDF cases reached 4/4 A+ across legal/financial regulation, academic article, product manual, and operation-manual pages. The CMS-1500 run produced semantic HTML with no prompt leakage, no reasoning leakage, no empty list items, and no leftover local model processes.
 
-Free Gemini API keys remain useful for testing, but they may not be dependable for sustained hard-PDF work such as long manuals, magazines, newspapers, comics, graphic novels, and reruns. For demanding batches, use a paid or higher-quota provider key where possible.
+Free Gemini API keys remain useful for testing, but they may not be dependable for sustained hard-PDF work such as long manuals, magazines, newspapers, comics, graphic novels, and reruns. For demanding batches, use a higher-quota provider key where possible.

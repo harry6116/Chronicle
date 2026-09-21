@@ -158,6 +158,46 @@ class QueueStateRuntimeTest(unittest.TestCase):
             "Recovery: Page 1 vision failed. Extracting raw text layer.",
         )
 
+    def test_format_scan_log_message_makes_gemini_pdf_progress_readable(self):
+        self.assertEqual(
+            format_scan_log_message("[Gemini PDF] Uploading slice chronicle_pdf_1_1.pdf (372144 bytes)."),
+            "Preparing PDF page 1 for Gemini (363 KB).",
+        )
+        self.assertEqual(
+            format_scan_log_message("[Gemini PDF] Waiting for slice chronicle_pdf_1_1.pdf to become ready."),
+            "Waiting for Gemini to accept PDF page 1.",
+        )
+        self.assertEqual(
+            format_scan_log_message("[Gemini PDF] Slice chronicle_pdf_1_1.pdf is ready."),
+            "PDF page 1 is ready for reading.",
+        )
+        self.assertEqual(
+            format_scan_log_message("[Gemini PDF] Requesting model output for page 1 of 9 pages via gemini-2.5-pro."),
+            "Reading page 1 of 9 with Gemini 2.5 Pro.",
+        )
+
+    def test_format_scan_log_message_makes_page_and_memory_progress_readable(self):
+        self.assertEqual(
+            format_scan_log_message("[Page] 1/9 pages processed (source page 1, run total: 1)."),
+            "Finished page 1 of 9.",
+        )
+        self.assertEqual(
+            format_scan_log_message("[Memory] Cleared buffered page text at run page 2 (buffer cadence: every 2 pages)."),
+            "Memory: released temporary page text after page 2.",
+        )
+
+    def test_format_scan_log_message_makes_recovery_and_mac_lines_readable(self):
+        self.assertEqual(
+            format_scan_log_message(
+                "[Mac] Keeping Chronicle active during extraction so backgrounding the window does not pause provider/network work."
+            ),
+            "Mac: preventing sleep or background pauses during extraction.",
+        )
+        self.assertEqual(
+            format_scan_log_message("[Progress] In-progress recovery file: /tmp/example.html.progress.txt.tmp"),
+            "Progress backup: saving recoverable work to /tmp/example.html.progress.txt.tmp",
+        )
+
     def test_build_progress_summary_includes_review_and_page_detail(self):
         queue = [
             {"status": "Done", "review_recommended": True, "_work_units": 2},

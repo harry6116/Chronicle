@@ -77,6 +77,45 @@ class MilitaryAbbreviationExpansionTest(unittest.TestCase):
         self.assertNotIn("Royal Navy", expanded)
         self.assertNotIn("Military Police", expanded)
 
+    def test_medical_profile_expands_common_labs_imaging_and_conditions(self):
+        text = "FBC, LFTs, U&E, CRP, ESR and CXR requested; COPD, DVT and AFIB listed in Hx."
+
+        expanded = apply_expanded_abbreviations(text, "medical")
+
+        self.assertIn("full blood count", expanded)
+        self.assertIn("liver function tests", expanded)
+        self.assertIn("urea and electrolytes", expanded)
+        self.assertIn("C-reactive protein", expanded)
+        self.assertIn("erythrocyte sedimentation rate", expanded)
+        self.assertIn("chest x-ray", expanded)
+        self.assertIn("chronic obstructive pulmonary disease", expanded)
+        self.assertIn("deep vein thrombosis", expanded)
+        self.assertIn("atrial fibrillation", expanded)
+        self.assertIn("history", expanded)
+
+    def test_medical_profile_expands_immunisation_and_record_terms(self):
+        text = "HBsAg, HBV, HCV, HIV, HPV and MMR checked by HCW; DNACPR and DNAR noted."
+
+        expanded = apply_expanded_abbreviations(text, "medical")
+
+        self.assertIn("hepatitis B surface antigen", expanded)
+        self.assertIn("hepatitis B virus", expanded)
+        self.assertIn("hepatitis C virus", expanded)
+        self.assertIn("human immunodeficiency virus", expanded)
+        self.assertIn("human papillomavirus", expanded)
+        self.assertIn("measles, mumps, and rubella", expanded)
+        self.assertIn("healthcare worker", expanded)
+        self.assertIn("do not attempt cardiopulmonary resuscitation", expanded)
+        self.assertIn("do not attempt resuscitation", expanded)
+
+    def test_medical_profile_avoids_unsafe_ambiguous_dose_shorthand(self):
+        text = "OD, QD, U and MS were left as written; PRN was recorded."
+
+        expanded = apply_expanded_abbreviations(text, "medical")
+
+        self.assertIn("OD, QD, U and MS were left as written", expanded)
+        self.assertIn("as needed was recorded", expanded)
+
 
 if __name__ == "__main__":
     unittest.main()

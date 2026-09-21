@@ -428,7 +428,7 @@ class AccessibilityContractsTest(unittest.TestCase):
         gui_prompt = chronicle_gui.build_prompt(cfg)
 
         for prompt in (cli_prompt, gui_prompt):
-            self.assertIn("MEDICAL / CLINICAL NOTE RULES", prompt)
+            self.assertIn("MEDICAL / CLINICAL NOTE, FORM, LAB, AND PATHOLOGY RULES", prompt)
             self.assertIn("Do not silently expand them", prompt)
             self.assertIn("Never convert an uncertain term into a specific diagnosis, medication, or instruction", prompt)
             self.assertIn("Every medical HTML extraction must begin with a concise `<h1>`", prompt)
@@ -631,6 +631,24 @@ class AccessibilityContractsTest(unittest.TestCase):
         self.assertIn("PDF / SCANNED PAGE RULES", prompt)
         self.assertIn("PDF OUTPUT ACCESSIBILITY NOTE", prompt)
         self.assertIn("does not create a tagged PDF/UA structure tree", prompt)
+
+    def test_medical_prompt_covers_untagged_lab_and_pathology_forms(self):
+        prompt = chronicle_gui.build_prompt(self._base_cfg(doc_profile="medical", format_type="html"))
+
+        self.assertIn("MEDICAL / CLINICAL NOTE, FORM, LAB, AND PATHOLOGY RULES", prompt)
+        self.assertIn("Untagged medical PDFs must be treated as scanned/form recovery work", prompt)
+        self.assertIn("blood results, pathology, imaging, and laboratory reports", prompt)
+        self.assertIn("accession number", prompt)
+        self.assertIn("Reference Range", prompt)
+        self.assertIn("Do not reinterpret them into a diagnosis", prompt)
+
+    def test_medical_profile_summary_mentions_lab_pathology_tables(self):
+        summary = chronicle_gui.build_profile_selection_summary("medical", DEFAULT_CLAUDE_MODEL)
+        tooltip = chronicle_gui.profile_tooltip_text("medical")
+
+        self.assertIn("lab/pathology table recovery", summary)
+        self.assertIn("lab results", tooltip)
+        self.assertIn("pathology reports", tooltip)
 
     def test_gui_queue_display_status_marks_review_recommended_jobs(self):
         frame = types.SimpleNamespace()

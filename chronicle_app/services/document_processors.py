@@ -7,6 +7,7 @@ from email.parser import BytesParser
 
 from chronicle_core import build_tabular_html_fragment, parse_csv_rows
 from chronicle_app.services.runtime_policies import wait_for_gemini_upload_ready
+from chronicle_app.services.security import sanitize_log_text
 
 try:  # pragma: no cover - optional import is environment dependent
     from PIL import Image
@@ -59,6 +60,10 @@ def register_optional_image_decoders():
 
 
 register_optional_image_decoders()
+
+
+def _safe_error(value):
+    return sanitize_log_text(value)
 
 
 def supported_extensions_list(*, include_xls=True, include_legacy_ppt=True):
@@ -602,7 +607,6 @@ def process_pptx(
         if pptx_module is None:
             import pptx as pptx_module  # type: ignore
         prs = pptx_module.Presentation(path)
-        total_slides = max(1, len(prs.slides))
         num = 1
         for slide in prs.slides:
             full += f"\n[--- Slide: {num} ---]\n"
@@ -758,9 +762,9 @@ def process_img(
                         try:
                             client.files.delete(name=uploaded.name)
                         except Exception as cleanup_ex:
-                            log_cb(f"Warning: could not delete temporary Gemini upload {uploaded.name}: {cleanup_ex}")
+                            log_cb(f"Warning: could not delete temporary Gemini upload {uploaded.name}: {_safe_error(cleanup_ex)}")
                     except Exception as cleanup_ex:
-                        log_cb(f"Warning: could not delete temporary Gemini upload {uploaded.name}: {cleanup_ex}")
+                        log_cb(f"Warning: could not delete temporary Gemini upload {uploaded.name}: {_safe_error(cleanup_ex)}")
 
                 return response, _cleanup_upload
 

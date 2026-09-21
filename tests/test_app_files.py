@@ -29,6 +29,8 @@ class AppFilesTest(unittest.TestCase):
 
             self.assertEqual(load_json_file(path, {}), payload)
             self.assertEqual(load_json_file(os.path.join(tmpdir, "missing.json"), {"fallback": 1}), {"fallback": 1})
+            if os.name != "nt":
+                self.assertEqual(os.stat(path).st_mode & 0o777, 0o600)
 
     def test_get_runtime_build_stamp_prefers_build_stamp_file(self):
         with tempfile.TemporaryDirectory() as tmpdir:

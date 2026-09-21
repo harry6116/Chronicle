@@ -26,6 +26,7 @@ REQUIRED_PATHS = [
     "chronicle_app/services/output_cleanup.py",
     "chronicle_app/services/pdf_page_boundaries.py",
     "chronicle_app/services/pdf_rendering.py",
+    "chronicle_app/services/recovery_workstation.py",
     "chronicle_app/ui/__init__.py",
     "chronicle_app/ui/bindings.py",
     "chronicle_app/ui/dialogs.py",
@@ -77,6 +78,7 @@ SOURCE_ARCHIVE_REQUIRED = [
     "chronicle_app/services/pdf_processor.py",
     "chronicle_app/services/pdf_page_boundaries.py",
     "chronicle_app/services/pdf_rendering.py",
+    "chronicle_app/services/recovery_workstation.py",
     "chronicle_app/services/document_processors.py",
     "chronicle_app/services/scan_runtime.py",
     "chronicle_app/ui/bindings.py",
@@ -93,6 +95,7 @@ SOURCE_ARCHIVE_REQUIRED = [
     "tests/test_handwriting_forms.py",
     "tests/test_html_heading_cleanup.py",
     "tests/test_output_cleanup.py",
+    "tests/test_recovery_workstation.py",
     "tests/test_public_docs_security.py",
 ]
 

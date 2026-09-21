@@ -5,13 +5,16 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import time
 import urllib.error
 import urllib.request
+from urllib.parse import urlsplit
 from pathlib import Path
 
 from chronicle_app.services.handwriting_forms import normalize_form_semantics_html
+from chronicle_app.services.pdf_auth import authenticate_pdf_document
 from chronicle_app.services.runtime_policies import OFFLINE_PRIVATE_MODEL, is_offline_model
 from chronicle_core import apply_output_integrity_contract, sanitize_model_output
 
@@ -26,6 +29,24 @@ class OfflineModelUnavailable(RuntimeError):
     pass
 
 
+def _validated_local_ollama_url(base_url):
+    value = str(base_url or "").strip().rstrip("/")
+    parsed = urlsplit(value)
+    if (
+        parsed.scheme not in {"http", "https"}
+        or parsed.hostname not in {"127.0.0.1", "localhost", "::1"}
+        or parsed.username
+        or parsed.password
+        or parsed.query
+        or parsed.fragment
+    ):
+        raise OfflineModelUnavailable(
+            "Private Offline Mode only connects to an Ollama service on this computer. "
+            "Use http://127.0.0.1:11434 or another loopback address."
+        )
+    return value
+
+
 class LocalOllamaClient:
     def __init__(
         self,
@@ -37,7 +58,7 @@ class LocalOllamaClient:
         ollama_bin=None,
         runtime_mode=OFFLINE_RUNTIME_MODE_EXISTING_OLLAMA,
     ):
-        self.base_url = (base_url or DEFAULT_LOCAL_URL).rstrip("/")
+        self.base_url = _validated_local_ollama_url(base_url or DEFAULT_LOCAL_URL)
         self.model = model or DEFAULT_LOCAL_MODEL
         self.timeout_sec = int(timeout_sec or DEFAULT_TIMEOUT_SEC)
         self.runtime_mode = OFFLINE_RUNTIME_MODE_EXISTING_OLLAMA
@@ -82,6 +103,7 @@ def find_ollama_cli():
 
 
 def _ollama_tags(base_url=DEFAULT_LOCAL_URL):
+    base_url = _validated_local_ollama_url(base_url)
     req = urllib.request.Request(base_url.rstrip("/") + "/api/tags", method="GET")
     with urllib.request.urlopen(req, timeout=2) as response:
         payload = json.loads(response.read().decode("utf-8"))
@@ -202,6 +224,7 @@ def _render_pdf_pages(path, *, max_pages=1):
     except ImportError as ex:  # pragma: no cover - packaged app includes PyMuPDF
         raise OfflineModelUnavailable("Private Offline Mode requires the bundled PDF renderer for PDF input.") from ex
     doc = fitz.open(path)
+    authenticate_pdf_document(doc, path)
     images = []
     work_dir = Path(tempfile.mkdtemp(prefix="chronicle_offline_pdf_"))
     try:
@@ -225,6 +248,7 @@ def _extract_pdf_text(path, *, max_pages=1, max_chars=40000):
     except ImportError as ex:  # pragma: no cover - packaged app includes PyMuPDF
         raise OfflineModelUnavailable("Private Offline Mode requires the bundled PDF renderer for PDF input.") from ex
     doc = fitz.open(path)
+    authenticate_pdf_document(doc, path)
     parts = []
     try:
         for page_index in range(min(max_pages, len(doc))):
