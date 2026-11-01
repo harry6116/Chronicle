@@ -1,3 +1,4 @@
+import os
 import unittest
 
 from chronicle_app.services.worker_execute_runtime import (
@@ -150,7 +151,9 @@ class WorkerExecuteRuntimeTest(unittest.TestCase):
 
         import tempfile
 
-        with tempfile.NamedTemporaryFile("w+", encoding="utf-8", delete=True) as temp_file:
+        with tempfile.TemporaryDirectory() as temp_dir, open(
+            os.path.join(temp_dir, "streamed.txt"), "w+", encoding="utf-8"
+        ) as temp_file:
             process_job_content(
                 '.pdf',
                 cfg={'page_confidence_scoring': False},

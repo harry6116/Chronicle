@@ -26,8 +26,8 @@ That includes:
 
 - better paragraph continuity on wrapped or damaged scans
 - panel-by-panel recovery for comics, manga, and graphic novels
-- accessible reading scripts for speech balloons, captions, visible SFX, and textless action panels
-- suppression of repeated page furniture when it harms reading flow
+- accessible reading scripts for speech balloons, captions, visible sound effects, and textless action panels
+- removal of repeated headers and page numbers when it harms reading flow
 - optional preservation of printed page references for transcription and source tracking
 - specialist document presets for different source classes
 - structured outputs that are easier to review in HTML or Word
@@ -44,7 +44,7 @@ Chronicle is tuned for the ugly cases:
 - archival material with folios, marginal clutter, or repeated headers
 - large queues where different source types need different treatment
 
-### Gives the operator control
+### Gives you control
 
 Chronicle is designed for users who need to inspect, adjust, and rerun.
 
@@ -53,8 +53,8 @@ Key workflow strengths include:
 - queue-first operation
 - document presets
 - seamless merge
-- page and slide scope controls
-- automatic engine routing with manual override when needed
+- page and slide selection
+- automatic choice of reading engine with manual override when needed
 - output collision controls for skip, overwrite, or auto-number behavior
 - readable logs and visible in-progress temp outputs
 

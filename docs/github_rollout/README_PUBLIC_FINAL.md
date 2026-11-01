@@ -2,18 +2,18 @@
 
 Chronicle is an accessibility-first document recovery tool for difficult real-world material.
 
-Current public release line: **Chronicle 1.1.1**.
+Current public release line: **Chronicle 1.1.3**.
 
 It is especially strong on degraded scans, long-form books, archival records, legal and policy material, tables, handwriting, multi-column layouts, comics, manga, graphic novels, and mixed-format batches where preserving reading order, usable structure, and review workflow matters more than raw one-click speed.
 
-Chronicle provides a screen-reader-friendly GUI, queue/task controls, scan-ingestion workflows, and structured output generation across multiple AI providers.
+Chronicle provides a desktop interface designed for keyboard and screen-reader use. You can queue files, choose settings for each document, and save results in several formats.
 
 Chronicle is a desktop GUI application. This repository publishes the current app source code, build scripts, and documentation for the same release line. There is no separate supported Chronicle CLI product.
 
 ## Download Chronicle
 
-- Mac: [Download Chronicle for macOS](https://github.com/harry6116/Chronicle/releases/latest/download/Chronicle.mac.zip)
-- Windows: [Download Chronicle for Windows](https://github.com/harry6116/Chronicle/releases/latest/download/Chronicle.windows.zip)
+- Mac: [Download Chronicle for macOS (Apple silicon)](https://github.com/harry6116/Chronicle/releases/latest/download/Chronicle.mac.zip)
+- Windows: [Download Chronicle for Windows (64-bit)](https://github.com/harry6116/Chronicle/releases/latest/download/Chronicle.windows.zip)
 - Release page: [Latest Chronicle release](https://github.com/harry6116/Chronicle/releases/latest)
 
 **Built for hard documents.**
@@ -22,7 +22,7 @@ Chronicle is for the files people usually describe as:
 
 - "the scan is awful"
 - "the OCR is almost right but keeps breaking the prose"
-- "the page furniture keeps getting in the way"
+- "the repeated headers and page numbers keep getting in the way"
 - "I need something I can actually review, not just raw extracted text"
 
 Chronicle is especially useful when you need:
@@ -30,11 +30,17 @@ Chronicle is especially useful when you need:
 - better recovery on degraded scans
 - stronger paragraph continuity for books and long-form prose
 - panel-by-panel recovery for comics, manga, and graphic novels
-- accessible reading scripts for speech balloons, captions, visible SFX, and textless comic panels
+- accessible reading scripts for speech balloons, captions, visible sound effects, and textless comic panels
 - clearer review output in HTML or Word
-- operator control over presets, merge behavior, and runtime settings
+- control over document presets, combining files and reading settings
 - a queue-and-rerun workflow for difficult material
 - a faster path to review-ready output on messy source material
+
+## Updating Chronicle
+
+Choose **Help > Check for Updates** (or press **Shift+F1**) to read about the latest version. In the installed Mac or Windows app, **Install and Restart Now** downloads and installs it while keeping your settings and API keys. **Remind Me Later** keeps the app open and adds a quiet reminder at the next launch. Updates start only when you choose to install them.
+
+Use **Go to Release** for the download page and **Help > Version History** for release notes. Press **F1** for help with the current control, or choose **Help > Open User Guide** for the full guide.
 
 ## Private Offline Mode
 
@@ -52,9 +58,9 @@ Offline mode is best for clear modern typed documents:
 
 It is an emergency/private fallback, not a full replacement for Chronicle's strongest online Gemini path. Avoid offline mode for degraded handwriting, historical newspapers, magazines, comics, manga, graphic novels, long books, complex diagrams, equation-heavy papers, and public accessibility-remediation work that needs final compliance sign-off.
 
-The published offline benchmark baseline was recorded during 1.0.2 testing with `qwen2.5vl:7b`. The full 13-case offline suite averaged 99.43, with 12/13 cases emergency-usable and 11/13 in the private A range; the modern typed PDF cases reached 4/4 A+.
+Tests with a small set of sample documents found offline mode most useful for clear typed pages. Results vary, so check important text against the original.
 
-Similarly sized alternatives were checked. `qwen3-vl:8b` is about the same local size, but under Chronicle's current offline runtime contract it was much slower and did not produce reliable final document content at the normal output budget. Larger 12B-class candidates did not improve the grade enough to justify the footprint, and an 11B Llama vision candidate did not load reliably in the local Ollama runtime path.
+The recommended model balances download size, speed and reading quality on the documents tested.
 
 Practical requirements for Private Offline Mode: 16 GB RAM recommended, 24-32 GB comfortable for repeated offline batches, 8 GB RAM constrained/emergency-only for very small clean files, 12 GB free disk minimum, and 20 GB+ free SSD space recommended.
 
@@ -97,7 +103,7 @@ Full guidance: `docs/user/PRIVATE_OFFLINE_MODE.md`.
 
 ## Current Public Release
 
-Chronicle `1.1.1` improves PDF extraction reliability, accessibility, security, packaging, recovery-workbench output, and Private Offline Mode through user-managed local Ollama.
+Chronicle `1.1.3` improves PDF extraction reliability, accessibility, security, packaging, recovery-workbench output, and Private Offline Mode through user-managed local Ollama.
 
 Current release downloads:
 
@@ -109,8 +115,6 @@ Current release downloads:
 - Feedback is welcome through GitHub Issues: `https://github.com/harry6116/Chronicle/issues`
 - Repository home: `https://github.com/harry6116/Chronicle`
 - Release page: `https://github.com/harry6116/Chronicle/releases`
-
-Public email contact addresses have been temporarily removed from the repository while the dedicated Chronicle account setup and authentication are being stabilized.
 
 ## Support Chronicle
 

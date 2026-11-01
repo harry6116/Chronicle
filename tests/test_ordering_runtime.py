@@ -1,3 +1,4 @@
+import os
 import unittest
 
 from chronicle_app.services.ordering_runtime import (
@@ -40,7 +41,7 @@ class OrderingRuntimeTest(unittest.TestCase):
             now=123,
         )
         self.assertEqual(created, [('/custom', True)])
-        self.assertEqual(path, '/custom/Chronicle_Merged_123.html')
+        self.assertEqual(path, os.path.join('/custom', 'Chronicle_Merged_123.html'))
 
 
 if __name__ == '__main__':

@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import sys
 import tempfile
 import time
 
@@ -91,20 +92,14 @@ def read_continuity_file(*, script_dir):
 
 
 def emit_launch_continuity(*, script_dir, print_fn=print):
+    if getattr(sys, "frozen", False):
+        return None, None
     continuity_path, continuity_text = read_continuity_file(script_dir=script_dir)
-    print_fn(f"Chronicle repo root: {script_dir}")
-    print_fn("")
-    if continuity_text is None:
-        print_fn(f"{CONTINUITY_FILENAME} not found at {continuity_path}.")
-        return continuity_path, None
-
-    print_fn(f"Loading {CONTINUITY_FILENAME} before launch.")
-    print_fn("")
-    print_fn(continuity_text)
-    try:
-        update_continuity_runtime_status(script_dir=script_dir, event="launch")
-    except Exception:
-        pass
+    if continuity_text is not None:
+        try:
+            update_continuity_runtime_status(script_dir=script_dir, event="launch")
+        except Exception:
+            pass
     return continuity_path, continuity_text
 
 
@@ -147,6 +142,8 @@ def _render_runtime_status_block(status):
 
 
 def update_continuity_runtime_status(*, script_dir, event, detail=None, time_module=time):
+    if getattr(sys, "frozen", False):
+        return None, {}
     continuity_path, continuity_text = read_continuity_file(script_dir=script_dir)
     if continuity_text is None:
         continuity_text = "# Chronicle Continuity\n"

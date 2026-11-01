@@ -124,33 +124,12 @@ On lower-memory systems, use Private Offline Mode conservatively:
 - close other heavy apps before starting
 - use online mode for difficult documents when confidentiality and connectivity allow it
 
-## Current Offline Validation
+## What testing shows
 
-Current 1.0.2 offline testing favors the `qwen2.5vl:7b` local vision-language model.
+A small sample of typed documents worked well in offline testing. A handwriting-heavy war-diary page did not recover enough text to be useful. These results explain the recommendation to use offline mode for clear typed documents rather than damaged handwriting or complex layouts. They do not guarantee accuracy on your files.
 
-Validation results from the current test cycle:
+## Recommended local model
 
-- full offline benchmark suite: 13 cases, average score 99.43, average grade A
-- emergency-usable benchmark cases: 12/13
-- private A-range benchmark cases: 11/13
-- modern typed PDF cases: 4/4 A+
-- tested modern typed sources included a legal/financial regulation page, an academic article page, a product manual page, and an operation manual page
-- blank medical-form cleanup reached A+ accessible HTML with generated form controls removed
-- packaged-app live tests completed successfully on a medical claim example and a government form example
+Use `qwen2.5vl:7b` for this release. Its download is about 6 GB, and it provided the best balance of speed and useful results among the models tested with Chronicle.
 
-This means Private Offline Mode is suitable as a serious emergency/private fallback for clear typed documents. It does not mean offline mode replaces the best online model for every document family.
-
-The one persistent miss in the full suite was a handwriting-heavy war-diary cover page that produced too little text to count as emergency-usable. That is why the app and this guide explicitly steer handwriting, old newspapers, comics, magazines, dense image layouts, and other visually complex sources back to Online AI Mode whenever confidentiality and connectivity allow it.
-
-## Local Model Comparison
-
-Chronicle currently recommends `qwen2.5vl:7b` because it is the best tested balance of output quality, speed, and local model size for this release line.
-
-Comparison notes from the current offline model check:
-
-- `qwen2.5vl:7b`: about 6.0 GB locally; reached 99.43 average on the 13-case offline suite with 12/13 emergency-usable cases.
-- `qwen3-vl:8b`: about 6.1 GB locally and promising on paper, but under Chronicle's current local runtime contract it averaged 80.48 on the same 13-case suite, produced no emergency-usable cases at the normal output budget, and was much slower. A larger output budget helped a tiny text-only probe, but it was still too slow and reasoning-heavy to make a safe default.
-- Larger 12B-class vision candidates increase package size and did not improve the overall offline grade enough to justify the footprint.
-- An 11B Llama vision candidate was rejected for this package line because it did not load reliably in the local Ollama runtime path.
-
-The practical conclusion is simple: use the installed local model for private, clean, typed documents; use Online AI Mode for the hard visual families Chronicle is otherwise known for.
+Use it for private, clear typed documents. Choose online processing for difficult visual material when your privacy requirements allow it. A larger or newer model is not automatically a better match for Chronicle.

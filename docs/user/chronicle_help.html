@@ -235,7 +235,7 @@
           </table>
           <ul>
             <li>You only need keys for providers you intend to use.</li>
-            <li>If a provider key is missing, Chronicle's automatic engine selection now avoids routing work to that provider.</li>
+            <li>If a provider key is missing, Chronicle's automatic engine selection avoids using that provider.</li>
             <li>If you force a model whose provider key is missing or invalid, extraction will fail with an authentication error.</li>
             <li>Google Gemini API keys from Google AI Studio can work on Google's free tier, subject to current model availability, region support, quotas, and rate limits.</li>
             <li>Important practical warning: free Gemini keys may be enough to test Chronicle, but they can still fail on difficult PDFs, long batches, magazines, newspapers, or repeated reruns with quota or rate-limit errors.</li>
@@ -321,16 +321,9 @@
             <li>Advantages: documents stay local, no internet is required, provider quotas do not block emergency work, and Chronicle still applies semantic accessibility cleanup.</li>
             <li>Limitations: offline accuracy is not equal to the strongest online Gemini path on hard documents, local RAM/disk/CPU resources are used, and human review remains required.</li>
           </ul>
-          <h3>Current validation</h3>
-          <p>The published offline benchmark baseline was recorded during 1.0.2 testing with <code>qwen2.5vl:7b</code>. The full 13-case offline suite averaged 99.43, with 12/13 cases emergency-usable and 11/13 in the private A range. The modern typed PDF cases reached 4/4 A+.</p>
-          <p>The one persistent miss was a handwriting-heavy war-diary cover page that produced too little text to count as emergency-usable. That is why Private Offline Mode is described as best for clean, text-based PDFs and simple sensitive documents, not for handwriting, dense images, historical newspapers, comics, magazines, or layout-heavy scans.</p>
-          <h3>Local model comparison</h3>
-          <ul>
-            <li><code>qwen2.5vl:7b</code>: about 6.0 GB locally; best tested balance of package size, speed, and emergency offline usability.</li>
-            <li><code>qwen3-vl:8b</code>: about 6.1 GB locally, but much slower under Chronicle's current offline runtime contract and unreliable at the normal output budget.</li>
-            <li>12B-class vision candidates increased package size without improving the overall grade enough to justify the footprint.</li>
-            <li>An 11B Llama vision candidate did not load reliably in the local Ollama runtime path.</li>
-          </ul>
+          <h3>What to expect</h3>
+          <p>Tests with a small sample of documents found offline mode most useful for clear typed pages. Handwriting and damaged pages were less reliable. Always compare important results with the original.</p>
+          <p>Use <code>qwen2.5vl:7b</code> for this release. Its download is about 6 GB. It provided the best balance of speed and useful results among the models tested with Chronicle.</p>
           <p>See <code>docs/user/PRIVATE_OFFLINE_MODE.md</code> for the full offline guide.</p>
           <p class="top-link"><a href="#page-title">Back to top</a></p>
         </section>
@@ -657,7 +650,7 @@
           <ul>
             <li>Chronicle maps heading-like text, lists, and pipe-table structure into Word-friendly structure.</li>
             <li>Major report boundaries can be emitted as internal <code>[[PAGE BREAK]]</code> markers so the DOCX exporter can create cleaner page navigation for title pages, appendices, and section starts.</li>
-            <li>During processing, Chronicle may show a sidecar file such as <code>My File.docx.progress.txt.tmp</code>. This is intentional: it is a readable in-progress recovery snapshot, not the final Word file.</li>
+            <li>During processing, Chronicle may show a hidden recovery file such as <code>.chronicle_progress_My File.docx.txt.tmp</code>. This is intentional: it is a readable in-progress recovery snapshot, not the final Word file.</li>
             <li>Progress wording is now format-aware, so long DOCX and other text-like files report extraction chunks instead of pretending the whole file is one page.</li>
             <li>If you enable <strong>Original Page Numbers</strong>, Chronicle preserves visible printed page numbers as explicit references instead of suppressing them as page furniture.</li>
             <li>Use Word styles and Navigation Pane for manual cleanup and fast section movement.</li>
@@ -686,8 +679,8 @@
             <li>If an output filename already exists, <strong>File Collision Mode</strong> decides the result: <strong>Skip</strong> leaves the existing file untouched, <strong>Overwrite</strong> replaces it with the finished run, and <strong>Auto-Number</strong> keeps the old file and writes the new result with an incremented filename.</li>
             <li>For filename patterns like <code>page 01</code>, <code>page 02</code>, sequence lock is applied in merge mode.</li>
             <li>Synthetic filename headings (for example <code>page 002.JPG</code>) are removed from merged output unless printed in source content.</li>
-            <li>DOCX, PDF, EPUB, JSON, and CSV runs can also create a readable sidecar file ending in <code>.progress.txt.tmp</code> in the destination folder while Chronicle is still assembling the final output.</li>
-            <li>Progress counters are format-specific: PDF files report pages, slide decks report slides, and DOCX/text-like inputs report chunks.</li>
+            <li>DOCX, PDF, EPUB, JSON, and CSV runs can also keep a hidden text recovery file beside the intended result in the destination folder while Chronicle is still assembling the final output.</li>
+            <li>Progress counters are format-specific: PDF files report pages, slide decks report slides, and other text documents report sections of text.</li>
             <li>Original page-number handling is user-selectable, so you can keep printed folios for source cross-reference or suppress them for smoother continuous reading.</li>
           </ul>
           <h3>Queue status values</h3>
@@ -820,10 +813,12 @@
             <li>Build scripts include broad dependency collection to reduce missing-runtime issues on new systems/drives.</li>
           </ul>
           <div class="success">
-            <p>Help can be opened directly in the app from <strong>Help &gt; Open User Guide</strong> (shortcut <kbd>F1</kbd>).</p>
+            <p>Press <kbd>F1</kbd> on a Chronicle control to read help for that control. The help window includes <strong>Open Full User Guide</strong> and <strong>Close</strong> buttons. Press <kbd>Escape</kbd> to close help and return to the original control. You can also open this guide from <strong>Help &gt; Open User Guide</strong>.</p>
           </div>
           <ul>
             <li><strong>Help &gt; About Build...</strong> shows the current build and runtime details useful for support.</li>
+            <li><strong>Help &gt; Check for Updates</strong> checks for a newer download. Release notes use a standard read-only text field: use arrow keys to read, select and copy text, and Tab or Shift+Tab to visit the update actions. Escape closes the notes. Packaged apps can install an available update after confirmation; the queue-close choice is completed before installation starts.</li>
+            <li><strong>Remind Me Later</strong> closes the update notes and keeps Chronicle running. A quiet reminder appears in the status bar and processing log next time Chronicle starts, until that version is installed. It does not schedule a restart. When ready, return to Check for Updates and choose <strong>Install and Restart Now</strong>. <strong>Go to Release</strong> opens the selected release in your browser.</li>
             <li><strong>Help &gt; Support Chronicle...</strong> opens the in-app donation chooser with <strong>Buy Me a Coffee</strong> and <strong>PayPal</strong>.</li>
           </ul>
           <p class="top-link"><a href="#page-title">Back to top</a></p>
@@ -892,7 +887,8 @@
         <section id="shortcuts" aria-labelledby="shortcuts-title">
           <h2 id="shortcuts-title">15. Keyboard Shortcuts</h2>
           <ul>
-            <li><kbd>F1</kbd>: Open this user guide.</li>
+            <li><kbd>F1</kbd>: Open context-sensitive help for the focused Chronicle control. Tab moves from the help text to Open Full User Guide, then Close. Escape closes help.</li>
+            <li><kbd>Shift</kbd> + <kbd>F1</kbd>: Check for Chronicle updates.</li>
             <li><kbd>Alt</kbd> + <kbd>P</kbd>: Preferences.</li>
             <li><kbd>Alt</kbd> + <kbd>K</kbd>: API Keys.</li>
             <li><kbd>Alt</kbd> + <kbd>S</kbd>: Find connected devices.</li>

@@ -1,3 +1,4 @@
+import os
 import unittest
 
 from chronicle_app.services.run_start_runtime import (
@@ -43,7 +44,7 @@ class RunStartRuntimeTest(unittest.TestCase):
         self.assertEqual(result["custom_dest"], "/tmp/out")
         self.assertFalse(result["preserve_source_structure"])
         self.assertTrue(result["delete_source_on_success"])
-        self.assertEqual(result["output_dir"], "/app/output_docx")
+        self.assertEqual(result["output_dir"], os.path.join("/app", "output_docx"))
 
     def test_validate_output_destination_checks_custom_folder(self):
         self.assertIsNone(validate_output_destination({"dest_mode": 0}))

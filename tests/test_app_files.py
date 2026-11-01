@@ -67,9 +67,17 @@ class AppFilesTest(unittest.TestCase):
 
             self.assertEqual(emitted_path, continuity_path)
             self.assertEqual(emitted_text, continuity_text)
-            self.assertIn(f"Chronicle repo root: {tmpdir}", lines)
-            self.assertIn("Loading CONTINUITY.md before launch.", lines)
-            self.assertIn("# Chronicle Continuity\n\nWake phrase", lines)
+            self.assertNotIn(tmpdir, "\n".join(lines))
+            self.assertNotIn("Wake phrase", "\n".join(lines))
+
+    def test_packaged_launch_does_not_read_or_update_handover(self):
+        from chronicle_app.services import app_files
+        with mock.patch.object(app_files.sys, "frozen", True, create=True):
+            with mock.patch.object(app_files, "read_continuity_file", side_effect=AssertionError("must not read handover")):
+                lines = []
+                self.assertEqual(emit_launch_continuity(script_dir="unused", print_fn=lines.append), (None, None))
+                self.assertEqual(app_files.update_continuity_runtime_status(script_dir="unused", event="launch"), (None, {}))
+                self.assertEqual(lines, [])
 
     def test_emit_launch_continuity_reports_missing_file(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -82,7 +90,7 @@ class AppFilesTest(unittest.TestCase):
 
             self.assertEqual(emitted_path, os.path.join(tmpdir, "CONTINUITY.md"))
             self.assertIsNone(emitted_text)
-            self.assertIn(f"CONTINUITY.md not found at {emitted_path}.", lines)
+            self.assertEqual(lines, [])
 
     def test_resolve_continuity_file_path_supports_env_override(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -202,22 +210,19 @@ class AppFilesTest(unittest.TestCase):
             self.assertNotIn("AIza", content)
 
     def test_resolve_runtime_crash_log_path_uses_os_specific_locations(self):
-        windows_path = resolve_runtime_crash_log_path(
-            platform_system="Windows",
-            env={"LOCALAPPDATA": r"C:\Users\tester\AppData\Local"},
-            tempdir=lambda: r"C:\Temp",
-        )
-        self.assertEqual(windows_path, r"C:\Users\tester\AppData\Local/Chronicle/logs/chronicle_crash.log")
-
         with tempfile.TemporaryDirectory() as tmpdir:
+            windows_local = os.path.join(tmpdir, "windows-local")
+            windows_path = resolve_runtime_crash_log_path(
+                platform_system="Windows", env={"LOCALAPPDATA": windows_local},
+                tempdir=lambda: tmpdir,
+            )
+            self.assertEqual(windows_path, os.path.join(windows_local, "Chronicle", "logs", "chronicle_crash.log"))
             mac_home = os.path.join(tmpdir, "tester-home")
             mac_path = resolve_runtime_crash_log_path(
-                platform_system="Darwin",
-                env={},
-                expanduser=lambda path: path.replace("~", mac_home),
-                tempdir=lambda: "/tmp",
+                platform_system="Darwin", env={},
+                expanduser=lambda path: path.replace("~", mac_home), tempdir=lambda: tmpdir,
             )
-            self.assertEqual(mac_path, os.path.join(mac_home, "Library/Logs/Chronicle/chronicle_crash.log"))
+            self.assertEqual(os.path.normpath(mac_path), os.path.join(mac_home, "Library", "Logs", "Chronicle", "chronicle_crash.log"))
 
 
 if __name__ == "__main__":

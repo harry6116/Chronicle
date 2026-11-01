@@ -66,7 +66,7 @@ Some of the main preset families include:
 - `Government Reports / Records` for public-sector reports, appendices, numbered sections, and record-style documents
 - `Legal / Contracts / Laws` for legal hierarchy, clause fidelity, and more cautious handling of structured legal text
 - `Books / Novels` for long-form prose, page-to-page paragraph continuity, and chapter structure
-- `Comics / Manga / Graphic Novels` for panel order, speech balloons, captions, visible SFX, image descriptions, and right-to-left manga flow when visibly supported
+- `Comics / Manga / Graphic Novels` for panel order, speech balloons, captions, visible sound effects, image descriptions, and right-to-left manga flow when visibly supported
 - `Historical Newspapers` for old newsprint scans, OCR-backed newspaper archives, publication metadata, and dense press-style reading order recovery
 - `Modern Newspapers / E-Papers` for contemporary print-edition PDFs, article cards, bylines, section labels, captions, ads, and jump lines
 - `Handwritten Notes / Personal Diaries` for more conservative reading of handwritten material with stronger uncertainty handling
@@ -80,7 +80,7 @@ Chronicle also includes practical workflow features built around difficult docum
 - queue-first processing with pause, resume, and stop controls
 - seamless merge mode for combining many pages, scans, or source files into one continuous output
 - row-level page or slide scope controls for PDF and PPTX files
-- automatic engine routing, with manual engine override when you want to force a specific provider or model
+- automatic choice of reading engine, with manual engine override when you want to force a specific provider or model
 - scanner and page-import workflow support, including NAPS2 import
 - session recovery support after interrupted runs
 - collision controls so users can skip, overwrite, or auto-number outputs instead of losing work blindly
@@ -100,7 +100,7 @@ Chronicle is not just trying to "get text out." It is trying to recover a usable
 That includes:
 
 - paragraph continuity across bad scan wrapping
-- suppression of repeated page furniture when it harms reading flow
+- removal of repeated headers and page numbers when it harms reading flow
 - optional preservation of printed page references when transcription or source tracking matters
 - structured outputs that are easier to review in HTML or Word
 - specialist prompt rules for books, archives, newspapers, legal material, military records, forms, and other difficult source classes
@@ -115,7 +115,7 @@ Key strengths include:
 - queue-first workflow
 - seamless merge for many-page or many-image sources
 - runtime controls for punctuation, abbreviations, units, image descriptions, and page-reference handling
-- automatic engine routing with manual override when needed
+- automatic choice of reading engine with manual override when needed
 - visible progress and readable logs
 - explicit collision controls so users can skip, overwrite, or auto-number outputs instead of losing work blindly
 

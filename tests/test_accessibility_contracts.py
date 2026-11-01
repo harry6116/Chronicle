@@ -1,4 +1,5 @@
 import io
+import json
 import os
 import re
 import sys
@@ -114,6 +115,106 @@ class _FakeEpubNcx:
 
 
 class AccessibilityContractsTest(unittest.TestCase):
+    def test_version_history_offers_reminder_for_available_update(self):
+        result = types.SimpleNamespace(status="available", latest_version="9.0.0", notes="Changes.",
+                                       release=types.SimpleNamespace(html_url="https://example.invalid/release"))
+        frame = types.SimpleNamespace(ShowReleaseNotesDialog=mock.Mock())
+        with mock.patch.object(chronicle_gui, "shared_check_for_updates", return_value=result), \
+             mock.patch.object(chronicle_gui.wx, "BusyCursor", create=True):
+            chronicle_gui.MainFrame.OnVersionHistory(frame, None)
+        self.assertEqual(frame.ShowReleaseNotesDialog.call_args.kwargs["remind_version"], "9.0.0")
+
+    def test_update_reminder_persists_without_installing_or_closing(self):
+        frame = types.SimpleNamespace(cfg={"doc_profile": "academic"}, SafeSetStatusText=mock.Mock(), Close=mock.Mock())
+        with tempfile.TemporaryDirectory() as temp:
+            target = os.path.join(temp, "settings.json")
+            with mock.patch.object(chronicle_gui, "CONFIG_FILE", target), \
+                 mock.patch.object(chronicle_gui, "shared_start_platform_update") as start:
+                chronicle_gui.MainFrame.RemindUpdateLater(frame, "9.0.0")
+            with open(target, encoding="utf-8") as saved:
+                restored = json.load(saved)
+        self.assertEqual(restored["update_reminder_version"], "9.0.0")
+        self.assertEqual(restored["doc_profile"], "academic")
+        frame.Close.assert_not_called()
+        start.assert_not_called()
+
+    def test_startup_reminder_is_quiet_and_does_not_check_or_install_updates(self):
+        frame = types.SimpleNamespace(cfg={"update_reminder_version": "9.0.0"},
+                                      SafeSetStatusText=mock.Mock(), Log=mock.Mock(), Close=mock.Mock())
+        with mock.patch.object(chronicle_gui, "shared_check_for_updates") as check, \
+             mock.patch.object(chronicle_gui, "shared_start_platform_update") as start, \
+             mock.patch.object(chronicle_gui.wx, "MessageBox", create=True) as message:
+            chronicle_gui.MainFrame.ShowPendingUpdateReminder(frame)
+        self.assertIn("9.0.0", frame.SafeSetStatusText.call_args.args[0])
+        frame.Log.assert_called_once()
+        frame.Close.assert_not_called()
+        message.assert_not_called()
+        check.assert_not_called()
+        start.assert_not_called()
+
+    def test_installed_version_clears_obsolete_update_reminder(self):
+        frame = types.SimpleNamespace(cfg={"update_reminder_version": chronicle_gui.APP_VERSION},
+                                      SafeSetStatusText=mock.Mock(), Log=mock.Mock())
+        with mock.patch.object(chronicle_gui, "save_json") as save:
+            chronicle_gui.MainFrame.ShowPendingUpdateReminder(frame)
+        self.assertNotIn("update_reminder_version", frame.cfg)
+        save.assert_called_once()
+        frame.SafeSetStatusText.assert_not_called()
+
+    def test_queue_popup_action_runs_after_popup_destruction(self):
+        for chosen_id in (103, -1):
+            with self.subTest(chosen_id=chosen_id):
+                menu = mock.Mock()
+                queued = []
+                ids = iter(range(100, 105))
+                frame = types.SimpleNamespace(
+                    queue=[{"status": "Queued"}], is_running=False,
+                    GetSelectedIndices=lambda: [0], IsBeingDeleted=lambda: False,
+                    GetPopupMenuSelectionFromUser=mock.Mock(return_value=chosen_id),
+                    OnStopTask=mock.Mock(), OnPauseTask=mock.Mock(), OnResumeTask=mock.Mock(),
+                    OnDeleteTask=mock.Mock(), OnOpenContainingFolder=mock.Mock(), Bind=mock.Mock(),
+                )
+                with mock.patch.multiple(chronicle_gui.wx, Menu=lambda: menu, NewIdRef=lambda: next(ids),
+                                         CallAfter=queued.append, create=True):
+                    chronicle_gui.MainFrame.ShowQueueContextMenu(frame)
+                menu.Destroy.assert_called_once()
+                frame.OnDeleteTask.assert_not_called()
+                frame.Bind.assert_not_called()
+                if chosen_id == -1:
+                    self.assertEqual(queued, [])
+                else:
+                    self.assertEqual(len(queued), 1)
+                    queued[0]()
+                    frame.OnDeleteTask.assert_called_once_with(None)
+
+    def test_update_launch_waits_for_close_acceptance(self):
+        frame = types.SimpleNamespace(Close=mock.Mock(), Log=mock.Mock())
+        with mock.patch.multiple(chronicle_gui.wx, MessageBox=mock.Mock(return_value=1),
+                                 YES=1, YES_NO=2, NO_DEFAULT=4, ICON_QUESTION=8, create=True), \
+             mock.patch.object(chronicle_gui, "shared_start_platform_update") as start:
+            chronicle_gui.MainFrame.StartUpdateInstall(frame, "https://example.invalid/update.zip")
+        start.assert_not_called()
+        self.assertEqual(frame._pending_update_asset_url, "https://example.invalid/update.zip")
+        frame.Close.assert_called_once()
+
+    def test_cancelled_close_cancels_pending_update(self):
+        frame = types.SimpleNamespace(
+            queue=[{"status": "Queued"}], is_running=False,
+            _has_incomplete_items=lambda rows: True,
+            _pending_update_asset_url="https://example.invalid/update.zip",
+            file_list=types.SimpleNamespace(SetFocus=mock.Mock()),
+        )
+        event = types.SimpleNamespace(Veto=mock.Mock())
+        dialog = types.SimpleNamespace(ShowModal=lambda: 1, Destroy=mock.Mock())
+        constructor = mock.Mock(return_value=dialog)
+        constructor.KEEP_OPEN, constructor.SAVE_EXIT, constructor.DISCARD_EXIT = 1, 2, 3
+        with mock.patch.object(chronicle_gui, "CloseRunningDialog", constructor), \
+             mock.patch.object(chronicle_gui, "shared_start_platform_update") as start:
+            chronicle_gui.MainFrame.OnMainClose(frame, event)
+        start.assert_not_called()
+        self.assertIsNone(frame._pending_update_asset_url)
+        event.Veto.assert_called_once()
+
     def _base_cfg(self, **overrides):
         cfg = {
             "doc_profile": "standard",

@@ -224,8 +224,17 @@ if (Test-Path $iconPath) {
 
 $pyArgs.Add("--add-data")
 $pyArgs.Add("$rootDir\assets;assets")
+$publicDocsDir = Join-Path ([IO.Path]::GetTempPath()) ("ChroniclePublicDocs_" + [guid]::NewGuid().ToString("N"))
+$docsExit = Invoke-NativeLogged -Command $pythonBin -Arguments @(
+    (Join-Path $rootDir "tools\prepare_public_repo_snapshot.py"),
+    "--repo-root", $rootDir, "--output", $publicDocsDir, "--docs-only"
+)
+if ($docsExit -ne 0) {
+    Remove-Item -LiteralPath $publicDocsDir -Recurse -Force -ErrorAction SilentlyContinue
+    Fail-Build "Could not prepare public app documentation."
+}
 $pyArgs.Add("--add-data")
-$pyArgs.Add("$rootDir\docs;docs")
+$pyArgs.Add("$publicDocsDir;docs")
 $pyArgs.Add("--add-data")
 $pyArgs.Add("$rootDir\build_stamp.txt;.")
 if ($jaracoPath -and (Test-Path $jaracoPath)) {
@@ -314,6 +323,7 @@ try {
     Assert-NoEmbeddedOfflinePayload -AppDir (Join-Path $rootDir "dist\Chronicle")
 } finally {
     Pop-Location
+    Remove-Item -LiteralPath $publicDocsDir -Recurse -Force -ErrorAction SilentlyContinue
 }
 
 Write-Log ""

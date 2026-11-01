@@ -67,6 +67,8 @@ ALLOWED_DOC_PREFIXES = (
 
 EXCLUDED_DIR_NAMES = {
     ".git",
+    ".agents",
+    ".ruff_cache",
     ".pytest_cache",
     ".pyinstaller-cache",
     ".venv",
@@ -99,6 +101,9 @@ EXCLUDED_FILE_NAMES = {
     "Check_GitHub_Download_Counts.command",
     "CHRONICLE_FORUM_POST.txt",
     ".DS_Store",
+    "AGENTS.md",
+    "Chronicle.spec",
+    "skills-lock.json",
     "Clean_War_Diary_Compression_Temps.command",
     "CONTINUITY.md",
     "Download_Latest_Windows_Artifact.command",
@@ -262,6 +267,20 @@ def build_snapshot(repo_root: Path, output_root: Path) -> list[str]:
     return copied
 
 
+def stage_public_app_docs(repo_root: Path, output_root: Path) -> None:
+    """Copy reader documentation without maintainer or deployment material."""
+    paths = set(ALLOWED_DOC_PATHS)
+    paths.add("docs/github_rollout/RELEASE_NOTES_CURRENT.md")
+    for prefix in ALLOWED_DOC_PREFIXES:
+        paths.update(path.relative_to(repo_root).as_posix() for path in (repo_root / prefix).rglob("*") if path.is_file())
+    for rel_path in sorted(paths):
+        source = repo_root / rel_path
+        if source.is_file():
+            destination = output_root / Path(rel_path).relative_to("docs")
+            ensure_parent(destination)
+            shutil.copy2(source, destination)
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Prepare a clean Chronicle public repo snapshot.")
     parser.add_argument(
@@ -279,6 +298,7 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Delete the output directory before rebuilding the snapshot.",
     )
+    parser.add_argument("--docs-only", action="store_true", help="Stage only public app documentation.")
     return parser.parse_args()
 
 
@@ -292,6 +312,11 @@ def main() -> int:
     if args.clean and output_root.exists():
         shutil.rmtree(output_root)
     output_root.mkdir(parents=True, exist_ok=True)
+
+    if args.docs_only:
+        stage_public_app_docs(repo_root, output_root)
+        print("Prepared public app documentation.")
+        return 0
 
     copied = build_snapshot(repo_root, output_root)
     print(f"Prepared public repo snapshot: {output_root}")

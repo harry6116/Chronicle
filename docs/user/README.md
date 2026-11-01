@@ -2,15 +2,19 @@
 
 Chronicle is an accessibility-first document recovery tool for difficult real-world material: archival scans, war diaries, laws and regulations, academic journals, tables, handwriting, newspapers, forms, office reports, government records, long-form books, comics, manga, graphic novels, and mixed-format batches.
 
-Last Updated: June 7, 2026
+Last Updated: November 1, 2026
 
-## Current Release State
+## Getting Started
 
-Chronicle is maintained as the main release track with special attention to Windows runtime behavior, screen-reader usability, portability, and frozen-build reliability.
+Download the Mac or Windows app from the [Chronicle release page](https://github.com/harry6116/Chronicle/releases/latest). The normal app download does not require Python.
 
-The current codebase includes a modularized GUI layout under `chronicle_app/` while keeping the familiar root app entrypoints (`chronicle_gui.py`, `build.command`, `build_windows.bat`) intact.
+Open **File > API Keys...** to set up an online provider, or follow the [Private Offline Mode guide](PRIVATE_OFFLINE_MODE.md). Add a file, choose a document preset and output format, then press **Start Reading**. Try a few pages first when the source is difficult.
 
-Chronicle does not have a separate supported CLI product. When this guide refers to source mode, it means building, testing, or running the GUI app from the published source tree.
+## Updating Chronicle
+
+Choose **Help > Check for Updates** (or press **Shift+F1**) to read about the latest version. In the installed Mac or Windows app, **Install and Restart Now** downloads and installs it while keeping your settings and API keys. **Remind Me Later** keeps the app open and adds a quiet reminder at the next launch. Updates start only when you choose to install them.
+
+Use **Go to Release** for the download page and **Help > Version History** for release notes. Press **F1** for help with the current control, or choose **Help > Open User Guide** for the full guide.
 
 ## What Chronicle Does
 
@@ -51,7 +55,7 @@ The timings below are only estimates. They vary with internet upload speed, prov
 | Degraded scanned PDFs | Pages may need visual reading instead of simple text extraction | Several minutes for short files; longer if every page is hard |
 | War diaries, archival records, forms, ledgers | Stamps, marginalia, repeated headers, handwriting, tables, and page damage add work | Short files can take minutes; large batches can take much longer |
 | Books and long-form prose scans | Chronicle tries to preserve paragraph continuity and avoid false breaks | Large books can run for a long time, especially from poor scans |
-| Comics, manga, and graphic novels | Chronicle reads panel order, balloons, captions, visible SFX, and meaningful visual context | Usually slower than plain OCR on the same page count |
+| Comics, manga, and graphic novels | Chronicle reads panel order, balloons, captions, visible sound effects, and meaningful visual context | Usually slower than plain OCR on the same page count |
 | Historical newspapers | Large broadsheet pages, dense columns, ads, and degraded OCR may require page strips | Dense newspaper issues can take 10-15+ minutes even at modest page counts |
 
 For example, a 14-page historical newspaper PDF may behave more like a much larger document if each page is a full broadsheet with thousands of words, advertisements, and many narrow columns. Chronicle may split those pages into visual strips and send them through deeper model reading so the final output is reviewable rather than a raw OCR dump.
@@ -92,9 +96,9 @@ Chronicle accepts:
 - EPUB
 - JPG / JPEG / PNG / BMP / TIFF / TIF / WEBP
 
-### PDF Vision Pipeline
+### Reading scanned PDFs
 
-Chronicle now uses `PyMuPDF` (`fitz`) for PDF ingestion in the Vision path. PDF pages are rasterized into high-resolution PNG images before being sent to Vision-capable models, which improves OCR fidelity on difficult archival, legal, and historical material.
+Chronicle can read PDF pages as images when the existing text is missing or unreliable. This helps with scans, handwriting and complex layouts, although damaged pages still need careful review.
 
 ### Output Support
 
@@ -112,8 +116,8 @@ Chronicle can export to:
 DOCX output notes:
 
 - Chronicle maps heading markers, list structure, and plain-text tables into Word-friendly structure.
-- Major report boundaries can be expressed as `[[PAGE BREAK]]` internally so DOCX exports are easier to navigate in Word's Navigation Pane and page view.
-- During processing, Chronicle may create a readable sidecar temp file next to the final Word output, such as `My File.docx.progress.txt.tmp`. This is intentional: it is a crash-friendly in-progress text snapshot, not the final DOCX itself.
+- Headings and major section breaks make Word exports easier to navigate and edit.
+- During processing, Chronicle keeps temporary recovery text while it prepares the final Word file. Recovery files are normally hidden and removed after a successful save.
 - For the strongest assistive-technology reading experience, HTML is still the preferred final reading format; DOCX remains the best editing/review format.
 - Chronicle is designed to help users reach review-ready output more quickly, not to replace human verification.
 
@@ -135,8 +139,8 @@ Current provider guidance:
 
 - Gemini remains Chronicle's strongest general-purpose PDF path.
 - With `Engine Override` left on `Automatic`, Chronicle can start cleaner PDFs on `Gemini 2.5 Flash` first and keep `Gemini 2.5 Pro` in reserve for hard pages or harder whole-document cases.
-- Claude is now the strongest non-Gemini PDF option in Chronicle. The app prefers Anthropic's Files API for Claude PDF slices when the local SDK supports it, then falls back to inline PDF document mode if needed.
-- OpenAI remains available, but Chronicle does not yet use OpenAI's newer dedicated PDF file-input route. Inside Chronicle, OpenAI PDF handling should therefore be treated as a fallback path rather than the preferred PDF engine.
+- Claude is another option for reading PDFs when you have a Claude API key.
+- OpenAI is also available, but its PDF support in Chronicle is more limited. Try Gemini or Claude first for difficult PDFs.
 - Automatic engine selection now skips providers whose API keys are missing instead of trying to use them anyway.
 - Live-provider note: Chronicle depends on online AI providers, so occasional provider-side demand spikes can still cause temporary `503`, `UNAVAILABLE`, quota, or retry events even when Chronicle itself is behaving correctly. When that happens, rerunning later is often the right first check before treating the result as a Chronicle regression.
 
@@ -182,7 +186,7 @@ Disadvantages:
 - it is not the right default for difficult scans or complex visual layouts
 - human review is required before legal, medical, financial, or accessibility reliance
 
-The published offline benchmark baseline was recorded during 1.0.2 testing with `qwen2.5vl:7b`. The full 13-case offline suite averaged 99.43, with 12/13 cases emergency-usable and 11/13 in the private A range; the modern typed PDF benchmark reached 4/4 A+ cases.
+Tests with a small set of sample documents found offline mode most useful for clear typed pages. Results vary, so check important text against the original.
 
 Other local model candidates were checked. `qwen3-vl:8b` is similarly sized but was slower and unreliable at Chronicle's normal offline output budget. Larger 12B-class candidates did not improve the grade enough to justify the package footprint, and an 11B Llama vision candidate did not load reliably in the local Ollama runtime path. See the full offline guide in `docs/user/PRIVATE_OFFLINE_MODE.md`.
 
@@ -290,17 +294,11 @@ This is a built-in but still young profile. Human review is especially important
 
 ### In-Progress Recovery Files
 
-Chronicle writes in-progress recovery files while extraction is running, but normal recovery sidecars now use hidden Chronicle-prefixed filenames so output folders do not look as though a broken PDF or DOCX result was created.
+Chronicle keeps temporary working files while reading. For Word, PDF, e-book and data outputs, it can also keep a hidden text recovery file beside the intended result. For example, `My Document.docx` may have a temporary companion called `.chronicle_progress_My Document.docx.txt.tmp`.
 
-- Streamable formats such as HTML, TXT, and Markdown still build their primary `.tmp` output directly.
-- Non-streaming formats such as DOCX, PDF, EPUB, JSON, and CSV can write a readable recovery sidecar while the final format is still being assembled.
-- Example: if the final target is `Artemis Fowl and the lost colony.docx`, Chronicle may temporarily maintain a hidden recovery file such as `.chronicle_progress_Artemis Fowl and the lost colony.docx.txt.tmp`.
-- The `.txt` suffix is intentional. The sidecar is a human-readable recovery snapshot so you can inspect progress after an interruption even if the final DOCX/PDF/EPUB has not been finalized yet.
-- Progress wording is format-aware: PDFs report pages, slide decks report slides, and DOCX/text-like inputs report chunks so long Word files no longer misleadingly claim they are a single page.
-- On successful completion, Chronicle removes the sidecar temp file after the final output is saved.
-- If the run fails or is interrupted, Chronicle preserves the sidecar so you can inspect recovered text instead of losing all progress. Older visible `.progress.txt.tmp` sidecars are still recognized for backward-compatible resume/recovery.
-- If Chronicle finishes extraction but the app is interrupted during the final save/cleanup stage, the next launch now auto-recovers that completed temp output from the hidden sidecar instead of leaving the file stranded as `.tmp`.
-- Chronicle now records explicit `[Finalize]` processing-log lines for cleanup, temp promotion, sidecar removal, log auto-save, and completion sound steps to make end-of-run stalls easier to diagnose.
+These files help preserve text after an interruption. Chronicle normally removes them after a successful save and can recover some completed results on the next launch. Older visible files ending in `.progress.txt.tmp` are also recognised. Do not treat a temporary file as the finished document; review it before using recovered text.
+
+PDF progress counts pages, presentations count slides and other text documents count sections of text.
 
 ### Original Page Number References
 
@@ -586,9 +584,11 @@ A practical Chronicle workflow is:
 
 1. Save provider keys in `File > API Keys...`
 2. Set default model/output format/profile
-3. Add files or a folder, or acquire scans via NAPS2
+3. Add files or a folder
 4. Review queue rows and any per-row settings
 5. Use `Start Reading` or `Schedule Reading...`
+6. Review outputs in HTML first when accessibility is the priority
+7. Save the processing log when you need troubleshooting information
 
 ### PDF Page Scoping
 
@@ -604,8 +604,6 @@ Important behavior:
 - The page scope is stored with the queued row, so different PDFs can use different page selections in the same queue.
 - Page scope affects PDF files only; other file types ignore it.
 - Chronicle validates the requested pages before a run starts and will stop with a clear message if the scope exceeds the PDF length.
-6. Review outputs in HTML first when accessibility is the priority
-7. Save the processing log when you need audit or troubleshooting evidence
 
 ## Screen Reader Validation Guidance
 
@@ -626,7 +624,7 @@ Recommended Windows validation areas:
 
 Recommended menu shortcut checks:
 
-- `F1`: open help guide
+- `F1`: help for the current control; `Escape` closes it and returns focus
 - `Alt+P`: Preferences
 - `Alt+K`: API Keys
 - `Alt+S`: Find Connected Devices

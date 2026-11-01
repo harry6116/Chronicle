@@ -6,6 +6,7 @@ MAC_APP_DIR="${CHRONICLE_MAC_APP_DIR:-$HOME/Documents/Chronicle/dist/Chronicle.a
 RELEASE_DIR="${CHRONICLE_RELEASE_ASSET_DIR:-$HOME/Documents/Chronicle Release Apps}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+. "$SCRIPT_DIR/release_helpers.sh"
 SNAPSHOT_DIR="$ROOT_DIR/artifacts/public_repo_stage/Chronicle"
 RELEASE_STAGING_DIR="$RELEASE_DIR/.packaging-staging"
 
@@ -103,6 +104,41 @@ zip_slim_app_package() {
   zip_folder_keep_parent "$staged_path" "$output_path" "$label"
 }
 
+zip_slim_mac_release_package() {
+  local source_path="$1"
+  local output_path="$2"
+  local label="$3"
+  local stage_root
+  local staged_app
+  local helper_source
+  local helper_dest
+
+  stage_root="$RELEASE_STAGING_DIR/Chronicle Mac"
+  staged_app="$stage_root/$(basename "$source_path")"
+  helper_source="$SCRIPT_DIR/Open Me First.command"
+  helper_dest="$stage_root/Open Me First.command"
+
+  echo ""
+  echo "Staging slim $label with first-launch helper..."
+  rm -rf "$stage_root"
+  mkdir -p "$stage_root"
+  rsync -a --delete \
+    --exclude '/Contents/Resources/offline/' \
+    --exclude '/Contents/Frameworks/offline/' \
+    "$source_path/" "$staged_app/"
+
+  if [[ ! -f "$helper_source" ]]; then
+    echo "ERROR: Mac first-launch helper not found:"
+    echo "  $helper_source"
+    return 1
+  fi
+  cp "$helper_source" "$helper_dest"
+  chmod +x "$helper_dest"
+
+  assert_no_embedded_offline_payload "$staged_app" "$label"
+  zip_folder_keep_parent "$stage_root" "$output_path" "$label"
+}
+
 clear 2>/dev/null || true
 echo "--- CHRONICLE RELEASE APP PACKAGER ---"
 echo "This creates the Windows and Mac ZIP files used by the GitHub release publisher."
@@ -137,12 +173,26 @@ if [[ ! -f "$MAC_APP_DIR/Contents/MacOS/Chronicle" ]]; then
   exit 1
 fi
 
+EXPECTED_VERSION="$(release_version_from_notes "$(release_notes_file "$ROOT_DIR")")"
+MAC_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$MAC_APP_DIR/Contents/Info.plist")"
+WINDOWS_NOTES="$WINDOWS_APP_DIR/_internal/docs/github_rollout/RELEASE_NOTES_CURRENT.md"
+if [[ ! -f "$WINDOWS_NOTES" ]]; then
+  echo "ERROR: The Windows build has no release-version record. Rebuild Windows before packaging."
+  exit 1
+fi
+WINDOWS_VERSION="$(release_version_from_notes "$WINDOWS_NOTES")"
+if [[ "$MAC_VERSION" != "$EXPECTED_VERSION" || "$WINDOWS_VERSION" != "$EXPECTED_VERSION" ]]; then
+  echo "ERROR: App versions do not match the release notes ($EXPECTED_VERSION)."
+  echo "Mac: $MAC_VERSION; Windows: $WINDOWS_VERSION. Rebuild and copy the matching apps before packaging."
+  exit 1
+fi
+
 mkdir -p "$RELEASE_DIR"
 cleanup_release_staging
 trap cleanup_release_staging EXIT
 
 zip_slim_app_package "$WINDOWS_APP_DIR" "$WINDOWS_ZIP" "Windows app"
-zip_slim_app_package "$MAC_APP_DIR" "$MAC_ZIP" "Mac app"
+zip_slim_mac_release_package "$MAC_APP_DIR" "$MAC_ZIP" "Mac app"
 
 echo ""
 echo "Preparing public release snapshot..."

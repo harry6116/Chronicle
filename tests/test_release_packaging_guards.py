@@ -16,11 +16,17 @@ class ReleasePackagingGuardsTest(unittest.TestCase):
     def test_release_packager_creates_app_zips_only(self):
         script = (ROOT / "Mac" / "Package_Release_Apps.command").read_text(encoding="utf-8")
 
+        self.assertIn("release_version_from_notes", script)
+        self.assertIn("CFBundleShortVersionString", script)
+        self.assertIn("App versions do not match", script)
+        self.assertLess(script.index("App versions do not match"), script.index('mkdir -p "$RELEASE_DIR"'))
         self.assertIn("Chronicle.windows.zip", script)
         self.assertIn("Chronicle.mac.zip", script)
         self.assertIn('--repo-root "$ROOT_DIR"', script)
         self.assertIn('--output "$SNAPSHOT_DIR"', script)
         self.assertIn("zip_slim_app_package", script)
+        self.assertIn("zip_slim_mac_release_package", script)
+        self.assertIn("Open Me First.command", script)
         self.assertIn("assert_no_embedded_offline_payload", script)
         self.assertIn("Private Offline Mode now uses the user's existing Ollama installation", script)
         self.assertNotIn("CHRONICLE_OFFLINE_RELEASE_DIR", script)
@@ -67,6 +73,54 @@ class ReleasePackagingGuardsTest(unittest.TestCase):
         self.assertIn("existing Ollama installation", script)
         self.assertNotIn("separate offline_pack upload", script)
 
+    def test_mac_bundle_metadata_uses_the_app_version(self):
+        import plistlib
+        import tempfile
+        from unittest import mock
+        from Mac import build_mac
+        with tempfile.TemporaryDirectory() as directory:
+            app = Path(directory) / "Chronicle.app"
+            (app / "Contents").mkdir(parents=True)
+            metadata = app / "Contents/Info.plist"
+            metadata.write_bytes(plistlib.dumps({"CFBundleShortVersionString": "0.0.0", "CFBundleIdentifier": "Chronicle"}))
+            with mock.patch.object(build_mac.subprocess, "run") as signing:
+                build_mac.finalize_app_metadata(app, ROOT / "chronicle_gui.py")
+            info = plistlib.loads(metadata.read_bytes())
+            self.assertEqual(info["CFBundleShortVersionString"], "1.1.3")
+            self.assertEqual(info["CFBundleVersion"], "1.1.3")
+            self.assertEqual(info["CFBundleIdentifier"], "Chronicle")
+            self.assertIn("--sign", signing.call_args.args[0])
+
+    def test_public_snapshot_excludes_assistant_and_machine_state(self):
+        from tools import build_source_archive
+        for rel in ("AGENTS.md", ".agents/skills/example/SKILL.md", "skills-lock.json", "CONTINUITY.md", "Chronicle.spec", "docs/internal/HANDOFF.md"):
+            with self.subTest(path=rel):
+                self.assertTrue(prepare_public_repo_snapshot.should_exclude(rel))
+                self.assertFalse(build_source_archive.should_include(ROOT / rel, ROOT))
+
+    def test_app_builds_stage_public_docs_only(self):
+        mac = (ROOT / "Mac/build_mac.py").read_text(encoding="utf-8")
+        windows = (ROOT / "build_windows.ps1").read_text(encoding="utf-8")
+        self.assertIn("stage_public_app_docs", mac)
+        self.assertNotIn('("docs", "docs")', mac)
+        self.assertIn("--docs-only", windows)
+        diagnostic = (ROOT / "capture_windows_build_diagnostics.bat").read_text(encoding="utf-8")
+        self.assertIn("--docs-only", diagnostic)
+        self.assertNotIn('--add-data "%SCRIPT_DIR%docs;docs"', diagnostic)
+        self.assertIn("tools/prepare_public_repo_snapshot.py", stage_windows_bundle.REQUIRED_PATHS)
+        self.assertNotIn('$pyArgs.Add("$rootDir\\docs;docs")', windows)
+
+    def test_app_doc_staging_excludes_internal_and_release_planning(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "docs"
+            prepare_public_repo_snapshot.stage_public_app_docs(ROOT, output)
+            self.assertTrue((output / "user/chronicle_help.html").is_file())
+            self.assertTrue((output / "reference/CHANGELOG.md").is_file())
+            self.assertFalse((output / "internal").exists())
+            self.assertFalse((output / "github_rollout/LAUNCH_RUNBOOK.md").exists())
+            self.assertFalse((output / "branding").exists())
+
     def test_release_scripts_derive_tag_from_current_release_notes(self):
         for rel_path in (
             "Mac/Publish_GitHub_Release.command",
@@ -100,6 +154,32 @@ class ReleasePackagingGuardsTest(unittest.TestCase):
         self.assertIn("OnUseExistingOllama", source)
         self.assertNotIn("Install Private Offline &Pack", source)
         self.assertNotIn("OnInstallOfflinePack", source)
+
+    def test_help_menu_exposes_builtin_update_checks(self):
+        source = (ROOT / "chronicle_app" / "ui" / "menus.py").read_text(encoding="utf-8")
+        gui = (ROOT / "chronicle_gui.py").read_text(encoding="utf-8")
+        updater = (ROOT / "chronicle_app" / "services" / "update_service.py").read_text(encoding="utf-8")
+
+        self.assertIn("Check for &Updates", source)
+        self.assertIn(r"Context &Help\tF1", source)
+        self.assertIn("&Open User Guide", source)
+        self.assertIn("OnContextHelp", source)
+        self.assertIn("&Version History", source)
+        self.assertIn("OnCheckForUpdates", source)
+        self.assertIn("OnVersionHistory", source)
+        self.assertIn("ShowContextHelpForWindow", gui)
+        self.assertIn("Automatic installation is available only from a packaged Chronicle app", gui)
+        self.assertIn("xattr -rd com.apple.quarantine", gui)
+        self.assertIn("build_mac_updater_script", updater)
+        self.assertIn("xattr -rd com.apple.quarantine", updater)
+
+    def test_mac_first_launch_helper_clears_quarantine(self):
+        helper = (ROOT / "Mac" / "Open Me First.command").read_text(encoding="utf-8")
+
+        self.assertIn("Chronicle.app", helper)
+        self.assertIn("xattr -dr com.apple.quarantine", helper)
+        self.assertIn("Privacy & Security", helper)
+        self.assertIn("Open Anyway", helper)
 
     def test_first_launch_offers_ollama_setup_after_welcome(self):
         source = (ROOT / "chronicle_gui.py").read_text(encoding="utf-8")

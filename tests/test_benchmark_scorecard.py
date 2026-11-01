@@ -348,13 +348,13 @@ class BenchmarkScorecardTest(unittest.TestCase):
             size_calls = {"count": 0}
             original_stat = Path.stat
 
-            def fake_stat(path_obj):
+            def fake_stat(path_obj, *args, **kwargs):
                 if path_obj == tmp_out:
                     size_calls["count"] += 1
                     class Result:
                         st_size = 10 if size_calls["count"] <= 2 else 11
                     return Result()
-                return original_stat(path_obj)
+                return original_stat(path_obj, *args, **kwargs)
 
             ticks = itertools.chain([0.0, 0.0, 2.0, 6.5], itertools.count(6.6, 0.1))
             case = Case(key="sample", relative_path="sample.pdf", profile="legal", model="gemini-2.5-pro")

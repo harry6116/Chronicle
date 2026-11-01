@@ -1,3 +1,4 @@
+import os
 import unittest
 import time
 from pathlib import Path
@@ -58,7 +59,7 @@ class WorkerRuntimeTest(unittest.TestCase):
         )
         self.assertEqual(
             build_legacy_progress_temp_path(output_path),
-            "/tmp/.chronicle_progress_Oyungezer 190 - Standart Kalite.pdf.txt.tmp",
+            os.path.join("/tmp", ".chronicle_progress_Oyungezer 190 - Standart Kalite.pdf.txt.tmp"),
         )
 
     def test_recover_completed_output_artifacts_promotes_temp_and_cleans_sidecar(self):
@@ -150,7 +151,7 @@ class WorkerRuntimeTest(unittest.TestCase):
             isdir=lambda path: path == "/source",
         )
 
-        self.assertEqual(target, "/dest/sub")
+        self.assertEqual(target, os.path.join("/dest", "sub"))
 
     def test_build_output_base_name_appends_pdf_scope_suffix(self):
         result = build_output_base_name(
@@ -832,7 +833,7 @@ class WorkerRuntimeTest(unittest.TestCase):
         )
 
         self.assertTrue(skipped["should_skip"])
-        self.assertEqual(auto["output_path"], "/out/alpha_123.html")
+        self.assertEqual(auto["output_path"], os.path.join("/out", "alpha_123.html"))
 
     def test_estimate_current_file_total_units_reports_pdf_scope_and_pptx_slides(self):
         class Reader:

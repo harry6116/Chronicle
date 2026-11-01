@@ -481,6 +481,7 @@ class ApiKeyDialog(wx.Dialog):
         gemini_label = wx.StaticText(panel, label="Google Gemini Key:")
         self.tg = wx.TextCtrl(panel, style=wx.TE_PASSWORD)
         self.tg.SetName("Google Gemini API Key")
+        self.tg.SetToolTip("Enter your Google Gemini API key. Save stores it locally; Cancel discards changes.")
         self.tg.SetValue(self.keys.get("gemini", ""))
         self.grid.Add(gemini_label, flag=wx.ALIGN_CENTER_VERTICAL)
         self.grid.Add(self.tg, proportion=1, flag=wx.EXPAND)
@@ -488,6 +489,7 @@ class ApiKeyDialog(wx.Dialog):
         anthropic_label = wx.StaticText(panel, label="Anthropic Claude Key:")
         self.tc = wx.TextCtrl(panel, style=wx.TE_PASSWORD)
         self.tc.SetName("Anthropic Claude API Key")
+        self.tc.SetToolTip("Enter your Anthropic Claude API key. Leave blank if you do not use Claude.")
         self.tc.SetValue(self.keys.get("claude", ""))
         self.grid.Add(anthropic_label, flag=wx.ALIGN_CENTER_VERTICAL)
         self.grid.Add(self.tc, proportion=1, flag=wx.EXPAND)
@@ -495,6 +497,7 @@ class ApiKeyDialog(wx.Dialog):
         openai_label = wx.StaticText(panel, label="OpenAI GPT Key:")
         self.to = wx.TextCtrl(panel, style=wx.TE_PASSWORD)
         self.to.SetName("OpenAI GPT API Key")
+        self.to.SetToolTip("Enter your OpenAI API key. Leave blank if you do not use GPT.")
         self.to.SetValue(self.keys.get("openai", ""))
         self.grid.Add(openai_label, flag=wx.ALIGN_CENTER_VERTICAL)
         self.grid.Add(self.to, proportion=1, flag=wx.EXPAND)
@@ -707,6 +710,8 @@ class PrefsDialog(wx.Dialog):
         self.tc_custom_commands = wx.TextCtrl(panel, style=wx.TE_MULTILINE)
         self.tc_custom_commands.SetMinSize((-1, 96))
         self.tc_custom_commands.SetToolTip("Optional strict command-style instructions for advanced extraction behavior.")
+        self.tc_custom_prompt.SetName("Custom Prompt Additions")
+        self.tc_custom_commands.SetName("Custom Commands and Rules")
         adv_sizer.Add(self.tc_custom_commands, 1, wx.LEFT | wx.RIGHT | wx.BOTTOM | wx.EXPAND, 8)
         self.chk_pdf_audit = wx.CheckBox(panel, label="Enable PDF text-layer omission audit")
         self.chk_pdf_audit.SetToolTip(
@@ -735,6 +740,18 @@ class PrefsDialog(wx.Dialog):
         )
         adv_sizer.Add(self.chk_auto_save_log, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 8)
         vbox.Add(adv_sizer, 1, wx.LEFT | wx.RIGHT | wx.TOP | wx.EXPAND, 10)
+
+        for control, name in (
+            (self.dp, "Document Preset"), (self.mo, "Engine Override"),
+            (self.ct, "Translation Mode"), (self.tgt, "Translation Target Language"),
+            (self.cp, "Legacy Punctuation Mode"), (self.cu, "Historical Units and Currency"),
+            (self.ca, "Abbreviation Handling"), (self.ci, "Image Description Mode"),
+            (self.cpn, "Printed Page References"), (self.cpl, "Page Navigation Links"),
+            (self.cl, "PDF Display Mode"), (self.cm, "Merge Mode"),
+            (self.cf, "Academic Footnote Handling"), (self.can, "Academic Annotation Handling"),
+            (self.cd, "Source File Deletion"), (self.cc, "File Collision Mode"),
+        ):
+            control.SetName(name)
 
         tmap = {"none": 0, "both": 1, "english_only": 2}
         cmap = {"skip": 0, "overwrite": 1, "auto": 2}

@@ -231,6 +231,9 @@ from chronicle_app.services.worker_execute_runtime import (
 )
 from chronicle_app.services.adaptive_engine_routing import select_execution_model_for_job
 from chronicle_app.ui.bindings import bind_named
+from chronicle_app.ui.context_help import install_context_help_filter, show_context_help_dialog
+from chronicle_app.ui.release_notes import show_release_notes_dialog
+from chronicle_app.ui.bindings import defer_menu_action
 from chronicle_app.services.scan_flow_runtime import (
     apply_scan_settings as shared_apply_scan_settings,
     begin_scan_session as shared_begin_scan_session,
@@ -269,6 +272,14 @@ from chronicle_app.services.scanner_discovery import (
     discover_connected_flatbed_scanners,
     discover_scanners_naps2,
     run_command_capture as _run_command_capture,
+)
+from chronicle_app.services.update_service import (
+    PROJECT_URL as UPDATE_PROJECT_URL,
+    check_for_updates as shared_check_for_updates,
+    pending_update_reminder as shared_pending_update_reminder,
+    format_release_notes_for_dialog as shared_format_release_notes_for_dialog,
+    platform_supports_automatic_install as shared_platform_supports_automatic_install,
+    start_platform_update as shared_start_platform_update,
 )
 try:
     from chronicle_app.ui.dialogs import (
@@ -433,7 +444,7 @@ if getattr(sys, 'frozen', False):
 
 # --- CONSTANTS ---
 APP_NAME = "Chronicle"
-APP_VERSION = "1.1.1"
+APP_VERSION = "1.1.3"
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
@@ -1456,15 +1467,20 @@ class MainFrame(wx.Frame):
         self.Bind(wx.EVT_TIMER, self.OnSessionCheckpoint, self.session_timer)
         self.session_timer.Start(2000)
         self.Bind(wx.EVT_CLOSE, self.OnMainClose)
+        if hasattr(wx, "EVT_CHAR_HOOK"):
+            self.Bind(wx.EVT_CHAR_HOOK, self.OnFrameCharHook)
         global ACTIVE_FRAME
         ACTIVE_FRAME = self
         self.InitUI()
+        self._context_help_filter = install_context_help_filter(wx, self, self.ShowContextHelpForWindow)
         if self.autorun_active:
             wx.CallAfter(self.StartAutomationRunIfRequested)
         else:
             wx.CallAfter(self.EnsureRiskNoticeAcknowledged)
         if platform.system() == "Darwin" and not self.autorun_active:
             wx.CallAfter(self.EnsureMacFolderAccessOnLaunch)
+        if not self.autorun_active:
+            wx.CallAfter(self.ShowPendingUpdateReminder)
 
     def ShowWelcome(self):
         dlg = wx.Dialog(self, title="Welcome to Chronicle", size=(620, 300))
@@ -1717,6 +1733,13 @@ class MainFrame(wx.Frame):
     def OnAppQuitRequested(self, _event):
         self.Close()
 
+    def OnFrameCharHook(self, event):
+        code = event.GetKeyCode()
+        if code == wx.WXK_F1 and not event.HasAnyModifiers():
+            self.OnContextHelp(None)
+            return
+        event.Skip()
+
     def OnMainClose(self, event):
         has_incomplete = self._has_incomplete_items(self.queue)
         if self.is_running or has_incomplete:
@@ -1744,6 +1767,7 @@ class MainFrame(wx.Frame):
             if close_plan["pause_run"]:
                 self.is_paused = True
             if close_plan["should_veto"]:
+                self._pending_update_asset_url = None
                 if close_plan["pause_run"] and 0 <= self.current_processing_index < len(self.queue):
                     self.SetQueueStatus(self.current_processing_index, "Paused")
                 if close_plan["pause_run"]:
@@ -1762,12 +1786,25 @@ class MainFrame(wx.Frame):
             elif close_plan["save_session"]:
                 self.SaveActiveSession()
 
-        self.session_timer.Stop()
         clear_cached_pdf_password()
         if self._has_incomplete_items(self.queue):
             self.SaveActiveSession()
         else:
             self.DeleteActiveSession()
+        pending_update = getattr(self, "_pending_update_asset_url", None)
+        if pending_update:
+            self._pending_update_asset_url = None
+            try:
+                shared_start_platform_update(pending_update, wait_pid=os.getpid())
+                self.Log("Started Chronicle updater.", engine_event=True)
+            except Exception as ex:
+                wx.MessageBox(
+                    f"Could not start the updater.\n\nDetails: {ex}",
+                    "Chronicle Update", wx.OK | wx.ICON_ERROR,
+                )
+                event.Veto()
+                return
+        self.session_timer.Stop()
         event.Skip()
 
     def EnsureMacFolderAccessOnLaunch(self):
@@ -3238,13 +3275,18 @@ class MainFrame(wx.Frame):
         menu.Enable(id_delete, has_sel and not self.is_running)
         menu.Enable(id_open, has_sel)
 
-        self.Bind(wx.EVT_MENU, self.OnStopTask, id=id_stop)
-        self.Bind(wx.EVT_MENU, self.OnPauseTask, id=id_pause)
-        self.Bind(wx.EVT_MENU, self.OnResumeTask, id=id_resume)
-        self.Bind(wx.EVT_MENU, self.OnDeleteTask, id=id_delete)
-        self.Bind(wx.EVT_MENU, self.OnOpenContainingFolder, id=id_open)
-        self.PopupMenu(menu)
-        menu.Destroy()
+        handlers = {
+            int(id_stop): self.OnStopTask, int(id_pause): self.OnPauseTask,
+            int(id_resume): self.OnResumeTask, int(id_delete): self.OnDeleteTask,
+            int(id_open): self.OnOpenContainingFolder,
+        }
+        try:
+            selected_id = self.GetPopupMenuSelectionFromUser(menu)
+        finally:
+            menu.Destroy()
+        handler = handlers.get(selected_id)
+        if handler:
+            defer_menu_action(self, handler, call_after=wx.CallAfter)
 
     def OnTaskActionsButton(self, e):
         self.ShowQueueContextMenu()
@@ -3860,6 +3902,147 @@ class MainFrame(wx.Frame):
                     "Help Launch Error",
                     wx.OK | wx.ICON_ERROR,
                 )
+
+    def OnContextHelp(self, e):
+        try:
+            focused = wx.Window.FindFocus()
+        except Exception:
+            focused = None
+        self.ShowContextHelpForWindow(focused or self)
+
+    def ShowContextHelpForWindow(self, focused):
+        if getattr(self, "_context_help_open", False):
+            return
+        self._context_help_open = True
+        try:
+            show_context_help_dialog(
+                wx, focused, owner=wx.GetTopLevelParent(focused) if focused else self,
+                open_guide=lambda: self.OnOpenHelp(None), app_name=APP_NAME,
+            )
+        finally:
+            self._context_help_open = False
+
+    def RemindUpdateLater(self, version):
+        reminder = shared_pending_update_reminder({"update_reminder_version": version}, APP_VERSION)
+        if not reminder:
+            return
+        self.cfg["update_reminder_version"] = reminder
+        save_json(CONFIG_FILE, self.cfg)
+        self.SafeSetStatusText("Update postponed. A reminder will appear next time Chronicle starts. You can keep working.")
+
+    def ShowPendingUpdateReminder(self):
+        version = shared_pending_update_reminder(self.cfg, APP_VERSION)
+        if version:
+            message = f"Update reminder: Chronicle {version} is available. Choose Help, Check for Updates when ready."
+            self.SafeSetStatusText(message)
+            self.Log(message, engine_event=True)
+        elif self.cfg.pop("update_reminder_version", None) is not None:
+            save_json(CONFIG_FILE, self.cfg)
+
+    def ShowReleaseNotesDialog(self, title, header, notes, release_url=None, install_url=None, remind_version=None):
+        return show_release_notes_dialog(
+            wx, self, title=title, header=header, notes=notes,
+            release_url=release_url, install_url=install_url,
+            open_link=self.OpenExternalLink,
+            remind_later=(lambda: self.RemindUpdateLater(remind_version)) if remind_version else None,
+        )
+
+    def OnCheckForUpdates(self, e):
+        try:
+            with wx.BusyCursor():
+                result = shared_check_for_updates(APP_VERSION)
+        except Exception as ex:
+            wx.MessageBox(
+                f"Could not check for updates.\n\nDetails: {ex}",
+                "Chronicle Update",
+                wx.OK | wx.ICON_ERROR,
+            )
+            return
+
+        if result.status == "available":
+            release_url = result.release.html_url if result.release else f"{UPDATE_PROJECT_URL}/releases"
+            install_url = None
+            if shared_platform_supports_automatic_install() and getattr(sys, "frozen", False) and result.asset:
+                install_url = result.asset.browser_download_url
+            else:
+                result_notes = (
+                    result.notes
+                    + "\n\nAutomatic installation is available only from a packaged Chronicle app. "
+                    "Use Go to Release to download the update for this environment."
+                )
+                self.ShowReleaseNotesDialog(
+                    "Chronicle Update",
+                    result.message,
+                    result_notes,
+                    release_url=release_url,
+                    remind_version=result.latest_version,
+                )
+                return
+
+            install_requested = self.ShowReleaseNotesDialog(
+                "Chronicle Update",
+                result.message,
+                result.notes,
+                release_url=release_url,
+                install_url=install_url,
+                remind_version=result.latest_version,
+            )
+            if install_requested:
+                self.StartUpdateInstall(install_url)
+            return
+
+        if result.status == "up_to_date":
+            wx.MessageBox(result.message, "Chronicle Update", wx.OK | wx.ICON_INFORMATION)
+            return
+
+        wx.MessageBox(
+            result.message or "Could not read the latest Chronicle release.",
+            "Chronicle Update",
+            wx.OK | wx.ICON_INFORMATION,
+        )
+
+    def OnVersionHistory(self, e):
+        try:
+            with wx.BusyCursor():
+                result = shared_check_for_updates(APP_VERSION)
+        except Exception as ex:
+            wx.MessageBox(
+                f"Could not check version history.\n\nDetails: {ex}",
+                "Version History",
+                wx.OK | wx.ICON_ERROR,
+            )
+            return
+        release_url = result.release.html_url if result.release else f"{UPDATE_PROJECT_URL}/releases"
+        latest = result.latest_version or APP_VERSION
+        notes = result.notes
+        if not notes and result.release:
+            notes = shared_format_release_notes_for_dialog(result.release.body)
+        self.ShowReleaseNotesDialog(
+            "Version History",
+            f"Latest Chronicle release: {latest}",
+            notes or result.message or "No release notes were available.",
+            release_url=release_url,
+            remind_version=latest if result.status == "available" else None,
+        )
+
+    def StartUpdateInstall(self, asset_url):
+        if platform.system() == "Darwin":
+            message = (
+                "Chronicle will close, download the Mac update, replace Chronicle.app, clear macOS quarantine with "
+                "xattr -rd com.apple.quarantine, and restart.\n\n"
+                "Your app-data settings and API keys are stored outside the app bundle and will be kept.\n\n"
+                "Continue?"
+            )
+        else:
+            message = (
+                "Chronicle will close, download the update, replace the files in this app folder, and restart.\n\n"
+                "Your app-data settings and API keys are stored outside the app folder and will be kept.\n\n"
+                "Continue?"
+            )
+        if wx.MessageBox(message, "Chronicle Update", wx.YES_NO | wx.NO_DEFAULT | wx.ICON_QUESTION) != wx.YES:
+            return
+        self._pending_update_asset_url = asset_url
+        wx.CallAfter(self.Close)
 
     def OnAboutBuild(self, e):
         wx.MessageBox(

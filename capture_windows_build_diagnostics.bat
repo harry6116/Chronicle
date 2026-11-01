@@ -124,14 +124,23 @@ if errorlevel 1 (
 )
 echo.
 
+set "CHRONICLE_PUBLIC_DOCS=%TEMP%\ChroniclePublicDocs_%RANDOM%_%RANDOM%"
+"%PYTHON_BIN%" "%SCRIPT_DIR%tools\prepare_public_repo_snapshot.py" --repo-root "%SCRIPT_DIR%." --output "%CHRONICLE_PUBLIC_DOCS%" --docs-only
+if errorlevel 1 (
+    if exist "%CHRONICLE_PUBLIC_DOCS%" rmdir /s /q "%CHRONICLE_PUBLIC_DOCS%"
+    echo ERROR: Could not prepare public app documentation.
+    exit /b 12
+)
+
 echo ---- Diagnostic Build Command ----
-set "PYI_ARGS=-m PyInstaller --noconfirm --windowed --disable-windowed-traceback --name Chronicle --additional-hooks-dir "%SCRIPT_DIR%hooks" --icon "%SCRIPT_DIR%assets\icons\chronicle_option3.ico" --add-data "%SCRIPT_DIR%assets;assets" --add-data "%SCRIPT_DIR%docs;docs" --add-data "%SCRIPT_DIR%build_stamp.txt;." --hidden-import wx --hidden-import wx.adv --hidden-import wx.dataview --hidden-import wx._adv --hidden-import wx.html --hidden-import wx.xml --hidden-import pydantic --hidden-import pydantic_core --hidden-import pydantic_core._pydantic_core --hidden-import httpx --hidden-import anyio --hidden-import certifi --hidden-import google.genai --hidden-import google.genai.types --hidden-import google.genai.errors --hidden-import fitz --hidden-import setuptools._vendor.jaraco.text --collect-submodules chronicle_app --collect-submodules google.auth --collect-submodules google.oauth2 --collect-all anthropic --collect-all openai --collect-all fitz --collect-all docx --collect-all lxml --collect-all openpyxl --collect-all cv2 --collect-all ebooklib --collect-all fpdf --collect-all PIL --collect-all pydantic --collect-all httpx --collect-all setuptools --exclude-module google.genai.tests --exclude-module setuptools.tests --exclude-module numpy.tests --exclude-module numpy.f2py.tests --exclude-module wx.lib.pubsub --exclude-module wx.lib.pubsub.core.datamsg --exclude-module wx.lib.pubsub.core.kwargs --exclude-module pycparser.lextab --exclude-module pycparser.yacctab --exclude-module charset_normalizer.md__mypyc --exclude-module pydantic.v1 "%SCRIPT_DIR%chronicle_gui.py""
+set "PYI_ARGS=-m PyInstaller --noconfirm --windowed --disable-windowed-traceback --name Chronicle --additional-hooks-dir "%SCRIPT_DIR%hooks" --icon "%SCRIPT_DIR%assets\icons\chronicle_option3.ico" --add-data "%SCRIPT_DIR%assets;assets" --add-data "%CHRONICLE_PUBLIC_DOCS%;docs" --add-data "%SCRIPT_DIR%build_stamp.txt;." --hidden-import wx --hidden-import wx.adv --hidden-import wx.dataview --hidden-import wx._adv --hidden-import wx.html --hidden-import wx.xml --hidden-import pydantic --hidden-import pydantic_core --hidden-import pydantic_core._pydantic_core --hidden-import httpx --hidden-import anyio --hidden-import certifi --hidden-import google.genai --hidden-import google.genai.types --hidden-import google.genai.errors --hidden-import fitz --hidden-import setuptools._vendor.jaraco.text --collect-submodules chronicle_app --collect-submodules google.auth --collect-submodules google.oauth2 --collect-all anthropic --collect-all openai --collect-all fitz --collect-all docx --collect-all lxml --collect-all openpyxl --collect-all cv2 --collect-all ebooklib --collect-all fpdf --collect-all PIL --collect-all pydantic --collect-all httpx --collect-all setuptools --exclude-module google.genai.tests --exclude-module setuptools.tests --exclude-module numpy.tests --exclude-module numpy.f2py.tests --exclude-module wx.lib.pubsub --exclude-module wx.lib.pubsub.core.datamsg --exclude-module wx.lib.pubsub.core.kwargs --exclude-module pycparser.lextab --exclude-module pycparser.yacctab --exclude-module charset_normalizer.md__mypyc --exclude-module pydantic.v1 "%SCRIPT_DIR%chronicle_gui.py""
 echo "%PYTHON_BIN%" -X faulthandler %PYI_ARGS%
 echo.
 
 echo ---- Running Diagnostic Build ----
 "%PYTHON_BIN%" -X faulthandler %PYI_ARGS%
 set "BUILD_EXIT=%ERRORLEVEL%"
+if exist "%CHRONICLE_PUBLIC_DOCS%" rmdir /s /q "%CHRONICLE_PUBLIC_DOCS%"
 echo.
 echo Diagnostic build exit code: %BUILD_EXIT%
 echo.

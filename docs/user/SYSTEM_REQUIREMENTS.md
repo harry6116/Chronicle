@@ -100,10 +100,10 @@ Chronicle keeps offline requests conservative by default:
 Chronicle uses temporary working files during extraction, and user-visible temp behavior now differs slightly by output type.
 
 - Streamable outputs such as HTML, TXT, and Markdown write directly to their normal `.tmp` working file during the run.
-- DOCX, PDF, EPUB, JSON, and CSV runs now also create a readable sidecar file ending in `.progress.txt.tmp` in the destination folder so users can inspect progress while the final file is still being assembled.
-- These sidecar files are expected behavior, not corruption.
-- Successful runs remove the sidecar automatically after final save.
-- Failed or interrupted runs may leave the sidecar behind intentionally for recovery/review.
+- DOCX, PDF, EPUB, JSON, and CSV runs now also keep a hidden text recovery file in the destination folder while the final document is being assembled. Older visible files ending in `.progress.txt.tmp` are also recognised.
+- These recovery files are expected behavior, not corruption.
+- Successful runs remove the recovery file automatically after final save.
+- Failed or interrupted runs may leave the recovery file behind intentionally for recovery/review.
 - Keep enough free disk space for source files, final outputs, processing logs, and temporary progress files during long or merge-heavy runs.
 - Private Offline Mode also needs working space for temporary rendered page images and local model runtime files. Keep at least 12 GB free, and prefer 20 GB or more.
 

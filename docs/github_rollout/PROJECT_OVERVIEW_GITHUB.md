@@ -4,7 +4,7 @@ Chronicle is an accessibility-first document recovery tool for archival, academi
 
 Chronicle is a desktop GUI application. The public repository is intended to publish the current app source code, build scripts, and documentation for that GUI app. There is no separate supported Chronicle CLI product.
 
-Current public release target: **Chronicle 1.1.1**.
+Current public release target: **Chronicle 1.1.3**.
 
 **Built for hard documents.**
 
@@ -104,4 +104,4 @@ Current source-repository license: GNU AGPLv3.
 
 ## Status
 
-This project is the active standalone Chronicle GUI app line. Chronicle 1.1.1 focuses on PDF reliability, accessibility, privacy hardening, recovery-workbench output, and safer app-only packaging.
+This project is the active standalone Chronicle GUI app line. Chronicle 1.1.3 focuses on PDF reliability, accessibility, privacy hardening, recovery-workbench output, and safer app-only packaging.

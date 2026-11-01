@@ -136,6 +136,12 @@ def build_settings_section(panel, *, cfg, profile_choices, get_pdf_page_items_fn
     btn_run_preflight.SetToolTip(
         'Inspect the selected queued file with the current settings and show Chronicle’s preflight decision before the run starts.'
     )
+    btn_run_preflight.SetHelpText(
+        'Inspect the first selected file, or the first queued file when none is selected, using the current controls. '
+        'Shows the proposed engine, extraction strategy, selected PDF pages, rough effort, and readiness warnings. '
+        'This does not start extraction or send the document to an AI provider. '
+        'Effort categories are approximate; token counts and prices are not currently estimated.'
+    )
     bind(btn_run_preflight, 'run_preflight')
     preflight_row.Add(btn_run_preflight, 0, wx.ALL, 5)
 
@@ -163,26 +169,31 @@ def build_settings_section(panel, *, cfg, profile_choices, get_pdf_page_items_fn
 
     runtime_opts.Add(wx.StaticText(panel, label='Translation:'), 0, wx.ALIGN_CENTER_VERTICAL)
     run_translate_choice = wx.Choice(panel, choices=['Disable translation', 'Keep original + bracketed translation', 'Translate only'])
+    run_translate_choice.SetName('Translation Mode')
     run_translate_choice.SetToolTip('Choose whether Chronicle should translate the selected items while reading.')
     runtime_opts.Add(run_translate_choice, 1, wx.EXPAND)
 
     runtime_opts.Add(wx.StaticText(panel, label='Punctuation:'), 0, wx.ALIGN_CENTER_VERTICAL)
     run_punct_choice = wx.Choice(panel, choices=['Strictly preserve original punctuation', 'Modernize legacy punctuation'])
+    run_punct_choice.SetName('Punctuation Mode')
     run_punct_choice.SetToolTip('Choose whether Chronicle should preserve original punctuation or modernize it.')
     runtime_opts.Add(run_punct_choice, 1, wx.EXPAND)
 
     runtime_opts.Add(wx.StaticText(panel, label='Units/Currency:'), 0, wx.ALIGN_CENTER_VERTICAL)
     run_units_choice = wx.Choice(panel, choices=['Keep original units only', 'Keep original + add modern equivalence'])
+    run_units_choice.SetName('Units and Currency Mode')
     run_units_choice.SetToolTip('Choose whether Chronicle should keep original units only or add modern equivalents.')
     runtime_opts.Add(run_units_choice, 1, wx.EXPAND)
 
     runtime_opts.Add(wx.StaticText(panel, label='Abbreviations:'), 0, wx.ALIGN_CENTER_VERTICAL)
     run_abbrev_choice = wx.Choice(panel, choices=['Keep abbreviations as-is', 'Expand abbreviations in brackets'])
+    run_abbrev_choice.SetName('Abbreviation Handling')
     run_abbrev_choice.SetToolTip('Choose whether Chronicle should keep abbreviations as written or expand them in brackets.')
     runtime_opts.Add(run_abbrev_choice, 1, wx.EXPAND)
 
     runtime_opts.Add(wx.StaticText(panel, label='Image Descriptions:'), 0, wx.ALIGN_CENTER_VERTICAL)
     run_images_choice = wx.Choice(panel, choices=['Enable image descriptions', 'Disable image descriptions'])
+    run_images_choice.SetName('Image Description Mode')
     run_images_choice.SetToolTip('Choose whether Chronicle should describe images it finds.')
     runtime_opts.Add(run_images_choice, 1, wx.EXPAND)
 
@@ -216,6 +227,7 @@ def build_settings_section(panel, *, cfg, profile_choices, get_pdf_page_items_fn
     lbl_run_largeprint = wx.StaticText(panel, label='PDF Display:')
     runtime_opts.Add(lbl_run_largeprint, 0, wx.ALIGN_CENTER_VERTICAL)
     run_largeprint_choice = wx.Choice(panel, choices=['Standard PDF output', 'Large print PDF output'])
+    run_largeprint_choice.SetName('PDF Display Mode')
     run_largeprint_choice.SetToolTip('Choose standard or large-print PDF output.')
     runtime_opts.Add(run_largeprint_choice, 1, wx.EXPAND)
 
@@ -243,12 +255,14 @@ def build_settings_section(panel, *, cfg, profile_choices, get_pdf_page_items_fn
 
     opts.Add(wx.StaticText(panel, label='Folder Scanning:'), 0, wx.ALIGN_CENTER_VERTICAL)
     choice_recursive = wx.Choice(panel, choices=['Selected folder only', 'Include all nested subfolders'])
+    choice_recursive.SetName('Folder Scanning Mode')
     choice_recursive.SetToolTip('Choose whether Add Folder should scan only the selected folder or include every nested subfolder beneath it.')
     choice_recursive.SetSelection(1 if bool(cfg.get('recursive_scan', False)) else 0)
     opts.Add(choice_recursive, 1, wx.EXPAND)
 
     opts.Add(wx.StaticText(panel, label='Save Output To:'), 0, wx.ALIGN_CENTER_VERTICAL)
     dest_choice = wx.Choice(panel, choices=['Same folder as source file', 'Custom output folder'])
+    dest_choice.SetName('Save Output To')
     dest_choice.SetToolTip('Choose whether results should be saved beside each source file or in one custom folder.')
     dest_choice.SetSelection(1 if int(cfg.get('dest_mode', 0)) == 1 else 0)
     bind(dest_choice, 'dest_mode')
@@ -256,8 +270,12 @@ def build_settings_section(panel, *, cfg, profile_choices, get_pdf_page_items_fn
 
     opts.Add(wx.StaticText(panel, label='Custom Folder:'), 0, wx.ALIGN_CENTER_VERTICAL)
     txt_dest = wx.TextCtrl(panel, value=cfg.get('custom_dest', ''))
+    txt_dest.SetName('Custom Output Folder')
+    txt_dest.SetToolTip('Enter an output folder, or use Browse. Choose Custom output folder in Save Output To to use it.')
     opts.Add(txt_dest, 1, wx.EXPAND)
     btn_dest = wx.Button(panel, label='Browse...')
+    btn_dest.SetName('Browse for Custom Output Folder')
+    btn_dest.SetToolTip('Choose the custom folder where Chronicle should save extracted documents.')
     bind(btn_dest, 'choose_dest')
     opts.Add(btn_dest, 0, wx.EXPAND)
 

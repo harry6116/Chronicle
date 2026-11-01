@@ -3,8 +3,13 @@ from __future__ import annotations
 
 import argparse
 import zipfile
+import sys
 from datetime import date
 from pathlib import Path
+
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from tools.prepare_public_repo_snapshot import should_exclude
 
 
 EXCLUDED_DIRS = {
@@ -68,6 +73,8 @@ INCLUDED_TOP_LEVEL = {
 
 def should_include(path: Path, root: Path) -> bool:
     rel = path.relative_to(root)
+    if should_exclude(rel.as_posix()):
+        return False
     parts = rel.parts
     if not parts or parts[0] not in INCLUDED_TOP_LEVEL:
         return False

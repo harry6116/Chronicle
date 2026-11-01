@@ -90,7 +90,7 @@ class LocalProviderRuntimeTest(unittest.TestCase):
             home=r"C:\Users\Example",
         )
 
-        self.assertEqual(str(mac_root), "/Users/example/Library/Application Support/Chronicle")
+        self.assertEqual(mac_root.as_posix(), "/Users/example/Library/Application Support/Chronicle")
         self.assertIn("Chronicle", str(win_root))
 
     def test_backend_requires_user_managed_ollama_service(self):

@@ -20,6 +20,7 @@ REQUIRED_PATHS = [
     "LICENSE",
     "assets",
     "docs",
+    "tools/prepare_public_repo_snapshot.py",
 ]
 
 

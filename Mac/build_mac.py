@@ -1,9 +1,16 @@
 import os
+import ast
+import plistlib
 import sys
 import shutil
 import subprocess
 import setuptools
 import time
+import tempfile
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from tools.prepare_public_repo_snapshot import stage_public_app_docs
 
 def safe_rmtree(path, retries=5, delay=0.25):
     last_err = None
@@ -34,6 +41,20 @@ def assert_no_embedded_offline_payload(app_bundle):
                 f"{blocked_path}. Mac and Windows app builds must stay slim; "
                 "Private Offline Mode now uses the user's existing Ollama installation."
             )
+
+def finalize_app_metadata(app_bundle, source_file):
+    tree = ast.parse(Path(source_file).read_text(encoding="utf-8"))
+    version = next(
+        ast.literal_eval(node.value)
+        for node in tree.body if isinstance(node, ast.Assign)
+        and any(isinstance(target, ast.Name) and target.id == "APP_VERSION" for target in node.targets)
+    )
+    metadata_path = Path(app_bundle) / "Contents/Info.plist"
+    metadata = plistlib.loads(metadata_path.read_bytes())
+    metadata.update(CFBundleShortVersionString=version, CFBundleVersion=version)
+    metadata_path.write_bytes(plistlib.dumps(metadata))
+    subprocess.run(["/usr/bin/codesign", "--force", "--deep", "--sign", "-", str(app_bundle)], check=True)
+
 
 def run_build():
     print("--- Chronicle Sledgehammer Build: Mac ---")
@@ -131,8 +152,10 @@ def run_build():
         "chronicle_gui.py"
     ]
 
-    # Always bundle the latest local assets/docs from the current workspace.
-    for src, dest in (("assets", "assets"), ("docs", "docs"), ("build_stamp.txt", ".")):
+    public_docs = tempfile.TemporaryDirectory(prefix="ChroniclePublicDocs-")
+    stage_public_app_docs(Path.cwd(), Path(public_docs.name))
+    # Bundle only public documentation with the application.
+    for src, dest in (("assets", "assets"), (public_docs.name, "docs"), ("build_stamp.txt", ".")):
         abs_src = os.path.abspath(src)
         cmd[-1:-1] = ["--add-data", f"{abs_src}{os.pathsep}{dest}"]
 
@@ -180,6 +203,8 @@ def run_build():
             print("Warning: failed reading embedded app build stamp.")
     else:
         print(f"Warning: embedded app build stamp not found at {embedded_stamp}")
+    finalize_app_metadata(Path("dist/Chronicle.app"), Path("chronicle_gui.py"))
+    public_docs.cleanup()
     assert_no_embedded_offline_payload(os.path.join("dist", "Chronicle.app"))
     print("\nBUILD COMPLETE! Your Mac application is in the 'dist' folder.")
 
