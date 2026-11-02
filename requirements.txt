@@ -17,4 +17,4 @@ opencv-python>=4.13.0.92
 numpy>=2.0,<3
 wxPython>=4.2.5
 pyinstaller>=6.19.0
-pyinstaller-hooks-contrib>=2026.1
+pyinstaller-hooks-contrib>=2026.7
