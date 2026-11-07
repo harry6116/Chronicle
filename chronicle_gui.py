@@ -445,7 +445,7 @@ if getattr(sys, 'frozen', False):
 
 # --- CONSTANTS ---
 APP_NAME = "Chronicle"
-APP_VERSION = "1.1.3"
+APP_VERSION = "1.1.4"
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 

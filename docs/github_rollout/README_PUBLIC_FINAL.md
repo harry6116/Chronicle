@@ -2,7 +2,7 @@
 
 Chronicle is an accessibility-first document recovery tool for difficult real-world material.
 
-Current public release line: **Chronicle 1.1.3**.
+Current public release line: **Chronicle 1.1.4**.
 
 It is especially strong on degraded scans, long-form books, archival records, legal and policy material, tables, handwriting, multi-column layouts, comics, manga, graphic novels, and mixed-format batches where preserving reading order, usable structure, and review workflow matters more than raw one-click speed.
 
@@ -103,7 +103,7 @@ Full guidance: `docs/user/PRIVATE_OFFLINE_MODE.md`.
 
 ## Current Public Release
 
-Chronicle `1.1.3` improves PDF extraction reliability, accessibility, security, packaging, recovery-workbench output, and Private Offline Mode through user-managed local Ollama.
+Chronicle `1.1.4` adds the new website and direct email contact to About Chronicle, with labelled contact actions and optional GitHub sponsorship.
 
 Current release downloads:
 

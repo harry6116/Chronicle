@@ -6,6 +6,8 @@
 .github/dependabot.yml
 .github/pull_request_template.md
 .github/workflows/build-mac-windows.yml
+.github/workflows/homepage.yml
+.github/workflows/pages.yml
 .gitignore
 CHANGELOG.md
 CODE_OF_CONDUCT.md
@@ -124,6 +126,7 @@ chronicle_app/ui/menus.py
 chronicle_app/ui/queue_panel.py
 chronicle_app/ui/queue_support.py
 chronicle_app/ui/release_notes.py
+chronicle_app/ui/sponsorship.py
 chronicle_core.py
 chronicle_gui.py
 chronicle_runtime.py
@@ -148,7 +151,9 @@ docs/policies/SECURITY.md
 docs/public/.nojekyll
 docs/public/CHRONICLE_BLURBS.md
 docs/public/CHRONICLE_ONE_PAGE.md
+docs/public/DEPLOY_STATIC_SITE.md
 docs/public/README.md
+docs/public/WEBSITE_LAUNCH_PLAN.md
 docs/public/WHY_CHRONICLE.md
 docs/public/_headers
 docs/public/index.html
@@ -205,6 +210,7 @@ tests/test_ordering_runtime.py
 tests/test_output_cleanup.py
 tests/test_output_quality.py
 tests/test_output_regressions.py
+tests/test_pages_site.py
 tests/test_pdf_auth.py
 tests/test_pdf_page_boundaries.py
 tests/test_pdf_processor.py
@@ -225,6 +231,7 @@ tests/test_scanner_discovery.py
 tests/test_scheduling_runtime.py
 tests/test_security_static.py
 tests/test_session_runtime.py
+tests/test_sponsorship_ui.py
 tests/test_ui_bindings.py
 tests/test_update_service.py
 tests/test_windows_updater_integration.py
@@ -232,6 +239,7 @@ tests/test_worker_execute_runtime.py
 tests/test_worker_finalize_runtime.py
 tests/test_worker_runtime.py
 tools/audit_handwriting_outputs.py
+tools/build_pages_site.py
 tools/build_source_archive.py
 tools/check_platform_layout.sh
 tools/install_git_hooks.sh

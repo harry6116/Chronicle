@@ -2,6 +2,13 @@
 
 This history describes changes users may notice. The desktop app release series began at 1.0.0 in April 2026. Earlier version numbers below belong to the original project and follow a different sequence.
 
+## [1.1.4] - 2026-11-08
+
+- New Chronicle website with downloads, the user guide, document examples, and release news: https://harry6116.github.io/.
+- Direct email contact at chronicle.vir@gmail.com on the website and in the app.
+- About Chronicle includes labelled website, email, and GitHub actions, selectable contact details, and separate contact and optional-support rows.
+- Optional one-time and monthly GitHub sponsorship in About and the Support menu.
+
 ## [1.1.3] - 2026-11-01
 
 - Built-in update checks and installation for Mac and Windows, with readable release notes and a Remind Me Later action.
