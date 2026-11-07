@@ -41,10 +41,7 @@ Treat free Gemini access as a test path, not as dependable operating capacity. I
 
 The safest public guidance is simple: use a higher-quota Gemini API setup for sustained work and treat free-tier Gemini as best-effort only.
 
-Practical planning examples (rough only, can change):
-
-- Gemini 2.5 Pro: around 500 pages/day in light workloads.
-- Gemini 2.5 Flash: around 1,000 pages/day in light workloads.
+There is no fixed pages-per-day allowance in Chronicle. Check the quotas shown for your provider account and model.
 
 Actual throughput depends on:
 
@@ -56,7 +53,7 @@ Actual throughput depends on:
 ### 3) Privacy and Training Expectations
 
 - Do not assume “API usage” automatically means “no training.”
-- Confirm current Google terms and product-level privacy controls for your specific plan.
+- Confirm current [Google Gemini API terms](https://ai.google.dev/gemini-api/terms) and product-level privacy controls for your specific plan.
 - For sensitive workloads, prefer provider plans/settings with explicit data-use guarantees.
 
 ### 4) Recommended Compliance Posture

@@ -14,6 +14,10 @@ class PagesSiteTest(unittest.TestCase):
             output = (Path(directory) / 'site').resolve()
             build_site(ROOT, output)
             self.assertTrue((output / 'user-guide.html').is_file())
+            disclaimer = BeautifulSoup((output / 'disclaimer.html').read_text(), 'html.parser')
+            self.assertIn('Data Processing Boundary', disclaimer.get_text())
+            self.assertIn('provider retention policies', disclaimer.get_text())
+            self.assertIsNotNone(disclaimer.find('a', href='https://ai.google.dev/gemini-api/terms'))
             for path in output.rglob('*'):
                 if path.is_file():
                     self.assertIn(path.suffix, ('.html', '.png', '.jpg', '.jpeg', '.svg', ''))

@@ -103,13 +103,14 @@ def notes_blocks(notes, title):
     return "\n".join(blocks)
 
 
-def notes_page(title, notes, url):
+def notes_page(title, notes, url, *, kind="release notes", external_label="View this release on GitHub"):
+    heading = title + (" — " + kind if kind else "")
     return f'''<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{escape(title)} — release notes</title>
+<title>{escape(heading)}</title>
 <style>body {{font:1.125rem/1.6 system-ui,sans-serif;color:#172331;background:#f7f8fc;max-width:70ch;margin:2rem auto;padding:0 1.25rem}} a {{color:#245484}} a:focus-visible {{outline:3px solid #9a5200;outline-offset:4px}} .notes {{overflow-wrap:anywhere}} </style>
-</head><body><a href="#notes">Skip to release notes</a><nav aria-label="Release navigation"><p><a href="index.html">Back to Chronicle</a> · <a href="{escape(url, quote=True)}">View this release on GitHub</a></p></nav>
-<main id="notes"><h1>{escape(title)} — release notes</h1><div class="notes">{notes_blocks(notes, title)}</div></main></body></html>'''
+</head><body><a href="#notes">Skip to release notes</a><nav aria-label="Page navigation"><p><a href="index.html">Back to Chronicle</a> · <a href="{escape(url, quote=True)}">{escape(external_label)}</a></p></nav>
+<main id="notes"><h1>{escape(heading)}</h1><div class="notes">{notes_blocks(notes, title)}</div></main></body></html>'''
 
 
 def build_site(repo_root, output, *, release=None):
@@ -125,6 +126,10 @@ def build_site(repo_root, output, *, release=None):
     index, count = re.subn(pattern, lambda _match: announcement, index, flags=re.DOTALL)
     if count != 1:
         raise ValueError("Exactly one release announcement location is required.")
+    disclaimer_source = repo_root / "docs/policies/DISCLAIMER.md"
+    if disclaimer_source.is_symlink():
+        raise ValueError("Website sources must not contain symbolic links.")
+    disclaimer = disclaimer_source.read_text(encoding="utf-8")
     files = [(repo_root / "docs/user/chronicle_help.html", Path("user-guide.html"))]
     for folder in ("showcase_assets", "showcase_samples"):
         for source in sorted((public / folder).rglob("*")):
@@ -140,8 +145,15 @@ def build_site(repo_root, output, *, release=None):
         shutil.copyfile(source, target)
     (output / "index.html").write_text(index, encoding="utf-8")
     (output / "release-notes.html").write_text(notes_page(title, notes, url), encoding="utf-8")
+    disclaimer_html = notes_page(
+        "Chronicle AI accuracy and privacy disclaimer", disclaimer,
+        PROJECT_URL + "/blob/main/docs/policies/DISCLAIMER.md", kind="",
+        external_label="Read the source disclaimer")
+    disclaimer_html = disclaimer_html.replace(
+        "</main>", '<p><a href="https://ai.google.dev/gemini-api/terms">Read Google Gemini API terms</a> for the provider’s current conditions.</p></main>')
+    (output / "disclaimer.html").write_text(disclaimer_html, encoding="utf-8")
     (output / ".nojekyll").touch()
-    return len(files) + 3
+    return len(files) + 4
 
 
 if __name__ == "__main__":
