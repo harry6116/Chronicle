@@ -16,6 +16,7 @@ class PagesSiteTest(unittest.TestCase):
             self.assertTrue((output / 'user-guide.html').is_file())
             disclaimer = BeautifulSoup((output / 'disclaimer.html').read_text(), 'html.parser')
             self.assertIn('Data Processing Boundary', disclaimer.get_text())
+            self.assertNotIn('Skip to release notes', disclaimer.get_text())
             self.assertIn('provider retention policies', disclaimer.get_text())
             self.assertIsNotNone(disclaimer.find('a', href='https://ai.google.dev/gemini-api/terms'))
             for path in output.rglob('*'):

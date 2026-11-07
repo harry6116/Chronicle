@@ -109,7 +109,7 @@ def notes_page(title, notes, url, *, kind="release notes", external_label="View 
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{escape(heading)}</title>
 <style>body {{font:1.125rem/1.6 system-ui,sans-serif;color:#172331;background:#f7f8fc;max-width:70ch;margin:2rem auto;padding:0 1.25rem}} a {{color:#245484}} a:focus-visible {{outline:3px solid #9a5200;outline-offset:4px}} .notes {{overflow-wrap:anywhere}} </style>
-</head><body><a href="#notes">Skip to release notes</a><nav aria-label="Page navigation"><p><a href="index.html">Back to Chronicle</a> · <a href="{escape(url, quote=True)}">{escape(external_label)}</a></p></nav>
+</head><body><a href="#notes">Skip to main content</a><nav aria-label="Page navigation"><p><a href="index.html">Back to Chronicle</a> · <a href="{escape(url, quote=True)}">{escape(external_label)}</a></p></nav>
 <main id="notes"><h1>{escape(heading)}</h1><div class="notes">{notes_blocks(notes, title)}</div></main></body></html>'''
 
 
