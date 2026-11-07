@@ -233,6 +233,7 @@ from chronicle_app.services.adaptive_engine_routing import select_execution_mode
 from chronicle_app.ui.bindings import bind_named
 from chronicle_app.ui.context_help import install_context_help_filter, show_context_help_dialog
 from chronicle_app.ui.release_notes import show_release_notes_dialog
+from chronicle_app.ui.sponsorship import show_about_dialog, SPONSOR_URL, ONE_TIME_URL
 from chronicle_app.ui.bindings import defer_menu_action
 from chronicle_app.services.scan_flow_runtime import (
     apply_scan_settings as shared_apply_scan_settings,
@@ -4045,15 +4046,15 @@ class MainFrame(wx.Frame):
         wx.CallAfter(self.Close)
 
     def OnAboutBuild(self, e):
-        wx.MessageBox(
-            (
+        show_about_dialog(
+            wx, self, title=f"About {APP_NAME}",
+            details=(
                 f"{APP_NAME} {APP_VERSION}\n\n"
-                f"Runtime: {sys.executable if getattr(sys, 'frozen', False) else __file__}\n"
+                f"Runtime: {'Packaged app' if getattr(sys, 'frozen', False) else 'Source'}\n"
                 f"Python: {sys.version.split()[0]}\n"
                 f"wx: {wx.version()}"
             ),
-            f"About {APP_NAME}",
-            wx.OK | wx.ICON_INFORMATION,
+            open_link=self.OpenExternalLink,
         )
 
     def OpenExternalLink(self, url, label):
@@ -4074,13 +4075,17 @@ class MainFrame(wx.Frame):
     def OnDonate(self, e):
         dlg = wx.SingleChoiceDialog(
             self,
-            "If you'd like to support the developer, donations help cover ongoing testing and API usage costs.\n\nChoose a donation method:",
+            "If you'd like to support the developer, donations help cover ongoing testing and API usage costs.\n\nChoose One-time for a single payment with no monthly commitment. GitHub sign-in is required.\n\nChoose a donation method:",
             "Support Chronicle",
-            ["Buy Me a Coffee", "PayPal"],
+            ["GitHub Sponsors: One-time", "GitHub Sponsors: Monthly", "Buy Me a Coffee", "PayPal"],
         )
         if dlg.ShowModal() == wx.ID_OK:
             choice = dlg.GetStringSelection()
-            if choice == "Buy Me a Coffee":
+            if choice == "GitHub Sponsors: One-time":
+                self.OpenExternalLink(ONE_TIME_URL, "GitHub Sponsors: One-time")
+            elif choice == "GitHub Sponsors: Monthly":
+                self.OpenExternalLink(SPONSOR_URL, "GitHub Sponsors: Monthly")
+            elif choice == "Buy Me a Coffee":
                 self.OpenExternalLink(DONATE_BUYMEACOFFEE_URL, "Buy Me a Coffee")
             elif choice == "PayPal":
                 self.OpenExternalLink(DONATE_PAYPAL_URL, "PayPal")

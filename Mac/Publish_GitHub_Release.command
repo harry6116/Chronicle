@@ -201,7 +201,7 @@ if gh release view "$TAG" --repo "$REPO_SLUG" >/dev/null 2>&1; then
   echo ""
   echo "Release already exists. Uploading app assets with clobber enabled..."
   gh release upload "$TAG" "$MAC_ASSET" "$WINDOWS_ASSET" --repo "$REPO_SLUG" --clobber
-  gh release edit "$TAG" --repo "$REPO_SLUG" --title "$TITLE" --notes-file "$NOTES_FILE"
+  gh release edit "$TAG" --repo "$REPO_SLUG" --title "$TITLE" --notes-file "$NOTES_FILE" --latest
 else
   echo ""
   echo "Creating new release and uploading app assets..."
@@ -209,11 +209,19 @@ else
     --repo "$REPO_SLUG" \
     --title "$TITLE" \
     --notes-file "$NOTES_FILE" \
-    --target main
+    --target main \
+    --latest
 fi
 
 echo ""
 echo "Release published successfully."
 gh release view "$TAG" --repo "$REPO_SLUG"
+echo ""
+if gh workflow run homepage.yml --repo harry6116/harry6116.github.io --ref main; then
+  echo "Website refresh requested: https://harry6116.github.io/"
+else
+  echo "The release is published, but its website refresh request failed."
+  echo "Run Chronicle homepage in the website repository's Actions tab to retry."
+fi
 echo ""
 read -r -p "Press Enter to close..."

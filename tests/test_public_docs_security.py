@@ -156,10 +156,6 @@ class PublicDocsSecurityTest(unittest.TestCase):
                 REPO_ROOT / "docs/github_rollout/LAUNCH_RUNBOOK.md",
                 r"Current target release: `Chronicle ([^`]+)`",
             ),
-            "public/index.html": (
-                REPO_ROOT / "docs/public/index.html",
-                r"Current version:</strong> Chronicle ([0-9.]+)",
-            ),
         }
         mismatches = []
         for label, (path, pattern) in checks.items():

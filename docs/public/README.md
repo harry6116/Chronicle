@@ -18,3 +18,5 @@ Use these files for:
 - public guidance on when Private Offline Mode is appropriate
 
 For user-facing setup and usage guidance, see `docs/user/`.
+
+Website hosting and custom domains: [Deployment guide](DEPLOY_STATIC_SITE.md).

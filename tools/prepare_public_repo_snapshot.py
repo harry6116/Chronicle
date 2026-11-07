@@ -42,6 +42,8 @@ ALLOWED_DOC_PATHS = {
     "docs/policies/README.md",
     "docs/policies/SECURITY.md",
     "docs/public/.nojekyll",
+    "docs/public/DEPLOY_STATIC_SITE.md",
+    "docs/public/WEBSITE_LAUNCH_PLAN.md",
     "docs/public/CHRONICLE_BLURBS.md",
     "docs/public/CHRONICLE_ONE_PAGE.md",
     "docs/public/README.md",
@@ -150,6 +152,7 @@ EXCLUDED_RELATIVE_PATHS = {
 ALLOWED_TOOL_PATHS = {
     "tools/audit_handwriting_outputs.py",
     "tools/build_source_archive.py",
+    "tools/build_pages_site.py",
     "tools/check_platform_layout.sh",
     "tools/install_git_hooks.sh",
     "tools/local_benchmark_pack_accessibility.py",

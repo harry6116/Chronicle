@@ -1,0 +1,43 @@
+name: Chronicle homepage
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: '17,47 * * * *'
+permissions:
+  contents: read
+concurrency:
+  group: github-pages-homepage
+  cancel-in-progress: false
+jobs:
+  deploy:
+    if: github.repository == 'harry6116/harry6116.github.io'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: harry6116/Chronicle
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Read latest stable Chronicle release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api repos/harry6116/Chronicle/releases/latest > "$RUNNER_TEMP/chronicle-release.json"
+      - name: Prepare website
+        run: python tools/build_pages_site.py --release-json "$RUNNER_TEMP/chronicle-release.json" --output "$RUNNER_TEMP/chronicle-site"
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: ${{ runner.temp }}/chronicle-site
+      - uses: actions/deploy-pages@v4
+        id: deployment

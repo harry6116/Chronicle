@@ -157,7 +157,7 @@
     <header role="banner" aria-labelledby="page-title">
       <h1 id="page-title">Chronicle Help Guide</h1>
       <p><strong>Scope:</strong> complete usage, menus, dialogs, accessibility behavior, document profiles, automatic reading-engine behavior, queue logic, device import workflows, output formats, troubleshooting, and build guidance.</p>
-      <p><strong>Last Updated:</strong> June 7, 2026 (Private Offline Mode guidance and requirements refresh)</p>
+      <p><strong>Last Updated:</strong> November 8, 2026 (support links and setup guidance)</p>
     </header>
 
     <div class="grid">
@@ -279,7 +279,7 @@
             <p><strong>Practical summary:</strong> a free Gemini API key may be enough to test Chronicle, but it should be treated as best-effort only. For dependable real-world extraction, especially on hard PDFs or modern magazine/newspaper files, a higher-quota Gemini API setup is strongly recommended. A Claude.ai free account or chat subscription is not the same thing as Claude API access for Chronicle.</p>
           </div>
           <div class="note">
-            <p><strong>Free-tier planning example (rough only):</strong> Gemini 2.5 Pro may handle around 500 pages/day, while Gemini 2.5 Flash may handle around 1,000 pages/day. Actual throughput varies by document complexity, retries/rate limits, file types, and provider-side limits.</p>
+            <p><strong>Free-tier planning example (rough only):</strong> There is no fixed pages-per-day allowance in Chronicle. Check your provider account for current limits. Throughput varies by model, document complexity, retries, request sizes and provider quotas.</p>
           </div>
           <div class="warning">
             <p>Do not process sensitive records on an account tier that does not meet your confidentiality requirements.</p>
@@ -290,7 +290,7 @@
         <section id="private-offline" aria-labelledby="private-offline-title">
           <h2 id="private-offline-title">Private Offline Mode</h2>
           <p>Private Offline Mode lets Chronicle attempt extraction on the local computer without uploading the document to an online provider. It is intended for sensitive documents, internet outages, and emergency scans where a possible accessible result is better than no result.</p>
-          <p>Private Offline Mode is included in the packaged Chronicle app. End users do not need to install Python, Ollama, model files, or separate dependencies.</p>
+          <p>Private Offline Mode uses your own local Ollama installation. Install and open Ollama, then download the model with <code>ollama pull qwen2.5vl:7b</code>. Chronicle can also ask the Ollama command-line tool to download the model when it is available. Packaged app users do not need Python. Internet is needed for initial setup and model download.</p>
           <h3>Best offline candidates</h3>
           <ul>
             <li>Clean modern typed PDFs.</li>
@@ -406,9 +406,9 @@
                 <td>After a successful scan, Chronicle auto-adds detected output files and selects them in the queue.</td>
               </tr>
               <tr>
-                <th scope="row">Open User Guide / About Build / Support Chronicle</th>
+                <th scope="row">Open User Guide / About Chronicle / Support Chronicle</th>
                 <td>Help menu entries for documentation, build details, and optional donation links.</td>
-                <td><strong>Support Chronicle...</strong> offers <strong>Buy Me a Coffee</strong> and <strong>PayPal</strong>. <strong>About Build...</strong> shows build stamp, runtime, Python, and wx version.</td>
+                <td><strong>Support Chronicle...</strong> offers <strong>GitHub Sponsors: One-time</strong>, <strong>GitHub Sponsors: Monthly</strong>, <strong>Buy Me a Coffee</strong>, and <strong>PayPal</strong>. <strong>About Chronicle...</strong> shows the app version, runtime type, Python, and wx version, with optional GitHub sponsorship actions.</td>
               </tr>
             </tbody>
           </table>
@@ -545,7 +545,7 @@
         <section id="prefs" aria-labelledby="prefs-title">
           <h2 id="prefs-title">7. Preferences (All Pickers)</h2>
           <p>Chronicle uses picker-style controls for multi-choice settings so screen readers announce options consistently.</p>
-          <p><strong>Hardcoded fidelity rules:</strong> Chronicle is configured for zero guessing and no broad spelling correction. A narrow readability exception allows intelligent column splicing, false-punctuation cleanup, and obvious print-artifact repair when the intended reading is clearly recoverable and factual meaning is preserved. If <em>Legacy Punctuation Mode</em> is enabled, only punctuation/spacing can be normalized beyond those layout repairs. Reading may also take a bit longer when punctuation modernization or abbreviation expansion is enabled, because Chronicle has to correct punctuation, suppress false punctuation from broken layouts, and expand abbreviations before finalizing the output. The modern punctuation post-processor also hardcodes spacing repair for cleaned `.-` and `,-` sequences so adjacent words do not jam together after archaic dash removal.</p>
+          <p><strong>Reading fidelity:</strong> Chronicle is configured for zero guessing and no broad spelling correction. A narrow readability exception allows intelligent column splicing, false-punctuation cleanup, and obvious print-artifact repair when the intended reading is clearly recoverable and factual meaning is preserved. If <em>Legacy Punctuation Mode</em> is enabled, only punctuation/spacing can be normalized beyond those layout repairs. Reading may also take a bit longer when punctuation modernization or abbreviation expansion is enabled, because Chronicle has to correct punctuation, suppress false punctuation from broken layouts, and expand abbreviations before finalizing the output. Spacing repair also keeps adjacent words from joining after punctuation cleanup.</p>
           <h3>Intelligent Column Splicing and Print Artifact Correction</h3>
           <ul>
             <li>Chronicle can rejoin words split across line or column breaks when the visible hyphen exists only because of physical layout constraints.</li>
@@ -799,10 +799,12 @@
         <section id="build" aria-labelledby="build-title">
           <h2 id="build-title">13. Build and Frozen App Notes</h2>
           <h3>Help, About, and Support entries</h3>
+          <p>GitHub sponsorship actions described here are available in the updated source build; existing 1.1.3 packages have Buy Me a Coffee and PayPal in the Support menu. The links below work with either version.</p>
+          <p>Support is optional. <a href="https://github.com/sponsors/harry6116?frequency=one-time">Give once with GitHub Sponsors</a> for a single payment with no monthly commitment, or <a href="https://github.com/sponsors/harry6116">choose monthly sponsorship</a>. GitHub sign-in is required.</p>
           <ul>
             <li><strong>Help &gt; Open User Guide</strong> opens this documentation in the default browser.</li>
-            <li><strong>Help &gt; About Build...</strong> shows build and runtime details useful for support.</li>
-            <li><strong>Help &gt; Support Chronicle...</strong> opens a donation chooser with <strong>Buy Me a Coffee</strong> and <strong>PayPal</strong>.</li>
+            <li><strong>Help &gt; About Chronicle...</strong> shows build and runtime details, plus a GitHub Sponsors button. One-time support is available without a monthly commitment.</li>
+            <li><strong>Help &gt; Support Chronicle...</strong> opens a donation chooser with <strong>GitHub Sponsors: One-time</strong>, <strong>GitHub Sponsors: Monthly</strong>, <strong>Buy Me a Coffee</strong>, and <strong>PayPal</strong>.</li>
             <li>On macOS, <strong>File &gt; Check Mac Folder Access...</strong> prompts for folder-access remediation when permission issues block scanning or folder ingestion.</li>
           </ul>
 
@@ -816,10 +818,10 @@
             <p>Press <kbd>F1</kbd> on a Chronicle control to read help for that control. The help window includes <strong>Open Full User Guide</strong> and <strong>Close</strong> buttons. Press <kbd>Escape</kbd> to close help and return to the original control. You can also open this guide from <strong>Help &gt; Open User Guide</strong>.</p>
           </div>
           <ul>
-            <li><strong>Help &gt; About Build...</strong> shows the current build and runtime details useful for support.</li>
+            <li><strong>Help &gt; About Chronicle...</strong> shows build and runtime details, plus a GitHub Sponsors button.</li>
             <li><strong>Help &gt; Check for Updates</strong> checks for a newer download. Release notes use a standard read-only text field: use arrow keys to read, select and copy text, and Tab or Shift+Tab to visit the update actions. Escape closes the notes. Packaged apps can install an available update after confirmation; the queue-close choice is completed before installation starts.</li>
             <li><strong>Remind Me Later</strong> closes the update notes and keeps Chronicle running. A quiet reminder appears in the status bar and processing log next time Chronicle starts, until that version is installed. It does not schedule a restart. When ready, return to Check for Updates and choose <strong>Install and Restart Now</strong>. <strong>Go to Release</strong> opens the selected release in your browser.</li>
-            <li><strong>Help &gt; Support Chronicle...</strong> opens the in-app donation chooser with <strong>Buy Me a Coffee</strong> and <strong>PayPal</strong>.</li>
+            <li><strong>Help &gt; Support Chronicle...</strong> opens the in-app donation chooser with <strong>GitHub Sponsors: One-time</strong>, <strong>GitHub Sponsors: Monthly</strong>, <strong>Buy Me a Coffee</strong>, and <strong>PayPal</strong>.</li>
           </ul>
           <p class="top-link"><a href="#page-title">Back to top</a></p>
         </section>

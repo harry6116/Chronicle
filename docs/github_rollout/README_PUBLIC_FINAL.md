@@ -120,6 +120,11 @@ Current release downloads:
 
 If Chronicle helps your work and you want to support ongoing development, you can donate here:
 
+- [GitHub Sponsors](https://github.com/sponsors/harry6116)
+- [Make a one-time contribution](https://github.com/sponsors/harry6116?frequency=one-time) — no monthly commitment.
+
+Support is optional. On GitHub Sponsors, choose **One-time** for a single payment or **Monthly** for recurring support. GitHub requires sign-in to sponsor.
+
 - Buy Me a Coffee: `https://buymeacoffee.com/thevoiceguy`
 - PayPal: `https://paypal.me/MarshallVoiceovers`
 

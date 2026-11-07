@@ -1,0 +1,53 @@
+name: Chronicle website
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/public/index.html'
+      - 'docs/public/showcase_assets/**'
+      - 'docs/public/showcase_samples/**'
+      - 'docs/user/chronicle_help.html'
+      - 'tools/build_pages_site.py'
+      - '.github/workflows/pages.yml'
+  release:
+    types: [published, edited, released, unpublished, deleted]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+jobs:
+  deploy:
+    if: >-
+      github.repository == 'harry6116/Chronicle' &&
+      (github.event_name != 'release' || github.event.action == 'deleted' ||
+       github.event.action == 'unpublished' ||
+       (!github.event.release.draft && !github.event.release.prerelease))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Read latest published release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api repos/harry6116/Chronicle/releases/latest > "$RUNNER_TEMP/chronicle-release.json"
+      - name: Prepare website
+        run: python tools/build_pages_site.py --release-json "$RUNNER_TEMP/chronicle-release.json" --output "$RUNNER_TEMP/chronicle-site"
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: ${{ runner.temp }}/chronicle-site
+      - uses: actions/deploy-pages@v4
+        id: deployment

@@ -2,7 +2,7 @@
 
 Chronicle is an accessibility-first document recovery tool for difficult real-world material: archival scans, war diaries, laws and regulations, academic journals, tables, handwriting, newspapers, forms, office reports, government records, long-form books, comics, manga, graphic novels, and mixed-format batches.
 
-Last Updated: November 1, 2026
+Last Updated: November 8, 2026
 
 ## Getting Started
 
@@ -666,6 +666,11 @@ Always verify important outputs against the original source documents.
 ## Support the Project
 
 If Chronicle helps your work and you want to support ongoing development, community support is appreciated.
+
+- [GitHub Sponsors](https://github.com/sponsors/harry6116)
+- [Make a one-time contribution](https://github.com/sponsors/harry6116?frequency=one-time) — no monthly commitment.
+
+Support is optional. On GitHub Sponsors, choose **One-time** for a single payment or **Monthly** for recurring support. GitHub requires sign-in to sponsor.
 
 - [Buy Me a Coffee](https://buymeacoffee.com/thevoiceguy)
 - [Donate via PayPal](https://paypal.me/MarshallVoiceovers)
