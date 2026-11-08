@@ -1,3 +1,4 @@
+from chronicle_app.services.runtime_policies import is_gemini_deep_model
 import os
 import platform
 import time
@@ -62,6 +63,7 @@ from chronicle_app.services.app_files import (
     resolve_runtime_crash_log_path as shared_resolve_runtime_crash_log_path,
 )
 from chronicle_app.services.security import sanitize_log_text
+from chronicle_app.services.comic_images import append_comic_detail_views, comic_generation_config
 from chronicle_app.services.prompting import (
     build_prompt as build_shared_prompt,
     enforce_archival_heading_structure as shared_enforce_archival_heading_structure,
@@ -95,6 +97,7 @@ from chronicle_core import (
     write_footer as core_write_footer,
 )
 from chronicle_app.services.document_processors import (
+    prepare_comic_image_for_scan,
     PRESENTATION_EXTENSIONS,
     FITZ_TEXT_EXTENSIONS,
     RENDERABLE_DOCUMENT_EXTENSIONS,
@@ -799,7 +802,7 @@ def get_pdf_chunk_pages(model_name, profile_key, total_pages, default_chunk_page
     if profile_key in {"legal", "government"}:
         if total_pages >= 150:
             return 1
-        if "gemini-2.5-pro" in model_name and total_pages >= 60:
+        if is_gemini_deep_model(model_name) and total_pages >= 60:
             return 2
     if total_pages >= 60:
         return 2
@@ -819,12 +822,20 @@ def process_pdf(client, pdf_path, output_path, format_type, prompt_text, model_n
         current_page = 0
 
         while current_page < total_pages:
-            image_bytes = _render_pdf_page_to_png_bytes(doc, current_page)
+            comic_page = "COMICS / MANGA / GRAPHIC NOVELS RULES:" in prompt_text
+            if comic_page:
+                page = doc.load_page(current_page)
+                zoom = max(2.0, 3500 / max(float(page.rect.width), float(page.rect.height), 1.0))
+                image_bytes = _render_pdf_page_to_png_bytes(doc, current_page, zoom=zoom)
+            else:
+                image_bytes = _render_pdf_page_to_png_bytes(doc, current_page)
             temp_png = _write_temp_png("chronicle_cli_pdf_page_", image_bytes)
             page_fingerprint = sha256_text(image_bytes.hex())
 
             try:
-                if "claude" in model_name or "gpt" in model_name:
+                if comic_page:
+                    process_image(client, temp_png, output_path, format_type, prompt_text, model_name, file_obj, memory_list)
+                elif "claude" in model_name or "gpt" in model_name:
                     payload = build_multimodal_payload(model_name, prompt_text, temp_png, "image/png")
                     cache_key = build_request_cache_key(
                         model_name, prompt_text, "pdf-vision", f"{current_page}:{page_fingerprint}"
@@ -1003,10 +1014,13 @@ def process_image(client, file_path, output_path, format_type, prompt_text, mode
     if "MODERN NEWSPAPER / E-PAPER RULES" in prompt_text:
         profile_key = "modern_newspaper"
     staged_path = prepare_image_for_scan(file_path, log_cb=print)
-    enhanced_path = enhance_image_for_microtext(staged_path)
+    enhanced_path = staged_path
     try:
+        enhanced_path = prepare_comic_image_for_scan(staged_path) if "COMICS / MANGA / GRAPHIC NOVELS RULES:" in prompt_text else enhance_image_for_microtext(staged_path)
         if "claude" in model_name or "gpt" in model_name:
             payload = build_multimodal_payload(model_name, prompt_text, enhanced_path, "image/png")
+            if "COMICS / MANGA / GRAPHIC NOVELS RULES:" in prompt_text:
+                payload = append_comic_detail_views(payload, enhanced_path, model_name, build_multimodal_payload)
             cache_key = build_request_cache_key(model_name, prompt_text, "image", sha256_file(enhanced_path))
             stream_with_cache(
                 cache_key,
@@ -1028,7 +1042,10 @@ def process_image(client, file_path, output_path, format_type, prompt_text, mode
                         print(f"Warning: could not delete temporary Gemini upload {uploaded.name}: {sanitize_log_text(cleanup_ex)}")
                 try:
                     uploaded = wait_for_gemini_upload_ready(client, uploaded, poll_sec=2.0)
-                    response = generate_with_retry(client, model_name, [uploaded, prompt_text])
+                    contents = [uploaded, prompt_text]
+                    if "COMICS / MANGA / GRAPHIC NOVELS RULES:" in prompt_text:
+                        contents = append_comic_detail_views(contents, enhanced_path, model_name, build_multimodal_payload)
+                    response = generate_with_retry(client, model_name, contents)
                 except Exception:
                     _cleanup_upload()
                     raise
@@ -1115,7 +1132,7 @@ def generate_with_retry(client, model_name, contents, max_retries=API_MAX_RETRIE
                         messages=[{"role": "user", "content": contents}],
                         stream=True,
                     )
-                return client.models.generate_content_stream(model=model_name, contents=contents)
+                return client.models.generate_content_stream(model=model_name, contents=contents, config=comic_generation_config(contents, model_name))
             finally:
                 release_request_slot()
         except Exception as e:

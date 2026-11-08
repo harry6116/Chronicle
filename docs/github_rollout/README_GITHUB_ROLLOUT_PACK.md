@@ -2,7 +2,7 @@
 
 This folder contains publication-ready material for migrating Chronicle to a public repository.
 
-Current target release: `Chronicle 1.1.5`
+Current target release: `Chronicle 1.1.6`
 
 ## Contents
 

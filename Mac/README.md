@@ -42,3 +42,9 @@ This folder contains macOS launchers for Chronicle build, release, public-repo, 
 ## Generated Files
 
 Do not keep generated Finder metadata or Python cache directories in this folder. If they appear, they can be deleted.
+
+## Verified distribution output
+
+Mac builds use a disposable staging folder so a failed build does not remove the previous distribution app. They verify the app version, build stamp and signature before reporting success. The configured distribution folder receives the completed app, and copied files and symbolic links are checked against the build. A running distribution app must be closed before it can be refreshed.
+
+The default folder is `dist` under the build source. For builds in a separate workspace, set `CHRONICLE_MAC_DIST_DIR` to the intended distribution folder, or configure `mac_dist_dir` in `~/Library/Application Support/ChronicleMaintainer/build_paths.json`. The environment variable takes priority. Successful replacements remove their temporary backup; a failed verification restores the previous app.

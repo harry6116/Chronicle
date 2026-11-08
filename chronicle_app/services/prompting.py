@@ -85,7 +85,9 @@ def build_prompt(
         "To ensure WCAG-compliant screen reader accessibility, you must expand all historical, military, or "
         "shorthand abbreviations into their full, spoken-word equivalents based on the context of the sentence "
         "(e.g., expand 'Lieut.' to 'Lieutenant', 'Sgt.' to 'Sergeant', 'St.' to 'Street' or 'Saint'). Do not "
-        "change the underlying meaning of the text."
+        "change the underlying meaning of the text. Expand only when the local context is unambiguous. "
+        "Preserve printer imprints, production codes, catalogue/form/reference identifiers and personal initials "
+        "verbatim. Never expand part of a longer acronym or guess an unfamiliar abbreviation."
         if cfg.get("abbrev_expansion")
         else "Maintain exact original abbreviations."
     )
@@ -189,6 +191,11 @@ def build_prompt(
     custom_commands = str(cfg.get("custom_commands", "")).strip()
     academic_footnote_mode = cfg.get("academic_footnote_mode", "endnotes")
     academic_annotation_mode = cfg.get("academic_annotation_mode", "inline")
+    artifact_rule = (
+        "- PRINTED TEXT FIDELITY: Preserve printed misspellings, unusual names, singular/plural endings and every date digit exactly. Do not silently correct comic lettering from context or familiarity. Caption numbers are separate markers, never letters belonging to neighbouring words."
+        if cfg.get("doc_profile") == "comic"
+        else "- CONTEXTUAL ARTIFACT CORRECTION: If physical print damage, broken type, or poor ink quality creates an obvious minor print typo, you must correct it contextually to preserve screen-reader readability while strictly preserving the factual truth of the document. This exception is narrow: fix optical print artifacts such as `tuhe` -> `tube` only when the intended reading is visually/contextually clear."
+    )
 
     base = f"""CRITICAL RULES:
 - ZERO-CENSORSHIP: Transcribe all historical slurs/profanity verbatim. Do not redact.
@@ -199,7 +206,7 @@ def build_prompt(
 - HANDWRITING UNCERTAINTY POLICY: For handwritten text, do not complete words from context. If only fragments are legible, preserve those fragments and mark the uncertain part locally as `[Unclear Word: ...]` or `[Unclear Letters: ...]`. do not substitute a cleaner dictionary word from context. Do not expand abbreviated or broken handwritten words unless the missing letters are genuinely visible.
 - LINE BREAK AND COLUMN SPLICING: You must intelligently stitch together words that are hyphenated across line or column breaks. If a word is split (for example, `Mc-` on one line and `Kay` on the next), output it as a single, unhyphenated word (`McKay`). Do not preserve hyphens that exist solely because of physical margin constraints.
 - FALSE PUNCTUATION RESOLUTION: Never insert hallucinated periods or double punctuation caused by column breaks or visual artifacts. Ensure sentences flow continuously across lines. For example, do not output `bare feet. was cleaning`; output `bare feet was cleaning`.
-- CONTEXTUAL ARTIFACT CORRECTION: If physical print damage, broken type, or poor ink quality creates an obvious minor print typo, you must correct it contextually to preserve screen-reader readability while strictly preserving the factual truth of the document. This exception is narrow: fix optical print artifacts such as `tuhe` -> `tube` only when the intended reading is visually/contextually clear.
+{artifact_rule}
 - DENSE DOCUMENT RULE: If layout is crowded, re-read iteratively and recover all legible text before final output.
 - NO SUMMARIZATION: Do not compress, paraphrase, or condense content. Preserve document tone and structure.
 - STRUCTURE FIDELITY: Preserve hierarchical numbering/chains (e.g., 1, 1.1, 1.1.a) where present.
@@ -273,7 +280,7 @@ GENERAL THROUGHPUT RULES:
             "- HEADING DISCIPLINE: Even informal handwritten pages must begin with a concise accessible `<h1>` that reflects the visible page type, such as `Handwritten Diary Page`, `Handwritten Notes`, or `Notebook Page`.\n"
             "- SECTION DISCIPLINE: After the `<h1>`, add at least one `<h2>` for the main transcription block, such as `Transcription` or a visible page/date marker when present.\n"
             "- DIARY PAGE COMPLETION: Re-read the bottom quarter of the page before finalizing. Do not stop at the last fluent sentence if additional handwritten lines remain visible near the lower edge.\n"
-            "- PAGE-END HONESTY: If the page genuinely cuts off mid-thought, preserve the visible text and end with a local uncertainty tag rather than silently truncating the final line."
+            "- PAGE-END HONESTY: Preserve every visible word through the final line. A sentence continuing on the next page is not an unclear word: do not invent its continuation or mark legible final words uncertain merely because the sentence is unfinished."
         )
     elif profile == "medical":
         base += (
@@ -308,7 +315,7 @@ GENERAL THROUGHPUT RULES:
             "- Preserve military/technical acronyms exactly; do not normalize.\n"
             "- Rebuild dense casualty rolls into scoped tables.\n"
             "- Preserve war-diary time/location sequencing and operation-log chronology exactly.\n"
-            "- STRIKETHROUGH RECOVERY: If a date, rank, unit, or note is visibly struck through, preserve it explicitly as `[Struck through: ...]`. Do not flatten struck text into ordinary spans or plain paragraph text.\n"
+            "- STRIKETHROUGH RECOVERY: If any printed or handwritten text is visibly struck through, including cancelled title choices, dates, ranks, units and single-word corrections, preserve it explicitly as `[Struck through: ...]`. Do not flatten struck text into ordinary spans or plain paragraph text. If the cancelled word is unreadable, use `[Struck through: Unclear Word]` and preserve the neighbouring legible text.\n"
             "- Capture stamp overlays and handwritten marginal updates as separate tagged lines when they overlap body text."
         )
     elif profile == "intelligence":
@@ -437,18 +444,21 @@ GENERAL THROUGHPUT RULES:
             "COMICS / MANGA / GRAPHIC NOVELS RULES:\n"
             "- Treat each page as sequential visual storytelling, not ordinary prose, a newspaper, or a brochure. Preserve story reading order before decorative layout fidelity.\n"
             "- PANEL ORDER: Identify panels, caption boxes, speech balloons, thought balloons, signs, labels, and sound effects. Output them in the most likely human reading order for the source.\n"
-            "- SOURCE PANEL MAP: Use printed panel numbers when present, and preserve their sequence and boundaries. Otherwise number the actual story panels in reading order. Do not split one panel into several invented story beats. Do not turn a decorative title banner into an extra numbered panel; preserve any real banner dialogue or art description separately before Panel 1.\n"
+            "- SOURCE PANEL MAP: First map the actual enclosing frames and gutters across the entire page, including the bottom row. Use printed panel numbers when present, and preserve their sequence and boundaries. Numbers in a continuous narration strip may label caption fragments, not panels: verify them against the visible frame boundaries. Otherwise number the actual story panels in reading order. Do not split one panel into several invented story beats, viewpoints, or caption fragments. A large panel remains one panel even when several actions occur inside it or its narration wraps around an inset. Do not turn a decorative title banner into an extra numbered panel; preserve any real banner dialogue or art description separately before Panel 1.\n"
             "- READING DIRECTION: If the page visibly follows manga/right-to-left flow, use right-to-left panel order and note the page flow once near the start. Otherwise default to left-to-right, top-to-bottom order.\n"
-            "- PANEL STRUCTURE: For HTML output, you MUST begin with one `<h1>` page/comic title, then use `<h2>Panel 1</h2>`, `<h2>Panel 2</h2>`, and so on for each panel or story beat. Even a single-panel page must have `<h1>...</h1>` followed by `<h2>Panel 1</h2>`. Never leave a comic HTML page as loose paragraphs without headings. For DOCX/TXT output, use plain labels such as `Page 3`, `Panel 1`, `Caption`, `Speech`, `Thought`, `SFX`, and `Image Description`.\n"
+            "- PANEL STRUCTURE: For HTML output, you MUST begin with one `<h1>` page/comic title, then use `<h2>Panel 1</h2>`, `<h2>Panel 2</h2>`, and so on for each actual panel. Keep all panel headings at h2; do not group them into tiers or scenes with h3 panel headings. Emit only the content fragment, without document wrappers, CSS, or a table of contents. Even a single-panel page must have `<h1>...</h1>` followed by `<h2>Panel 1</h2>`. Never leave a comic HTML page as loose paragraphs without headings. For DOCX/TXT output, use plain labels such as `Page 3`, `Panel 1`, `Caption`, `Speech`, `Thought`, `SFX`, and `Image Description`.\n"
             "- NO EMPTY PANELS: Never emit an empty panel heading. Every `Panel N` section must contain at least one concrete item: an image description, visible dialogue, caption/narration, sign/label, or SFX line.\n"
-            "- SPEECH BALLOONS: Preserve balloon text verbatim. Attribute speakers only when the visual evidence is clear from balloon tails, repeated character labels, or visible context. If uncertain, use `Speaker uncertain` rather than guessing a character name.\n"
+            "- SPEECH BALLOONS: Preserve balloon text verbatim. Use brief appearance or position labels for speakers, such as `Boy at left` or `Man in striped clothes`; do not assign character proper names to generated speaker labels. Printed names inside balloon text must remain verbatim. If uncertain, use `Speaker uncertain` rather than guessing a character name.\n"
             "- CAPTIONS AND NARRATION: Keep narrator boxes, location cards, dates, and editorial captions distinct from spoken dialogue.\n"
             "- SMALL PRINT: Read narration beneath or between panels as well as balloons. Attach each printed caption to its source panel. Preserve legible title, byline, date, signs, and footer text separately; do not substitute a plot summary for printed words.\n"
+            "- CAPTION BOUNDARIES: Do not move narration words across frame boundaries merely to complete a sentence. Keep each printed caption fragment with its own frame even when the sentence continues in the next frame. Visible words on signs, clothing, and props need separate transcription paragraphs; do not leave them only inside an art description.\n"
+            "- ATTRIBUTION CHECK: Use appearance or positional descriptions throughout generated speaker labels and art descriptions, rather than assigning character proper names from memory. Keep all printed names in the actual transcription. Do not invent disguises or relationships. Verify which object actually carries a sign or label before naming that object. Describe visible postures without inventing intervening actions.\n"
             "- UNCERTAIN TEXT: Use [illegible] for unreadable words while preserving the surrounding legible text. Do not reconstruct dialogue from the plot, familiar characters, another edition, or an expected ending. Keep image descriptions separate from transcription and describe only visible evidence.\n"
             "- SOUND EFFECTS: Preserve visible sound effects and stylized lettering as a separate `SFX: ...` line when legible. Do not bury visible SFX only inside an image description. Do not invent sound words from the art alone.\n"
             "- ART DESCRIPTIONS: Every panel/story-beat section must include a concise `[Image Description: ...]` for meaningful action, setting, expressions, and scene changes, even when the panel also contains dialogue or captions. Do not describe every decorative stroke or reproduce artwork as visual layout code.\n"
             "- PAGE SPREADS: If a two-page spread is visible, keep spread-level reading order explicit and avoid mixing unrelated pages into one panel sequence.\n"
             "- TEXTLESS PANELS: Do not omit silent panels that carry story action. Emit a panel label with an image description when the panel has no readable text.\n"
+            "- COMPLETENESS CHECK: Before finishing, compare the output with every source frame through the final panel. Check each balloon, narration strip, sign, and SFX once in its own panel. Keep the title banner separate. Correct omitted, duplicated, or split panels before returning the page.\n"
             "- ACCESSIBILITY GOAL: Produce a reviewable accessible reading script for the comic page. Do not claim to recreate the visual comic, and do not summarize or replace panels with broad plot commentary."
         )
     elif profile == "slides":
@@ -627,6 +637,18 @@ def enforce_archival_heading_structure(content, fmt, doc_profile):
     has_h1 = "<h1" in lower
     has_h2 = "<h2" in lower
     if doc_profile == "comic":
+        if re.search(r'<img\b', content, flags=re.I):
+            from bs4 import BeautifulSoup
+            soup = BeautifulSoup(content, 'html.parser')
+            for image in soup.find_all('img'):
+                alt = str(image.get('alt') or '').strip()
+                description = soup.new_tag('p')
+                if alt:
+                    description.string = alt if alt.lower().startswith('[image description:') else f'[Image Description: {alt}]'
+                else:
+                    description.string = 'Image description unavailable. Review this panel against the source.'
+                image.replace_with(description)
+            content = str(soup)
         content = re.sub(
             r"(?im)^([ \t]*)(\[(?:Image Description|Panel Description):[^\n<]*\])\s*$",
             r"\1<p>\2</p>",

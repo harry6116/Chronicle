@@ -1,3 +1,4 @@
+from chronicle_app.services.runtime_policies import GEMINI_FAST_MODEL
 import os
 import time
 
@@ -481,7 +482,7 @@ class ApiKeyDialog(wx.Dialog):
         gemini_label = wx.StaticText(panel, label="Google Gemini Key:")
         self.tg = wx.TextCtrl(panel, style=wx.TE_PASSWORD)
         self.tg.SetName("Google Gemini API Key")
-        self.tg.SetToolTip("Enter your Google AI Studio API key, including a new authorisation key. Save stores it locally; Cancel discards changes.")
+        self.tg.SetToolTip("Enter your Google AI Studio API key. Save stores it locally; Cancel discards changes.")
         self.tg.SetValue(self.keys.get("gemini", ""))
         self.grid.Add(gemini_label, flag=wx.ALIGN_CENTER_VERTICAL)
         self.grid.Add(self.tg, proportion=1, flag=wx.EXPAND)
@@ -605,6 +606,7 @@ class PrefsDialog(wx.Dialog):
         vbox.Add(wx.StaticText(panel, label="Engine Override:"), flag=wx.LEFT | wx.TOP, border=10)
         self.model_override_choices = list(MODEL_OVERRIDE_CHOICES)
         self.mo = wx.Choice(panel, choices=[label for _, label in self.model_override_choices])
+        self.mo.SetName("Engine Override")
         self.mo.SetToolTip(
             "Optional. Automatic follows the document preset. A specific engine forces that provider when available."
         )
@@ -857,7 +859,7 @@ class PrefsDialog(wx.Dialog):
         self._apply_profile_preset(
             preset,
             key,
-            selected_model_name=self.cfg.get("model_name", "gemini-2.5-flash"),
+            selected_model_name=self.cfg.get("model_name", GEMINI_FAST_MODEL),
             keep_selected_model=True,
         )
         self.dp.SetToolTip(self._profile_tooltip_text(key))

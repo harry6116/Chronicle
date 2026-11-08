@@ -208,6 +208,7 @@
             <li><strong>Anthropic Claude:</strong> create an API key in the <a href="https://platform.claude.com/settings/keys">Claude Console</a>, scoped to the workspace you will use. This lets Chronicle select the workspace using the key alone. Claude chat access is separate from API access.</li>
             <li><strong>OpenAI:</strong> use a key from the <a href="https://platform.openai.com/api-keys">OpenAI developer platform</a>, including a project key. ChatGPT access is separate from API access.</li>
           </ul>
+          <p>Google One AI credits are separate from Gemini API billing and do not fund Chronicle’s API requests. Check billing for the project associated with your key in Google AI Studio. See <a href="https://aistudio.google.com/docs/google-ai-plans">Google’s plan and credit explanation</a>.</p>
           <p>Paste only the key, without quotes, spaces within the key or an HTTP header such as <code>Authorization: Bearer</code>. Surrounding whitespace is removed; no fixed prefix or length is required. Leave unused fields blank. All fields may be blank for Private Offline Mode.</p>
           <p><strong>Save API Keys</strong> stores entries locally and <strong>Cancel</strong> discards edits. Saving does not contact providers or verify authentication, permissions, model access, quota or billing. Use a short extraction to check access; online extraction can incur provider charges. Existing saved keys only need changing when you replace them. Known Google, OpenAI and Claude key formats are redacted from logs and support bundles; keep keys private.</p>
           <ul>
@@ -229,7 +230,7 @@
             <tbody>
               <tr>
                 <th scope="row"><code>gemini</code> (Google Gemini key)</th>
-                <td>Gemini 2.5 Flash, Gemini 2.5 Pro</td>
+                <td>Gemini 3.8 Flash, Gemini 3.1 Pro Preview</td>
               </tr>
               <tr>
                 <th scope="row"><code>claude</code> (Anthropic key)</th>
@@ -480,12 +481,12 @@
             </thead>
             <tbody>
               <tr>
-                <th scope="row">Gemini 2.5 Flash</th>
+                <th scope="row">Gemini 3.8 Flash</th>
                 <td>Fast batch throughput and lower-cost processing.</td>
                 <td>Less robust than Pro on degraded or complex documents.</td>
               </tr>
               <tr>
-                <th scope="row">Gemini 2.5 Pro</th>
+                <th scope="row">Gemini 3.1 Pro Preview</th>
                 <td>Difficult scans, archival nuance, dense structure.</td>
                 <td>Higher cost and slower than Flash.</td>
               </tr>
@@ -509,7 +510,7 @@
 
         <section id="presets" aria-labelledby="presets-title">
           <h2 id="presets-title">6. Document Presets</h2>
-          <p>Presets align reading rules with document class and automatically choose the most suitable engine behind the scenes. When <strong>Engine Override</strong> stays on <strong>Automatic</strong>, Chronicle can start easier PDFs on the faster Gemini path and keep <strong>Gemini 2.5 Pro</strong> in reserve for hard pages or hard whole-document cases. Manual engine overrides belong in Preferences and advanced settings, not on the main screen.</p>
+          <p>Presets align reading rules with document class and automatically choose the most suitable engine behind the scenes. When <strong>Engine Override</strong> stays on <strong>Automatic</strong>, Chronicle can start easier PDFs on the faster Gemini path and keep <strong>Gemini 3.1 Pro Preview</strong> in reserve for hard pages or hard whole-document cases. Manual engine overrides belong in Preferences and advanced settings. Gemini 2.5 Flash and Gemini 2.5 Pro remain available there for compatibility. Handwriting and comic profiles use Gemini 3.8 Flash automatically; military records use Gemini 3.1 Pro Preview. Gemini 3.1 Pro Preview availability can change; provider charges and processing time can differ from the older models.</p>
           <p>The broadest presets are now designed so that ordinary PDFs, damaged Word exports, messy HTML, and public-sector reports still come back as something cleaner and more accessible, not just as a literal copy of the source defects.</p>
           <table>
             <caption>Preset map</caption>
@@ -577,7 +578,7 @@
           </ul>
           <ul>
             <li>Document Profile</li>
-            <li>Engine Override (Automatic, Gemini 2.5 Flash, Gemini 2.5 Pro, Claude Sonnet 4.6, or GPT-4o)</li>
+            <li>Engine Override (Automatic, Gemini 3.8 Flash, Gemini 3.1 Pro Preview, Gemini 2.5 Flash, Gemini 2.5 Pro, Claude Sonnet 4.6, GPT-4o, or Private Offline Mode)</li>
             <li>Language Translation</li>
             <li>Translation Target Language</li>
             <li>Legacy Punctuation Mode</li>

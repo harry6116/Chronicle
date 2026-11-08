@@ -17,6 +17,7 @@ if str(BASE_DIR) not in sys.path:
     sys.path.insert(0, str(BASE_DIR))
 
 from chronicle_app.config import PROFILE_PRESETS
+from chronicle_app.services.runtime_policies import GEMINI_DEEP_MODEL, GEMINI_FAST_MODEL
 
 def resolve_default_pack_dir() -> Path:
     env_value = os.environ.get("CHRONICLE_BENCHMARK_PACK_DIR")
@@ -145,245 +146,245 @@ CASES = [
         key="handwritten_letter",
         relative_path="easy/handwritten-letter-resignation.jpg",
         profile="archival",
-        model="gemini-2.5-pro",
+        model=GEMINI_DEEP_MODEL,
         notes="Handwriting / archival correspondence check.",
     ),
     Case(
         key="war_diary",
         relative_path="easy/war-diary-page-1.jpg",
         profile="military",
-        model="gemini-2.5-pro",
+        model=GEMINI_DEEP_MODEL,
         notes="Strikethrough, archival fidelity, and military document structure.",
     ),
     Case(
         key="newspaper_scan",
         relative_path="easy/old-newspaper-scan-sample.pdf",
         profile="newspaper",
-        model="gemini-2.5-pro",
+        model=GEMINI_DEEP_MODEL,
         notes="Page metadata, article structure, and newspaper reading order.",
     ),
     Case(
         key="trove_age",
         relative_path="easy/trove-the-age-1930-04-30-page-1.pdf",
         profile="newspaper",
-        model="gemini-2.5-pro",
+        model=GEMINI_DEEP_MODEL,
         notes="Historical newspaper layout and attribution handling.",
     ),
     Case(
         key="services_form",
         relative_path="easy/services-australia-foi-form-ss293.pdf",
         profile="manual",
-        model="gemini-2.5-flash",
+        model=GEMINI_FAST_MODEL,
         notes="Form semantics, checkbox/radio states, and structured sections.",
     ),
     Case(
         key="aged_care_bill_2024_opening",
         relative_path="hard benchmark files part two/aged-care-bill-2024-page-001.pdf",
         profile="legal",
-        model="gemini-2.5-pro",
+        model=GEMINI_DEEP_MODEL,
         notes="Opening page sample from the 2024 Aged Care Bill benchmark source.",
     ),
     Case(
         key="aged_care_bill_2024_midpoint",
         relative_path="hard benchmark files part two/aged-care-bill-2024-page-288.pdf",
         profile="legal",
-        model="gemini-2.5-pro",
+        model=GEMINI_DEEP_MODEL,
         notes="Mid-document legislative sample page from the 2024 Aged Care Bill.",
     ),
     Case(
         key="aged_care_bill_2024_closing",
         relative_path="hard benchmark files part two/aged-care-bill-2024-page-574.pdf",
         profile="legal",
-        model="gemini-2.5-pro",
+        model=GEMINI_DEEP_MODEL,
         notes="Closing-page legislative sample from the 2024 Aged Care Bill benchmark source.",
     ),
     Case(
         key="war_diary_wo_95_1668_3_2_midpoint",
         relative_path="hard benchmark files part two/wo-95-1668-3-2-page-040.pdf",
         profile="military",
-        model="gemini-2.5-pro",
+        model=GEMINI_DEEP_MODEL,
         notes="Representative midpoint sample from WO 95/1668/3_2.",
     ),
     Case(
         key="war_diary_wo_95_1668_3_1_midpoint",
         relative_path="hard benchmark files part two/wo-95-1668-3-1-page-071.pdf",
         profile="military",
-        model="gemini-2.5-pro",
+        model=GEMINI_DEEP_MODEL,
         notes="Representative midpoint sample from WO 95/1668/3_1.",
     ),
     Case(
         key="war_diary_wo_95_1668_2_midpoint",
         relative_path="hard benchmark files part two/wo-95-1668-2-page-071.pdf",
         profile="military",
-        model="gemini-2.5-pro",
+        model=GEMINI_DEEP_MODEL,
         notes="Representative midpoint sample from WO 95/1668/2.",
     ),
     Case(
         key="war_diary_wo_95_1668_1_midpoint",
         relative_path="hard benchmark files part two/wo-95-1668-1-page-071.pdf",
         profile="military",
-        model="gemini-2.5-pro",
+        model=GEMINI_DEEP_MODEL,
         notes="Representative midpoint sample from WO 95/1668/1.",
     ),
     Case(
         key="gold_casio_guide_opening",
         relative_path="gold mix samples/casio_gshock_5611-page-001.pdf",
         profile="manual",
-        model="gemini-2.5-flash",
+        model=GEMINI_FAST_MODEL,
         notes="Operation-guide opening sample from the gold-mix corpus.",
     ),
     Case(
         key="gold_casio_guide_inner",
         relative_path="gold mix samples/casio_gshock_5611-page-004.pdf",
         profile="manual",
-        model="gemini-2.5-flash",
+        model=GEMINI_FAST_MODEL,
         notes="Inner instruction page from the Casio operation guide.",
     ),
     Case(
         key="gold_cia_scan_opening",
         relative_path="gold mix samples/cia_rdp89_01258-page-001.pdf",
         profile="intelligence",
-        model="gemini-2.5-pro",
+        model=GEMINI_DEEP_MODEL,
         notes="Opening page from a scanned CIA record.",
     ),
     Case(
         key="gold_cia_scan_midpoint",
         relative_path="gold mix samples/cia_rdp89_01258-page-017.pdf",
         profile="intelligence",
-        model="gemini-2.5-pro",
+        model=GEMINI_DEEP_MODEL,
         notes="Midpoint page from a scanned CIA record.",
     ),
     Case(
         key="gold_criminal_code_opening",
         relative_path="gold mix samples/criminal_code_act_1995_vol1-page-001.pdf",
         profile="legal",
-        model="gemini-2.5-pro",
+        model=GEMINI_DEEP_MODEL,
         notes="Opening page from the Criminal Code Act 1995.",
     ),
     Case(
         key="gold_criminal_code_midpoint",
         relative_path="gold mix samples/criminal_code_act_1995_vol1-page-293.pdf",
         profile="legal",
-        model="gemini-2.5-pro",
+        model=GEMINI_DEEP_MODEL,
         notes="Midpoint legal-content sample from the Criminal Code Act 1995.",
     ),
     Case(
         key="gold_criminal_code_closing",
         relative_path="gold mix samples/criminal_code_act_1995_vol1-page-585.pdf",
         profile="legal",
-        model="gemini-2.5-pro",
+        model=GEMINI_DEEP_MODEL,
         notes="Closing-page legal-content sample from the Criminal Code Act 1995.",
     ),
     Case(
         key="gold_zoom_h6_opening",
         relative_path="gold mix samples/zoom_h6essential-page-001.pdf",
         profile="manual",
-        model="gemini-2.5-flash",
+        model=GEMINI_FAST_MODEL,
         notes="Opening page from the Zoom H6essential manual.",
     ),
     Case(
         key="gold_zoom_h6_inner",
         relative_path="gold mix samples/zoom_h6essential-page-072.pdf",
         profile="manual",
-        model="gemini-2.5-flash",
+        model=GEMINI_FAST_MODEL,
         notes="Inner workflow page from the Zoom H6essential manual.",
     ),
     Case(
         key="gold_anzac_history_opening",
         relative_path="gold mix samples/anzac_official_history_vol1-page-001.pdf",
         profile="military",
-        model="gemini-2.5-pro",
+        model=GEMINI_DEEP_MODEL,
         notes="Opening page from the official ANZAC history volume.",
     ),
     Case(
         key="gold_anzac_history_midpoint",
         relative_path="gold mix samples/anzac_official_history_vol1-page-150.pdf",
         profile="military",
-        model="gemini-2.5-pro",
+        model=GEMINI_DEEP_MODEL,
         notes="Mid-volume page from the official ANZAC history volume.",
     ),
     Case(
         key="gold_hamfest_before",
         relative_path="gold mix samples/hamfest_flyer_before.pdf",
         profile="office",
-        model="gemini-2.5-pro",
+        model=GEMINI_DEEP_MODEL,
         notes="Messy flyer PDF sample for layout cleanup and accessible restructuring.",
     ),
     Case(
         key="gold_middle_egyptian_opening",
         relative_path="gold mix samples/middle_egyptian_allen-page-002.pdf",
         profile="academic",
-        model="gemini-2.5-pro",
+        model=GEMINI_DEEP_MODEL,
         notes="Opening content page from Middle Egyptian.",
     ),
     Case(
         key="gold_middle_egyptian_midpoint",
         relative_path="gold mix samples/middle_egyptian_allen-page-263.pdf",
         profile="academic",
-        model="gemini-2.5-pro",
+        model=GEMINI_DEEP_MODEL,
         notes="Mid-book linguistic content page from Middle Egyptian.",
     ),
     Case(
         key="gold_middle_egyptian_index",
         relative_path="gold mix samples/middle_egyptian_allen-page-524.pdf",
         profile="academic",
-        model="gemini-2.5-pro",
+        model=GEMINI_DEEP_MODEL,
         notes="Index page from Middle Egyptian.",
     ),
     Case(
         key="gold_newspaper_issue1261581",
         relative_path="gold mix samples/nla_news_issue1261581-page-001.pdf",
         profile="newspaper",
-        model="gemini-2.5-pro",
+        model=GEMINI_DEEP_MODEL,
         notes="Gold-mix historical newspaper issue sample 1261581.",
     ),
     Case(
         key="gold_newspaper_issue2019607",
         relative_path="gold mix samples/nla_news_issue2019607-page-001.pdf",
         profile="newspaper",
-        model="gemini-2.5-pro",
+        model=GEMINI_DEEP_MODEL,
         notes="Gold-mix historical newspaper issue sample 2019607.",
     ),
     Case(
         key="gold_titanic_csv",
         relative_path="gold mix samples/titanic.csv",
         profile="tabular",
-        model="gemini-2.5-pro",
+        model=GEMINI_DEEP_MODEL,
         notes="CSV table benchmark from the gold-mix corpus.",
     ),
     Case(
         key="gold_trivia_xlsx",
         relative_path="gold mix samples/trivia.xlsx",
         profile="tabular",
-        model="gemini-2.5-pro",
+        model=GEMINI_DEEP_MODEL,
         notes="XLSX table benchmark from the gold-mix corpus.",
     ),
     Case(
         key="gold_valimaki_opening",
         relative_path="gold mix samples/valimaki_taslp2010-page-001.pdf",
         profile="academic",
-        model="gemini-2.5-pro",
+        model=GEMINI_DEEP_MODEL,
         notes="Opening page from the Valimaki/Nam/Smith/Abel paper.",
     ),
     Case(
         key="gold_valimaki_midpoint",
         relative_path="gold mix samples/valimaki_taslp2010-page-007.pdf",
         profile="academic",
-        model="gemini-2.5-pro",
+        model=GEMINI_DEEP_MODEL,
         notes="Mid-paper figure/math page from the Valimaki/Nam/Smith/Abel paper.",
     ),
     Case(
         key="gold_yunzii_manual_opening",
         relative_path="gold mix samples/yunzii_c75_manual-page-001.pdf",
         profile="manual",
-        model="gemini-2.5-flash",
+        model=GEMINI_FAST_MODEL,
         notes="Opening page from the YUNZII C75 manual.",
     ),
     Case(
         key="gold_yunzii_manual_inner",
         relative_path="gold mix samples/yunzii_c75_manual-page-006.pdf",
         profile="manual",
-        model="gemini-2.5-flash",
+        model=GEMINI_FAST_MODEL,
         notes="Inner instruction page from the YUNZII C75 manual.",
     ),
 ]
@@ -416,6 +417,23 @@ def resolve_gemini_key_path() -> Path:
 
 def load_gemini_client() -> Any:
     from google import genai
+
+    # An explicit benchmark credential overrides the app, otherwise use the
+    # same saved provider key as the GUI before considering legacy text files.
+    if not os.environ.get("CHRONICLE_GEMINI_API_KEY_FILE"):
+        if sys.platform == "darwin":
+            app_data = Path.home() / "Library/Application Support/Chronicle"
+        elif os.name == "nt":
+            appdata = os.environ.get("APPDATA")
+            app_data = (Path(appdata) if appdata else Path.home()) / "Chronicle"
+        else:
+            app_data = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "Chronicle"
+        saved_keys = app_data / "api_keys.json" if app_data else None
+        if saved_keys and saved_keys.exists():
+            api_key = json.loads(saved_keys.read_text(encoding="utf-8")).get("gemini", "")
+            if not isinstance(api_key, str) or not api_key.strip():
+                raise SystemExit("No Gemini API key is saved in Chronicle. Save one in the app or set CHRONICLE_GEMINI_API_KEY_FILE.")
+            return genai.Client(api_key=api_key.strip())
 
     key_path = resolve_gemini_key_path()
     if not key_path.exists():
@@ -616,9 +634,12 @@ def run_case_with_watchdog(
 
 
 def audit_html_output(path: Path) -> dict:
+    from bs4 import BeautifulSoup
     from tools.comic_accuracy_audit import extract_panels
 
     text = path.read_text(encoding="utf-8", errors="ignore")
+    soup = BeautifulSoup(text, "html.parser")
+    html_root = soup.find("html")
     lower = text.lower()
     stripped = text.lstrip()
     img_with_alt = bool(
@@ -632,8 +653,8 @@ def audit_html_output(path: Path) -> dict:
         re.search(r"(?im)^\s*\[(?:Image Description|Panel Description):[^\n<]*\]\s*$", text)
     )
     checks = {
-        "has_lang_dir_root": '<html lang="' in lower and ' dir="' in lower,
-        "has_main_landmark": '<main id="content" role="main">' in lower,
+        "has_lang_dir_root": bool(html_root and html_root.get("lang") and html_root.get("dir") in {"ltr", "rtl", "auto"}),
+        "has_main_landmark": bool(soup.find("main") or soup.find(attrs={"role": "main"})),
         "has_page_header_cite": "<header><cite>" in lower,
         "has_source_footer_cite": "<footer><cite>" in lower,
         "has_h1": "<h1" in lower,
@@ -796,12 +817,14 @@ def accessibility_gate_failures(report: dict, fail_under: float = 100.0) -> list
 def build_markdown_summary(report: dict) -> str:
     summary = report.get("summary", summarize_report(report))
     lines = [
-        "# Chronicle Benchmark Scorecard",
+        "# Chronicle Structural Accessibility Scorecard",
+        "",
+        "These checks grade output structure only. They do not certify transcription accuracy, completeness, reading order, or visual descriptions against the source.",
         "",
         f"- Generated: {report.get('generated_at', 'unknown')}",
         f"- Cases graded: {summary['cases_graded']} of {summary['cases_total']}",
         f"- Average score: {summary['average_score']}/100",
-        f"- Overall grade: {summary['overall_grade']}",
+        f"- Overall structural grade: {summary['overall_grade']}",
         f"- A+ cases: {summary['a_plus_count']}",
         "",
     ]

@@ -1,3 +1,4 @@
+from chronicle_app.services.runtime_policies import is_gemini_deep_model
 import gc
 import concurrent.futures
 import html
@@ -18,6 +19,7 @@ import urllib.request
 from chronicle_app.services.processing_runtime import CLAUDE_FILES_API_BETA
 from chronicle_app.services.processing_runtime import GEMINI_GENERATE_TIMEOUT_MS
 from chronicle_app.services.processing_runtime import PrecleanStream
+from chronicle_app.services.document_processors import process_img as process_comic_image
 from chronicle_app.services.dense_newspaper_rendering import dense_newspaper_visible_chars
 from chronicle_app.services.dense_newspaper_rendering import render_plain_newspaper_ocr_as_html
 from chronicle_app.services.dense_newspaper_rendering import stream_plain_newspaper_ocr_as_html
@@ -188,7 +190,7 @@ def process_pdf(
         return (file_size_mb / max(1, total_document_pages)) >= 0.9
 
     def is_gemini_pro_model(request_model):
-        return "gemini-2.5-pro" in normalize_model_name(request_model).lower()
+        return is_gemini_deep_model(request_model)
 
     def is_gemini_model(request_model):
         return "gemini" in normalize_model_name(request_model).lower()
@@ -209,6 +211,7 @@ def process_pdf(
         dense_newspaper_default_tile_count=DENSE_NEWSPAPER_DEFAULT_TILE_COUNT,
         dense_newspaper_max_tile_count=DENSE_NEWSPAPER_MAX_TILE_COUNT,
         dense_newspaper_tile_overlap_ratio=DENSE_NEWSPAPER_TILE_OVERLAP_RATIO,
+        min_long_edge=3500 if str(doc_profile).lower() == "comic" else 0,
     )
     build_pdf_slice_bytes = page_renderer.build_pdf_slice_bytes
     build_page_png_bytes = page_renderer.build_page_png_bytes
@@ -1586,6 +1589,31 @@ def process_pdf(
     while curr < total:
         if pause_cb:
             pause_cb()
+        if str(doc_profile).lower() == "comic":
+            fd, rendered_path = mkstemp_fn(prefix="chronicle_comic_page_", suffix=".png", dir=tempdir_fn())
+            try:
+                with os.fdopen(fd, "wb") as rendered:
+                    rendered.write(build_page_png_bytes(curr))
+                page_memory = []
+                process_comic_image(
+                    client, rendered_path, out, fmt, prompt, model, None, page_memory, log_cb,
+                    pause_cb=pause_cb, enhance_image_fn=lambda image: image,
+                    build_payload_fn=build_payload_fn, build_request_cache_key_fn=build_request_cache_key_fn,
+                    sha256_file_fn=sha256_file_fn, stream_with_cache_fn=stream_with_cache_fn,
+                    generate_retry_fn=generate_retry_fn, remove_fn=remove_fn,
+                )
+                generated = "".join(page_memory)
+                if not generated.strip():
+                    raise RuntimeError("The comic page returned no readable output.")
+                emit_page_output(curr, generated)
+            finally:
+                if exists_fn(rendered_path):
+                    remove_fn(rendered_path)
+            methods[curr] = "comic-image-details"
+            report_page(curr)
+            report_progress(1, curr)
+            curr += 1
+            continue
         remaining = total - curr
         effective_profile = "newspaper" if "HISTORICAL NEWSPAPER RULES" in prompt else str(doc_profile or "standard")
         chunk = min(
@@ -1775,7 +1803,7 @@ def process_pdf(
                         log_cb(
                             f"[Gemini PDF] Requesting model output for {page_span} via {normalize_model_name(model)}."
                         )
-                        if is_dense_newspaper_pdf() and "gemini-2.5-pro" in normalize_model_name(model).lower():
+                        if is_dense_newspaper_pdf() and is_gemini_deep_model(model):
                             log_cb(
                                 "[Gemini PDF] Dense newspaper Pro request is using bounded REST streaming when available "
                                 "so a silent stream cannot stall the run."
@@ -1872,7 +1900,7 @@ def process_pdf(
                                     f"[Gemini PDF] Requesting escalated model output for source page "
                                     f"{selected_page_indices[curr] + 1} via {normalize_model_name(auto_escalation_model)}."
                                 )
-                                if "gemini-2.5-pro" in normalize_model_name(auto_escalation_model).lower():
+                                if is_gemini_deep_model(auto_escalation_model):
                                     response = stream_gemini_file_rest_text(
                                         auto_escalation_model,
                                         uploaded,
@@ -1967,7 +1995,7 @@ def process_pdf(
                                         f"[Gemini PDF] Requesting dense-page recovery output for source page "
                                         f"{selected_page_indices[curr] + 1} via {normalize_model_name(model)}."
                                     )
-                                    if "gemini-2.5-pro" in normalize_model_name(model).lower():
+                                    if is_gemini_deep_model(model):
                                         response = stream_gemini_file_rest_text(
                                             model,
                                             uploaded,

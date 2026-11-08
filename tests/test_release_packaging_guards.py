@@ -86,12 +86,13 @@ class ReleasePackagingGuardsTest(unittest.TestCase):
             with mock.patch.object(build_mac.subprocess, "run") as signing:
                 build_mac.finalize_app_metadata(app, ROOT / "chronicle_gui.py")
             info = plistlib.loads(metadata.read_bytes())
-            self.assertEqual(info["CFBundleShortVersionString"], "1.1.5")
-            self.assertEqual(info["CFBundleVersion"], "1.1.5")
+            self.assertEqual(info["CFBundleShortVersionString"], "1.1.6")
+            self.assertEqual(info["CFBundleVersion"], "1.1.6")
             self.assertEqual(info["CFBundleIdentifier"], "Chronicle")
             self.assertIn("--sign", signing.call_args.args[0])
 
     def test_public_snapshot_excludes_assistant_and_machine_state(self):
+        self.assertFalse(prepare_public_repo_snapshot.should_exclude("tools/refresh_mac_dist.py"))
         from tools import build_source_archive
         for rel in ("AGENTS.md", ".agents/skills/example/SKILL.md", "skills-lock.json", "CONTINUITY.md", "Chronicle.spec", "docs/internal/HANDOFF.md"):
             with self.subTest(path=rel):

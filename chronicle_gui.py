@@ -1,3 +1,4 @@
+from chronicle_app.services.runtime_policies import GEMINI_FAST_MODEL
 import os, sys, glob, json, time, re, threading, platform, subprocess, logging, shutil, webbrowser, random, html, csv, io, hashlib, traceback, faulthandler
 from collections import OrderedDict
 import base64
@@ -445,7 +446,7 @@ if getattr(sys, 'frozen', False):
 
 # --- CONSTANTS ---
 APP_NAME = "Chronicle"
-APP_VERSION = "1.1.5"
+APP_VERSION = "1.1.6"
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
@@ -615,7 +616,7 @@ def profile_tooltip_text(profile_key):
     }
     preset = PROFILE_PRESETS.get(profile_key, PROFILE_PRESETS["standard"])
     label = PROFILE_KEY_TO_LABEL.get(profile_key, "Standard")
-    model_label = MODEL_LABEL_BY_KEY.get(preset.get("model_name", "gemini-2.5-flash"), "Gemini 2.5 Flash")
+    model_label = MODEL_LABEL_BY_KEY.get(preset.get("model_name", GEMINI_FAST_MODEL), "Gemini 3.8 Flash")
     translation_label = {
         "none": "Disabled",
         "both": "Keep original + bracketed translation",
@@ -795,7 +796,7 @@ def wait_for_gemini_upload_ready(client, uploaded, poll_sec=2.5, max_wait_sec=18
 
 def apply_profile_preset(cfg, profile_key, selected_model_name=None, keep_selected_model=True):
     preset = PROFILE_PRESETS.get(profile_key, PROFILE_PRESETS["standard"])
-    current_model = selected_model_name or cfg.get("model_name") or preset.get("model_name", "gemini-2.5-flash")
+    current_model = selected_model_name or cfg.get("model_name") or preset.get("model_name", GEMINI_FAST_MODEL)
     cfg.update(preset)
     if keep_selected_model:
         cfg["model_name"] = current_model
@@ -1400,7 +1401,7 @@ class MainFrame(wx.Frame):
         self.autorun_close_on_finish = False
         self.autorun_original_cfg = None
         self.cfg = load_json(CONFIG_FILE, {
-            'format_type': 'html', 'model_name': 'gemini-2.5-flash', 'model_override': '', 'doc_profile': 'standard',
+            'format_type': 'html', 'model_name': GEMINI_FAST_MODEL, 'model_override': '', 'doc_profile': 'standard',
             'translate_mode': 'none', 'collision_mode': 'auto', 'merge_files': False,
             'translate_target': 'English',
             'image_descriptions': True, 'modernize_punctuation': False, 'unit_conversion': False,
@@ -2057,7 +2058,7 @@ class MainFrame(wx.Frame):
                 self.queue,
                 paths,
                 settings=settings,
-                engine_label=self.LabelFromModel(settings.get("model_name", "gemini-2.5-flash")),
+                engine_label=self.LabelFromModel(settings.get("model_name", GEMINI_FAST_MODEL)),
                 row_setting_keys=ROW_SETTING_KEYS,
                 source_root=os.path.dirname(paths[0]) if len(paths) == 1 else None,
             )
@@ -2077,7 +2078,7 @@ class MainFrame(wx.Frame):
         for key, value in MODEL_LABEL_BY_KEY.items():
             if value == label:
                 return key
-        return 'gemini-2.5-flash'
+        return GEMINI_FAST_MODEL
 
     def LabelFromModel(self, model_name):
         return MODEL_LABEL_BY_KEY.get(model_name, 'Gemini 2.5 Flash')
@@ -2421,7 +2422,7 @@ class MainFrame(wx.Frame):
         control_settings = build_control_settings_for_profile(
             self.cfg,
             profile_key,
-            selected_model_name=self.cfg.get("model_name", "gemini-2.5-flash"),
+            selected_model_name=self.cfg.get("model_name", GEMINI_FAST_MODEL),
         )
         tmap = {'none': 0, 'both': 1, 'english_only': 2}
         self.run_translate_choice.SetSelection(tmap.get(control_settings.get("translate_mode", "none"), 0))
@@ -2477,11 +2478,11 @@ class MainFrame(wx.Frame):
             if key not in normalized:
                 normalized[key] = val
         normalized["model_name"] = self.ResolveModelNameForAvailableKeys(
-            normalized.get("model_name", "gemini-2.5-flash")
+            normalized.get("model_name", GEMINI_FAST_MODEL)
         )
         normalized["model_override"] = str(normalized.get("model_override", "") or "")
         row["settings"] = {key: normalized.get(key) for key in ROW_SETTING_KEYS}
-        row["engine"] = self.LabelFromModel(row["settings"].get("model_name", "gemini-2.5-flash"))
+        row["engine"] = self.LabelFromModel(row["settings"].get("model_name", GEMINI_FAST_MODEL))
         return row["settings"]
 
     def FormatRowSettingsSummary(self, settings):
@@ -3534,7 +3535,7 @@ class MainFrame(wx.Frame):
 
     def AddPathEntries(self, paths, source_root=None):
         settings = self.BuildSettingsFromControls()
-        engine = self.LabelFromModel(settings.get("model_name", "gemini-2.5-flash"))
+        engine = self.LabelFromModel(settings.get("model_name", GEMINI_FAST_MODEL))
         return shared_add_path_entries(
             self.queue,
             paths,

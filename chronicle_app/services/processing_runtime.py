@@ -8,6 +8,7 @@ import time
 from collections import OrderedDict
 
 from chronicle_app.services.runtime_policies import get_online_engine_settings, normalize_model_name
+from chronicle_app.services.comic_images import comic_generation_config
 
 CLAUDE_FILES_API_BETA = "files-api-2025-04-14"
 _ONLINE_ENGINE_SETTINGS = get_online_engine_settings()
@@ -370,7 +371,7 @@ def generate_retry(
                 return client.models.generate_content_stream(
                     model=model,
                     contents=contents,
-                    config={"http_options": {"timeout": GEMINI_GENERATE_TIMEOUT_MS}},
+                    config={"http_options": {"timeout": GEMINI_GENERATE_TIMEOUT_MS}, **comic_generation_config(contents, model)},
                 )
             finally:
                 runtime.release_request_slot()

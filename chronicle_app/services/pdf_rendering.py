@@ -15,6 +15,7 @@ class PdfPageRenderer:
         dense_newspaper_default_tile_count=2,
         dense_newspaper_max_tile_count=4,
         dense_newspaper_tile_overlap_ratio=0.025,
+        min_long_edge=0,
     ):
         self.path = path
         self.reader = reader
@@ -24,6 +25,7 @@ class PdfPageRenderer:
         self.dense_newspaper_default_tile_count = dense_newspaper_default_tile_count
         self.dense_newspaper_max_tile_count = dense_newspaper_max_tile_count
         self.dense_newspaper_tile_overlap_ratio = dense_newspaper_tile_overlap_ratio
+        self.min_long_edge = min_long_edge
 
     def build_pdf_slice_bytes(self, start, end):
         writer = self.pdf_writer_cls()
@@ -47,6 +49,9 @@ class PdfPageRenderer:
                     password=getattr(self.reader, "pdf_password", None),
                 )
                 page = doc.load_page(self.selected_page_indices[page_idx])
+                if self.min_long_edge:
+                    long_edge = max(float(page.rect.width), float(page.rect.height), 1.0)
+                    zoom = max(zoom, self.min_long_edge / long_edge * (zoom / 1.8))
                 pix = page.get_pixmap(
                     matrix=self.fitz.Matrix(zoom, zoom),
                     alpha=False,

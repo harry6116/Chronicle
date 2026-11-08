@@ -78,6 +78,7 @@ chronicle_app/services/abbreviations/newspapers.py
 chronicle_app/services/adaptive_engine_routing.py
 chronicle_app/services/app_files.py
 chronicle_app/services/book_cleanup.py
+chronicle_app/services/comic_images.py
 chronicle_app/services/dense_newspaper_rendering.py
 chronicle_app/services/diagnostics.py
 chronicle_app/services/document_processors.py
@@ -114,6 +115,7 @@ chronicle_app/services/scanner_discovery.py
 chronicle_app/services/scheduling_runtime.py
 chronicle_app/services/security.py
 chronicle_app/services/session_runtime.py
+chronicle_app/services/text_transforms.py
 chronicle_app/services/update_service.py
 chronicle_app/services/worker_execute_runtime.py
 chronicle_app/services/worker_finalize_runtime.py
@@ -192,6 +194,7 @@ tests/test_app_files.py
 tests/test_benchmark_scorecard.py
 tests/test_book_cleanup.py
 tests/test_comic_accuracy_audit.py
+tests/test_comic_images.py
 tests/test_comic_panel_audit.py
 tests/test_context_help.py
 tests/test_dense_newspaper_rendering.py
@@ -205,6 +208,7 @@ tests/test_html_page_navigation.py
 tests/test_image_upload_cleanup.py
 tests/test_local_provider_runtime.py
 tests/test_mac_activity_runtime.py
+tests/test_mac_dist_refresh.py
 tests/test_mac_updater_integration.py
 tests/test_main_frame_sections.py
 tests/test_military_abbreviations.py
@@ -237,6 +241,7 @@ tests/test_scheduling_runtime.py
 tests/test_security_static.py
 tests/test_session_runtime.py
 tests/test_sponsorship_ui.py
+tests/test_transcription_transforms.py
 tests/test_ui_bindings.py
 tests/test_update_service.py
 tests/test_windows_updater_integration.py
@@ -252,6 +257,7 @@ tools/install_git_hooks.sh
 tools/local_benchmark_pack_accessibility.py
 tools/precommit_secret_scan.sh
 tools/prepare_public_repo_snapshot.py
+tools/refresh_mac_dist.py
 tools/release_fileset_check.py
 tools/release_regression_offline.py
 tools/stage_windows_bundle.py

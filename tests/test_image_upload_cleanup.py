@@ -7,7 +7,8 @@ from chronicle_app.services.document_processors import process_img
 
 
 class ImageUploadCleanupTest(unittest.TestCase):
-    def run_image(self, mode, client, wait, generate):
+    def run_image(self, mode, client, wait, generate, prompt='Prompt', enhance=None):
+        enhance = enhance or Mock(return_value='source.png')
         def stream(_key, request, *_args, **_kwargs):
             response, cleanup = request()
             try:
@@ -17,19 +18,34 @@ class ImageUploadCleanupTest(unittest.TestCase):
 
         if mode == 'cli':
             with patch.object(chronicle_runtime, 'prepare_image_for_scan', return_value='source.png'), \
-                    patch.object(chronicle_runtime, 'enhance_image_for_microtext', return_value='source.png'), \
+                    patch.object(chronicle_runtime, 'enhance_image_for_microtext', enhance), \
                     patch.object(chronicle_runtime, 'sha256_file', return_value='hash'), \
                     patch.object(chronicle_runtime, 'wait_for_gemini_upload_ready', wait), \
                     patch.object(chronicle_runtime, 'generate_with_retry', generate), \
+                    patch.object(chronicle_runtime, 'append_comic_detail_views', side_effect=lambda contents, *_: contents), \
                     patch.object(chronicle_runtime, 'stream_with_cache', stream):
-                chronicle_runtime.process_image(client, 'source.png', 'out.html', 'html', 'Prompt', 'gemini-2.5-pro', None, [])
+                chronicle_runtime.process_image(client, 'source.png', 'out.html', 'html', prompt, 'gemini-2.5-pro', None, [])
         else:
-            with patch('chronicle_app.services.document_processors.wait_for_gemini_upload_ready', wait):
-                process_img(client, 'source.png', 'out.html', 'html', 'Prompt', 'gemini-2.5-pro', None, [], lambda _: None,
-                            enhance_image_fn=lambda p: p, build_payload_fn=Mock(),
+            with patch('chronicle_app.services.document_processors.wait_for_gemini_upload_ready', wait), \
+                    patch('chronicle_app.services.document_processors.append_comic_detail_views', side_effect=lambda contents, *_: contents):
+                process_img(client, 'source.png', 'out.html', 'html', prompt, 'gemini-2.5-pro', None, [], lambda _: None,
+                            enhance_image_fn=enhance, build_payload_fn=Mock(),
                             build_request_cache_key_fn=lambda *_: 'key', sha256_file_fn=lambda _: 'hash',
                             stream_with_cache_fn=stream, generate_retry_fn=generate,
                             image_prepare_fn=lambda p, **_: p)
+
+    def test_comics_preserve_colour_while_other_profiles_keep_microtext_enhancement(self):
+        for mode in ('cli', 'gui'):
+            for comic in (False, True):
+                with self.subTest(mode=mode, comic=comic):
+                    client = types.SimpleNamespace(files=Mock())
+                    uploaded = types.SimpleNamespace(name='files/disposable')
+                    client.files.upload.return_value = uploaded
+                    enhance = Mock(return_value='source.png')
+                    prompt = 'COMICS / MANGA / GRAPHIC NOVELS RULES:' if comic else 'Prompt'
+                    self.run_image(mode, client, Mock(return_value=uploaded), Mock(return_value='Transcript'), prompt, enhance)
+                    self.assertEqual(enhance.call_count, 0 if comic else 1)
+                    self.assertEqual(client.files.upload.call_args.kwargs['file'], 'source.png')
 
     def test_uploaded_image_is_deleted_after_generation_rejection(self):
         for mode in ('cli', 'gui'):

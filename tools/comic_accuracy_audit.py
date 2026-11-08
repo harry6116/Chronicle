@@ -39,7 +39,22 @@ def extract_panels(html):
 
 
 def words(text):
-    return re.findall(r"\w+", text.casefold(), flags=re.UNICODE)
+    text = re.sub(r"(?<=\w)['’](?=\w)", '', text.casefold())
+    return re.findall(r"\w+", text, flags=re.UNICODE)
+
+
+def preamble_transcription(html):
+    soup = BeautifulSoup(html, 'html.parser')
+    for node in soup.select('nav, footer, script, style'):
+        node.decompose()
+    root = soup.find('main') or soup.body or soup
+    parts = []
+    for node in root.descendants:
+        if getattr(node, 'name', None) == 'h2' and re.fullmatch(r'Panel\s+\d+(?:\s*[:.\-–—].*)?', node.get_text(' ', strip=True), re.I):
+            break
+        if isinstance(node, NavigableString):
+            parts.append(str(node))
+    return re.sub(r'\[(?:Image|Panel) Description:.*?\]', '', ' '.join(parts), flags=re.I | re.S)
 
 
 def audit_reference(html, reference):
@@ -56,6 +71,15 @@ def audit_reference(html, reference):
             raise ValueError('Each reference panel needs nonempty source excerpts.')
         numbers.append(number)
     actual = extract_panels(html)
+    preamble = reference.get('preamble_excerpts', [])
+    if not isinstance(preamble, list) or any(not isinstance(s, str) or not words(s) for s in preamble):
+        raise ValueError('Preamble excerpts must be a list of nonempty source excerpts.')
+    preamble_tokens = words(preamble_transcription(html))
+    missing_preamble = []
+    for excerpt in preamble:
+        wanted = words(excerpt)
+        if not any(preamble_tokens[i:i + len(wanted)] == wanted for i in range(len(preamble_tokens) - len(wanted) + 1)):
+            missing_preamble.append(excerpt)
     actual_numbers = [panel['number'] for panel in actual]
     missing = []
     for panel in expected:
@@ -70,7 +94,8 @@ def audit_reference(html, reference):
         'expected_panel_order': numbers,
         'actual_panel_order': actual_numbers,
         'missing_excerpts': missing,
-        'reference_checks_passed': numbers == actual_numbers and not missing,
+        'missing_preamble_excerpts': missing_preamble,
+        'reference_checks_passed': numbers == actual_numbers and not missing and not missing_preamble,
     }
 
 

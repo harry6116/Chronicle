@@ -9,6 +9,13 @@ from chronicle_app.services.gemini_rest_payloads import (
 
 
 class GeminiRestPayloadsTest(unittest.TestCase):
+    def test_thought_parts_never_become_transcribed_output(self):
+        result = extract_gemini_text_from_data({'candidates':[{'content':{'parts':[
+            {'text':'private reasoning', 'thought':True},
+            {'text':'<p>Visible transcription</p>'},
+        ]}}]}, error_prefix='Gemini')
+        self.assertEqual(result, '<p>Visible transcription</p>')
+
     def test_build_file_payload_uses_file_data_and_prompt(self):
         payload = build_gemini_file_payload(
             file_uri="files/abc",

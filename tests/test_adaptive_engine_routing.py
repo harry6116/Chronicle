@@ -21,6 +21,27 @@ class _FakeReader:
 
 
 class AdaptiveEngineRoutingTest(unittest.TestCase):
+    def test_current_models_route_clean_pages_to_flash_and_keep_hard_scans_deep(self):
+        for profile, text, expected in [('government', 'Clean report text '*160, 'gemini-3.8-flash'), ('handwritten', '', 'gemini-3.1-pro-preview'), ('comic','', 'gemini-3.1-pro-preview')]:
+            with self.subTest(profile=profile):
+                result = select_execution_model_for_job('/tmp/a.pdf', '.pdf',
+                    {'doc_profile':profile,'model_override':''}, 'gemini-3.1-pro-preview',
+                    pdf_reader_factory=lambda path: _FakeReader([text]),
+                    normalize_pdf_page_scope_text_fn=lambda scope: '',
+                    parse_pdf_page_scope_spec_fn=lambda scope,total: list(range(total)),
+                    getsize_fn=lambda path: 100*1024)
+                self.assertEqual(result['model_name'], expected)
+                if expected=='gemini-3.8-flash':
+                    self.assertEqual(result['auto_escalation_model'], 'gemini-3.1-pro-preview')
+                self.assertNotIn('Gemini 2.5', result['routing_reason'])
+
+    def test_validated_flash_profiles_keep_their_baseline_on_scanned_pdfs(self):
+        for profile in ('handwritten','comic'):
+            result=select_execution_model_for_job('/tmp/a.pdf','.pdf',{'doc_profile':profile,'model_override':''},'gemini-3.8-flash',pdf_reader_factory=lambda path: _FakeReader(['']))
+            self.assertEqual(result['model_name'],'gemini-3.8-flash')
+            self.assertIsNone(result['auto_escalation_model'])
+            self.assertEqual(result['difficulty'],'specialty')
+
     def test_private_offline_mode_never_auto_routes_to_online_engine(self):
         result = select_execution_model_for_job(
             "/tmp/private.pdf",

@@ -35,6 +35,8 @@ Google AI Studio now creates authorisation keys by default. Chronicle accepts th
 - Ensure you are using the intended Google project and API key scope.
 - Mis-scoped keys, disabled APIs, or project restrictions can cause auth/permission failures.
 
+Google One AI credits, including purchased credit packs, are separate from Gemini API billing. They do not fund Chronicle’s requests. Subscription benefits in the AI Studio web interface also differ from usage through an API key. Check billing for the Google Cloud project associated with the key. See [Google’s plan and credit explanation](https://aistudio.google.com/docs/google-ai-plans).
+
 ### 2) Free vs Paid Planning (Operational)
 
 Google AI Studio Gemini API keys can work on Google's free tier, subject to current model availability, region support, quotas, and rate limits. Free-tier throughput can be acceptable for experimentation but is usually volatile for production runs.

@@ -2,6 +2,8 @@ import os
 import tempfile
 import types
 import unittest
+import subprocess
+import sys
 
 from chronicle_app.services.document_processors import (
     FITZ_TEXT_EXTENSIONS,
@@ -18,6 +20,30 @@ from chronicle_app.services.document_processors import (
 
 
 class DocumentProcessorsTest(unittest.TestCase):
+    def test_comic_conversion_preserves_colour_dimensions_and_source_bytes(self):
+        # Exercise real image decoding independently of the UI suite's PIL stubs.
+        with tempfile.TemporaryDirectory() as directory:
+            result = subprocess.run([sys.executable, "-c", '''
+import os, sys
+from pathlib import Path
+from PIL import Image
+from chronicle_app.services.document_processors import prepare_comic_image_for_scan
+for extension in ("jpg", "tiff"):
+    source = Path(sys.argv[1]) / f"comic.{extension}"
+    Image.new("RGB", (32, 24), (220, 30, 60)).save(source)
+    original = source.read_bytes()
+    converted = prepare_comic_image_for_scan(str(source))
+    try:
+        with Image.open(converted) as image:
+            assert image.format == "PNG" and image.size == (32, 24)
+            red, green, blue = image.getpixel((10, 10))
+            assert red > green + 100 and red > blue + 100
+        assert source.read_bytes() == original
+    finally:
+        os.remove(converted)
+''', directory], capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_process_text_streams_docx_batches(self):
         calls = []
         fake_docx = types.SimpleNamespace(

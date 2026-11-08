@@ -11,6 +11,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from tools.prepare_public_repo_snapshot import stage_public_app_docs
+from tools.refresh_mac_dist import refresh_mac_dist, resolve_dist_dir
 
 def safe_rmtree(path, retries=5, delay=0.25):
     last_err = None
@@ -56,7 +57,8 @@ def finalize_app_metadata(app_bundle, source_file):
     subprocess.run(["/usr/bin/codesign", "--force", "--deep", "--sign", "-", str(app_bundle)], check=True)
 
 
-def run_build():
+def _run_build(build_workspace):
+    build_dist = build_workspace / "dist"
     print("--- Chronicle Sledgehammer Build: Mac ---")
     build_stamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
     build_stamp_file = os.path.abspath("build_stamp.txt")
@@ -65,7 +67,7 @@ def run_build():
     print(f"Build stamp: {build_stamp}")
 
     # 1. Clean previous build artifacts
-    for folder in ['build', 'dist', '.pyinstaller-cache']:
+    for folder in ['build', '.pyinstaller-cache']:
         if os.path.exists(folder):
             safe_rmtree(folder)
     if os.path.exists('Chronicle.spec'):
@@ -86,6 +88,9 @@ def run_build():
     cmd = [
         sys.executable, "-m", "PyInstaller",
         "--noconfirm",
+        "--distpath", str(build_dist),
+        "--workpath", str(build_workspace / "build"),
+        "--specpath", str(build_workspace),
         "--windowed",
         "--disable-windowed-traceback",
         "--name", "Chronicle",
@@ -176,7 +181,7 @@ def run_build():
     else:
         print(f"Warning: setuptools jaraco vendor path not found at {jaraco_path}. Continuing without explicit --add-data.")
 
-    pyinstaller_cache = os.path.abspath(".pyinstaller-cache")
+    pyinstaller_cache = str(build_workspace / "cache")
     os.makedirs(pyinstaller_cache, exist_ok=True)
     env = os.environ.copy()
     env["PYINSTALLER_CONFIG_DIR"] = pyinstaller_cache
@@ -185,16 +190,16 @@ def run_build():
     env["PYTHONWARNINGS"] = env.get("PYTHONWARNINGS", "") + ("," if env.get("PYTHONWARNINGS") else "") + "ignore:Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater."
 
     print("Bundling AI frameworks and UI libraries. This will take a few minutes...")
-    os.makedirs(os.path.join("dist", "Chronicle", "_internal", "wx"), exist_ok=True)
+    os.makedirs(os.path.join(build_dist, "Chronicle", "_internal", "wx"), exist_ok=True)
     first = subprocess.run(cmd, check=False, env=env)
     if first.returncode != 0:
         print(f"\nFirst PyInstaller pass failed (exit {first.returncode}). Retrying once...")
-        os.makedirs(os.path.join("dist", "Chronicle", "_internal", "wx"), exist_ok=True)
+        os.makedirs(os.path.join(build_dist, "Chronicle", "_internal", "wx"), exist_ok=True)
         second = subprocess.run(cmd, check=False, env=env)
         if second.returncode != 0:
             print(f"\nBUILD FAILED with exit code {second.returncode}.")
             raise SystemExit(second.returncode)
-    embedded_stamp = os.path.join("dist", "Chronicle.app", "Contents", "Resources", "build_stamp.txt")
+    embedded_stamp = os.path.join(build_dist, "Chronicle.app", "Contents", "Resources", "build_stamp.txt")
     if os.path.exists(embedded_stamp):
         try:
             with open(embedded_stamp, "r", encoding="utf-8") as fh:
@@ -203,10 +208,21 @@ def run_build():
             print("Warning: failed reading embedded app build stamp.")
     else:
         print(f"Warning: embedded app build stamp not found at {embedded_stamp}")
-    finalize_app_metadata(Path("dist/Chronicle.app"), Path("chronicle_gui.py"))
+    finalize_app_metadata((build_dist / "Chronicle.app"), Path("chronicle_gui.py"))
     public_docs.cleanup()
-    assert_no_embedded_offline_payload(os.path.join("dist", "Chronicle.app"))
-    print("\nBUILD COMPLETE! Your Mac application is in the 'dist' folder.")
+    assert_no_embedded_offline_payload(str(build_dist / "Chronicle.app"))
+    app_path = (build_dist / "Chronicle.app")
+    metadata = plistlib.loads((app_path / "Contents/Info.plist").read_bytes())
+    verified_dist_app = refresh_mac_dist(
+        app_path, resolve_dist_dir(Path.cwd()), metadata["CFBundleShortVersionString"], build_stamp,
+    )
+    print(f"Verified distribution app: {verified_dist_app}")
+    print(f"\nBUILD COMPLETE! Verified Mac application: {verified_dist_app}")
+
+def run_build():
+    with tempfile.TemporaryDirectory(prefix="ChronicleMacBuild-") as temporary:
+        _run_build(Path(temporary))
+
 
 if __name__ == "__main__":
     run_build()

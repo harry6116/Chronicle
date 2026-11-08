@@ -2,7 +2,7 @@
 
 Chronicle is an accessibility-first document recovery tool for difficult real-world material.
 
-Current public release line: **Chronicle 1.1.5**.
+Current public release line: **Chronicle 1.1.6**.
 
 It is especially strong on degraded scans, long-form books, archival records, legal and policy material, tables, handwriting, multi-column layouts, comics, manga, graphic novels, and mixed-format batches where preserving reading order, usable structure, and review workflow matters more than raw one-click speed.
 
@@ -78,7 +78,7 @@ Full guidance: `docs/user/PRIVATE_OFFLINE_MODE.md`.
 
 - Accessibility-first GUI with keyboard and screen-reader oriented workflows
 - Multi-provider AI support:
-  - Google Gemini (`gemini-2.5-flash`, `gemini-2.5-pro`)
+  - Google Gemini (`gemini-3.8-flash`, `gemini-3.1-pro-preview`; manual Gemini 2.5 compatibility options remain available)
   - Anthropic Claude (`claude-sonnet-4-6`)
   - OpenAI (`gpt-4o`)
 - Input support:
@@ -103,7 +103,7 @@ Full guidance: `docs/user/PRIVATE_OFFLINE_MODE.md`.
 
 ## Current Public Release
 
-Chronicle `1.1.5` accepts new Google authorisation keys and improves API-key entry guidance and privacy for Gemini, Claude and OpenAI.
+Chronicle `1.1.6` clarifies Gemini key entry and verifies and refreshes the configured Mac distribution folder after builds.
 
 Current release downloads:
 
@@ -161,6 +161,8 @@ Open **File > API Keys...** (shortcut **Alt+K**) and paste the key into its labe
 - **Google Gemini:** create an API key in [Google AI Studio](https://aistudio.google.com/api-keys). New authorisation keys, usually beginning with `AQ.`, are supported alongside older `AIza` keys. Google now creates authorisation keys by default; see [Google’s API-key guide](https://aistudio.google.com/docs/api-key). Choose the Google Cloud project with the API billing or credits you intend to use.
 - **Anthropic Claude:** create an API key in the [Claude Console](https://platform.claude.com/settings/keys), scoped to the workspace you will use. This lets Chronicle select the workspace using the key alone. Claude chat access is separate from API access.
 - **OpenAI:** use an API key from the [OpenAI developer platform](https://platform.openai.com/api-keys), including a project key. ChatGPT access is separate from API access.
+
+Google One AI credits are separate from Gemini API billing and do not fund Chronicle’s API requests. Check the billing account linked to your key’s project in Google AI Studio. See [Google’s plan and credit explanation](https://aistudio.google.com/docs/google-ai-plans).
 
 Paste only the key, without quotes or an HTTP header such as `Authorization: Bearer`. Chronicle removes surrounding whitespace and checks for unsupported characters, without requiring a fixed prefix or length. Leave unused provider fields blank; all three may be blank for Private Offline Mode.
 

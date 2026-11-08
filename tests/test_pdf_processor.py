@@ -2,6 +2,8 @@ import os
 import tempfile
 import unittest
 import io
+import types
+from unittest.mock import patch
 
 import chronicle_app.services.pdf_processor as pdf_processor_module
 from chronicle_app.services.pdf_processor import process_pdf
@@ -11,6 +13,32 @@ from chronicle_app.services.runtime_policies import DEFAULT_CLAUDE_MODEL
 
 
 class PdfProcessorTest(unittest.TestCase):
+    def test_comic_pdf_preserves_selected_page_order_progress_and_cleans_rendered_files(self):
+        memory, progress, paths = [], [], []
+        reader = types.SimpleNamespace(pages=[object() for _ in range(4)])
+        def image_reader(client, path, out, fmt, prompt, model, f_obj, mem, log_cb, **kwargs):
+            self.assertTrue(os.path.exists(path))
+            self.assertIsNone(f_obj)
+            paths.append(path)
+            mem.append(f'<h2>Panel 1</h2><p>Page result {len(paths)}</p>')
+        renderer = types.SimpleNamespace(build_page_png_bytes=lambda index: b'png', build_pdf_slice_bytes=None, get_dense_newspaper_tile_count=None, build_page_tile_png_bytes=None)
+        with tempfile.TemporaryDirectory() as directory, patch.object(pdf_processor_module, 'PdfPageRenderer', return_value=renderer) as factory, patch.object(pdf_processor_module, 'process_comic_image', side_effect=image_reader):
+            process_pdf(
+                None, 'source.pdf', 'out.html', 'html', 'COMICS / MANGA / GRAPHIC NOVELS RULES:', 'gemini-2.5-pro', None, memory, lambda _: None,
+                doc_profile='comic', script_dir=directory, pdf_reader_cls=lambda _: reader, pdf_writer_cls=object,
+                parse_pdf_page_scope_spec_fn=lambda *_: [1, 3], normalize_pdf_page_scope_text_fn=lambda _: '2,4',
+                get_pdf_chunk_pages_fn=lambda *_a, **_k: self.fail('Comic pages must use their image path'),
+                sha256_file_fn=lambda _: 'hash', sha256_text_fn=lambda _: 'hash', build_payload_fn=None,
+                build_request_cache_key_fn=None, stream_with_cache_fn=None, generate_retry_fn=None,
+                split_text_for_fail_safe_fn=None, tempdir_fn=lambda: directory,
+                page_progress_cb=lambda *args: progress.append(args),
+            )
+            self.assertEqual(factory.call_args.kwargs['min_long_edge'], 3500)
+            self.assertEqual(progress, [(1, 2, 2), (2, 2, 4)])
+            self.assertIn('<h2>Page 2</h2>', memory[0])
+            self.assertIn('<h2>Page 4</h2>', memory[1])
+            self.assertTrue(all(not os.path.exists(path) for path in paths))
+
     def test_format_source_page_span_avoids_single_page_repetition(self):
         self.assertEqual(_format_source_page_span(16, 16, 29), "page 16 of 29 pages")
         self.assertEqual(_format_source_page_span(15, 16, 29), "pages 15-16 of 29 pages")

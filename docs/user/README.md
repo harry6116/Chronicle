@@ -128,17 +128,21 @@ Chronicle supports multiple providers. On the main screen, the selected document
 Supported providers/models in the current GUI:
 
 - Google Gemini
-  - `Gemini 2.5 Flash`
-  - `Gemini 2.5 Pro`
+  - `Gemini 3.8 Flash`
+  - `Gemini 3.1 Pro Preview`
 - Anthropic
   - `Claude Sonnet 4.6`
 - OpenAI
   - `GPT-4o`
 
+Gemini 2.5 Flash and Gemini 2.5 Pro remain available as manual compatibility options. Automatic selection uses the newer models. Gemini 3.1 Pro is a preview model whose availability can change; provider charges and processing time can differ from the older models.
+
+Handwritten Notes / Personal Diaries and Comics / Manga / Graphic Novels use Gemini 3.8 Flash automatically. Military Records uses Gemini 3.1 Pro Preview. Other profiles retain the fast/deep routing appropriate to their document type.
+
 Current provider guidance:
 
 - Gemini remains Chronicle's strongest general-purpose PDF path.
-- With `Engine Override` left on `Automatic`, Chronicle can start cleaner PDFs on `Gemini 2.5 Flash` first and keep `Gemini 2.5 Pro` in reserve for hard pages or harder whole-document cases.
+- With `Engine Override` left on `Automatic`, Chronicle can start cleaner PDFs on `Gemini 3.8 Flash` first and keep `Gemini 3.1 Pro Preview` in reserve for hard pages or harder whole-document cases.
 - Claude is another option for reading PDFs when you have a Claude API key.
 - OpenAI is also available, but its PDF support in Chronicle is more limited. Try Gemini or Claude first for difficult PDFs.
 - Automatic engine selection now skips providers whose API keys are missing instead of trying to use them anyway.
@@ -352,7 +356,7 @@ Key protections include:
 Chronicle exposes detailed behavior controls through Preferences, including:
 
 - default document profile
-- engine override (`Automatic`, Gemini 2.5 Flash, Gemini 2.5 Pro, Claude Sonnet 4.6, or GPT-4o)
+- engine override (`Automatic`, Gemini 3.8 Flash, Gemini 3.1 Pro Preview, Claude Sonnet 4.6, or GPT-4o)
 - translation mode
 - translation target language
 - legacy punctuation mode
@@ -383,7 +387,7 @@ File handling behavior in Preferences:
 ### Provider-Specific PDF Notes
 
 - Gemini: recommended default for degraded scans, archival material, and complex PDF layouts.
-- Gemini automatic routing: for supported profiles, clean born-digital PDFs can start on `Gemini 2.5 Flash` first while `Gemini 2.5 Pro` remains available for escalation on hard pages.
+- Gemini automatic routing: for supported profiles, clean born-digital PDFs can start on `Gemini 3.8 Flash` first while `Gemini 3.1 Pro Preview` remains available for escalation on hard pages.
 - Claude: recommended non-Gemini PDF alternative. Chronicle now prefers Claude Files API uploads for PDF slices, which reduces inline encoding overhead when that route is available locally.
 - OpenAI: still useful for general multimodal fallback, but Chronicle's current OpenAI integration is not yet the preferred PDF route. If OpenAI PDF handling cannot continue on the direct path, Chronicle now logs that reason and falls back to PDF text-layer recovery.
 - Historical Newspapers: dense short scans can trigger a file-size heuristic that shrinks PDF slicing to one page at a time, and Chronicle logs that decision so slow upload waits are easier to interpret.
@@ -549,6 +553,8 @@ Open **File > API Keys...** (shortcut **Alt+K**) and paste the key into its labe
 - **Google Gemini:** create an API key in [Google AI Studio](https://aistudio.google.com/api-keys). New authorisation keys, usually beginning with `AQ.`, are supported alongside older `AIza` keys. Google now creates authorisation keys by default; see [Google’s API-key guide](https://aistudio.google.com/docs/api-key). Choose the Google Cloud project with the API billing or credits you intend to use.
 - **Anthropic Claude:** create an API key in the [Claude Console](https://platform.claude.com/settings/keys), scoped to the workspace you will use. This lets Chronicle select the workspace using the key alone. Claude chat access is separate from API access.
 - **OpenAI:** use an API key from the [OpenAI developer platform](https://platform.openai.com/api-keys), including a project key. ChatGPT access is separate from API access.
+
+Google One AI credits are separate from Gemini API billing and do not fund Chronicle’s API requests. Check the billing account linked to your key’s project in Google AI Studio. See [Google’s plan and credit explanation](https://aistudio.google.com/docs/google-ai-plans).
 
 Paste only the key, without quotes or an HTTP header such as `Authorization: Bearer`. Chronicle removes surrounding whitespace and checks for unsupported characters, without requiring a fixed prefix or length. Leave unused provider fields blank; all three may be blank for Private Offline Mode.
 

@@ -4,6 +4,15 @@ from tools.comic_accuracy_audit import audit_reference, extract_panels
 
 
 class ComicAccuracyAuditTest(unittest.TestCase):
+    def test_title_banner_excerpts_are_checked_separately_from_panels_and_descriptions(self):
+        reference = {"preamble_excerpts": ["At the outer gates"], "panels": [{"number": 1, "excerpts": ["Hello"]}]}
+        html = '<h1>Title</h1><p>[Image Description: At the outer gates]</p><h2>Panel 1</h2><p>Hello. At the outer gates.</p>'
+        result = audit_reference(html, reference)
+        self.assertEqual(result['missing_preamble_excerpts'], ['At the outer gates'])
+        self.assertFalse(result['reference_checks_passed'])
+        html = html.replace('<h2>Panel 1</h2>', '<p>Speech: At the outer gates!</p><h2>Panel 1</h2>')
+        self.assertTrue(audit_reference(html, reference)['reference_checks_passed'])
+
     def test_panel_reference_rejects_invented_dialogue_and_shifted_numbering(self):
         reference = {"panels": [{"number": 1, "excerpts": ["Register here"]},
                                 {"number": 2, "excerpts": ["Go to sleep"]}]}
@@ -30,6 +39,8 @@ class ComicAccuracyAuditTest(unittest.TestCase):
             self.assertFalse(audit_reference(html, reference)["reference_checks_passed"])
 
     def test_reference_validation_and_word_boundaries(self):
+        result = audit_reference('<h2>Panel 1</h2><p>DONT WAKE UP</p>', {"panels": [{"number": 1, "excerpts": ["Don't wake up"]}]})
+        self.assertTrue(result["reference_checks_passed"])
         with self.assertRaises(ValueError):
             audit_reference('', {"panels": []})
         with self.assertRaises(ValueError):

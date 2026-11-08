@@ -1,3 +1,4 @@
+from chronicle_app.services.runtime_policies import GEMINI_FAST_MODEL
 import json
 import os
 import time
@@ -61,7 +62,7 @@ def restore_session_queue(queue_rows, cfg, *, row_setting_keys, label_from_model
         restored.append(
             {
                 "path": path,
-                "engine": row.get("engine", label_from_model_fn(cfg.get("model_name", "gemini-2.5-flash"))),
+                "engine": row.get("engine", label_from_model_fn(cfg.get("model_name", GEMINI_FAST_MODEL))),
                 "settings": {key: row_settings.get(key) for key in row_setting_keys if key in row_settings},
                 "status": row.get("status", "Queued"),
                 "source_root": row.get("source_root"),

@@ -471,6 +471,21 @@ class AccessibilityContractsTest(unittest.TestCase):
             self.assertIn("[illegible]", prompt)
             self.assertIn("Do not turn a decorative title banner into an extra numbered panel", prompt)
             self.assertIn("Do not reconstruct dialogue from the plot", prompt)
+            self.assertIn("caption fragments, not panels", prompt)
+            self.assertIn("Keep all panel headings at h2", prompt)
+            self.assertIn("through the final panel", prompt)
+            self.assertIn("Preserve printed misspellings", prompt)
+            self.assertNotIn("correct it contextually", prompt)
+
+    def test_comic_image_alternatives_become_readable_descriptions_without_invented_assets(self):
+        from chronicle_app.services.prompting import enforce_archival_heading_structure
+
+        source = '<main><h1>Comic</h1><h2>Panel 1</h2><figure><img src="invented-frame.jpg" alt="A witch stirs a red potion."><figcaption>SFX: Glup</figcaption></figure></main>'
+        result = enforce_archival_heading_structure(source, 'html', 'comic')
+        self.assertNotIn('<img', result)
+        self.assertNotIn('invented-frame.jpg', result)
+        self.assertIn('<p>[Image Description: A witch stirs a red potion.]</p>', result)
+        self.assertIn('SFX: Glup', result)
 
     def test_magazine_prompt_keeps_periodical_article_cleanup_rules(self):
         cfg = self._base_cfg(doc_profile="magazine")
@@ -1301,7 +1316,7 @@ class AccessibilityContractsTest(unittest.TestCase):
 
         self.assertIn("Historical Newspapers", text)
         self.assertIn("old press-layout", text)
-        self.assertIn("Recommended engine: Deep Engine (Gemini 2.5 Pro).", text)
+        self.assertIn("Recommended engine: Gemini 3.1 Pro Preview.", text)
         self.assertIn("Current override: Fast Engine (Gemini 2.5 Flash).", text)
         self.assertIn("Engine manually overridden.", text)
 
@@ -1318,7 +1333,7 @@ class AccessibilityContractsTest(unittest.TestCase):
         self.assertIn("Comics / Manga / Graphic Novels", text)
         self.assertIn("panel order", text)
         self.assertIn("speech balloons", text)
-        self.assertIn("Recommended engine: Deep Engine (Gemini 2.5 Pro).", text)
+        self.assertIn("Recommended engine: Fast Engine (Gemini 3.8 Flash).", text)
 
     def test_html_normalizer_promotes_page_metadata_and_source_footer(self):
         raw = """<!DOCTYPE html>

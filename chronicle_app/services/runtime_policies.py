@@ -1,6 +1,8 @@
 import os
 import time
 
+GEMINI_DEEP_MODEL = "gemini-3.1-pro-preview"
+GEMINI_FAST_MODEL = "gemini-3.8-flash"
 DEFAULT_CLAUDE_MODEL = "claude-sonnet-4-6"
 OFFLINE_PRIVATE_MODEL = "chronicle-offline-private"
 GEMINI_FILE_POLL_TIMEOUT_MS = 30_000
@@ -17,6 +19,8 @@ MODEL_VENDOR_BY_PREFIX = (
 )
 
 MODEL_FALLBACK_ORDER = {
+    GEMINI_FAST_MODEL: (GEMINI_FAST_MODEL, DEFAULT_CLAUDE_MODEL, "gpt-4o"),
+    GEMINI_DEEP_MODEL: (GEMINI_DEEP_MODEL, DEFAULT_CLAUDE_MODEL, "gpt-4o"),
     "gemini-2.5-flash": (
         "gemini-2.5-flash",
         DEFAULT_CLAUDE_MODEL,
@@ -30,14 +34,14 @@ MODEL_FALLBACK_ORDER = {
     DEFAULT_CLAUDE_MODEL: (
         DEFAULT_CLAUDE_MODEL,
         "gpt-4o",
-        "gemini-2.5-pro",
-        "gemini-2.5-flash",
+        GEMINI_DEEP_MODEL,
+        GEMINI_FAST_MODEL,
     ),
     "gpt-4o": (
         "gpt-4o",
         DEFAULT_CLAUDE_MODEL,
-        "gemini-2.5-pro",
-        "gemini-2.5-flash",
+        GEMINI_DEEP_MODEL,
+        GEMINI_FAST_MODEL,
     ),
     OFFLINE_PRIVATE_MODEL: (
         OFFLINE_PRIVATE_MODEL,
@@ -160,8 +164,12 @@ def get_online_engine_settings(
 def normalize_model_name(model_name):
     key = str(model_name or "").strip()
     if not key:
-        return "gemini-2.5-flash"
+        return GEMINI_FAST_MODEL
     return LEGACY_MODEL_ALIASES.get(key, key)
+
+
+def is_gemini_deep_model(model_name):
+    return normalize_model_name(model_name).lower() in {GEMINI_DEEP_MODEL, "gemini-2.5-pro"}
 
 
 def is_offline_model(model_name):
@@ -178,7 +186,7 @@ def get_preferred_profile_model(profile_key, *, cfg, profile_presets):
     if raw_override:
         return normalize_model_name(raw_override)
     return normalize_model_name(
-        profile_presets.get(profile_key, profile_presets["standard"]).get("model_name", "gemini-2.5-flash")
+        profile_presets.get(profile_key, profile_presets["standard"]).get("model_name", GEMINI_FAST_MODEL)
     )
 
 
@@ -242,8 +250,12 @@ def wait_for_gemini_upload_ready(
 
 def get_model_tradeoff_text(model_name):
     key = normalize_model_name(model_name).lower()
+    if key == GEMINI_FAST_MODEL:
+        return "Current fast Gemini engine for clean pages and large batches. Complex scans can still need the deeper reading engine."
     if key == "gemini-2.5-flash":
         return "Fastest option for clean pages and large batches. Best when you want speed and lower cost."
+    if key == GEMINI_DEEP_MODEL:
+        return "Deep reading for difficult scans with Gemini 3.1 Pro Preview. Preview availability can change; requests may take longer and cost more than Gemini 2.5 Pro."
     if key == "gemini-2.5-pro":
         return "Deep Engine for the hardest scans. Slowest, but strongest on difficult layouts and degraded pages."
     if "claude" in key:
@@ -281,7 +293,7 @@ def get_processing_speed_warning(profile_key, model_name):
     }
     if profile in slow_profiles:
         return slow_profiles[profile]
-    if model == "gemini-2.5-pro":
+    if model in {"gemini-2.5-pro", GEMINI_DEEP_MODEL}:
         return "Warning: Deep Engine is Chronicle's slowest option. Expect longer runs on difficult scans and large files."
     if "claude" in model or "gpt" in model:
         return "Warning: This engine is slower than Chronicle's fastest Gemini path on large visual batches."
@@ -311,7 +323,7 @@ def estimate_run_effort(profile_key, model_name, total_units, *, file_size_mb=No
     score = units
     if heavy_profile:
         score += 8
-    if model == "gemini-2.5-pro" or "claude" in model or "gpt" in model:
+    if model in {"gemini-2.5-pro", GEMINI_DEEP_MODEL} or "claude" in model or "gpt" in model:
         score += 6
     if file_size_mb is not None:
         try:
@@ -332,11 +344,13 @@ def build_profile_selection_summary(profile_key, current_model_name, *, profile_
     profile_label = profile_label_map.get(profile_key, "Standard")
     current_model_name = normalize_model_name(current_model_name)
     recommended = normalize_model_name(
-        profile_presets.get(profile_key, profile_presets["standard"]).get("model_name", "gemini-2.5-flash")
+        profile_presets.get(profile_key, profile_presets["standard"]).get("model_name", GEMINI_FAST_MODEL)
     )
     model_label_map = {
+        GEMINI_FAST_MODEL: "Fast Engine (Gemini 3.8 Flash)",
         "gemini-2.5-flash": "Fast Engine (Gemini 2.5 Flash)",
         "gemini-2.5-pro": "Deep Engine (Gemini 2.5 Pro)",
+        GEMINI_DEEP_MODEL: "Gemini 3.1 Pro Preview",
         DEFAULT_CLAUDE_MODEL: "Claude Sonnet 4.6",
         "gpt-4o": "GPT-4o",
     }

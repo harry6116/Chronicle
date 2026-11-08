@@ -4,6 +4,7 @@ import io
 import os
 import re
 from urllib.parse import quote
+from chronicle_app.services.text_transforms import transform_reading_text
 
 from chronicle_app.services.book_cleanup import _apply_book_plain_text_cleanup
 from chronicle_app.services.book_cleanup import _normalize_book_dialogue_quotes
@@ -344,7 +345,7 @@ def apply_output_integrity_contract(text_content, format_type, doc_profile=None)
     return text_content
 
 
-def apply_modern_punctuation(html_text: str) -> str:
+def _modernize_punctuation_text(html_text: str) -> str:
     if not html_text:
         return ""
     cleaned = re.sub(r"\.-\s*(?=[a-zA-Z])", ". ", html_text)
@@ -360,7 +361,7 @@ def apply_modern_punctuation(html_text: str) -> str:
     return cleaned
 
 
-def apply_modern_currency(html_text: str) -> str:
+def _modernize_currency_text(html_text: str) -> str:
     if not html_text:
         return ""
     cleaned = re.sub(r"£(\d+)/(\d+)/-", lambda match: f"{match.group(1)} pounds, {match.group(2)} shillings", html_text)
@@ -368,6 +369,14 @@ def apply_modern_currency(html_text: str) -> str:
     cleaned = re.sub(r"(\d+)d\.?", lambda match: f"{match.group(1)} pence", cleaned)
     cleaned = re.sub(r"£(\d+)", lambda match: f"{match.group(1)} pounds", cleaned)
     return cleaned
+
+
+def apply_modern_punctuation(html_text: str) -> str:
+    return transform_reading_text(html_text, _modernize_punctuation_text)
+
+
+def apply_modern_currency(html_text: str) -> str:
+    return transform_reading_text(html_text, _modernize_currency_text)
 
 
 def apply_expanded_abbreviations(html_text: str, doc_profile=None) -> str:

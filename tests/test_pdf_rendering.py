@@ -1,9 +1,26 @@
 import unittest
+import types
 
 from chronicle_app.services.pdf_rendering import PdfPageRenderer
 
 
 class PdfRenderingTest(unittest.TestCase):
+    def test_small_comic_pages_render_at_readable_resolution(self):
+        scales = []
+        page = types.SimpleNamespace(
+            rect=types.SimpleNamespace(width=213, height=280),
+            get_pixmap=lambda **kwargs: scales.append(kwargs['matrix']) or types.SimpleNamespace(tobytes=lambda _: b'png'),
+        )
+        doc = types.SimpleNamespace(load_page=lambda _: page, close=lambda: None)
+        fitz = types.SimpleNamespace(open=lambda _: doc, Matrix=lambda x, y: (x, y), csRGB='rgb')
+        renderer = PdfPageRenderer(path='comic.pdf', reader=types.SimpleNamespace(), selected_page_indices=[0], pdf_writer_cls=object, fitz_module=fitz, min_long_edge=2400)
+        self.assertEqual(renderer.build_page_png_bytes(0), b'png')
+        self.assertAlmostEqual(scales[0][0] * 280, 2400)
+        scales.clear()
+        renderer.min_long_edge = 0
+        renderer.build_page_png_bytes(0)
+        self.assertEqual(scales[0], (1.8, 1.8))
+
     def test_build_pdf_slice_uses_selected_source_pages(self):
         class Writer:
             def __init__(self):

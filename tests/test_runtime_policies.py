@@ -6,6 +6,7 @@ from chronicle_app.services.runtime_policies import (
     build_profile_selection_summary,
     estimate_run_effort,
     get_online_engine_settings,
+    get_model_tradeoff_text,
     get_model_vendor,
     get_pdf_chunk_pages,
     get_preferred_profile_model,
@@ -75,6 +76,23 @@ class RuntimePoliciesTest(unittest.TestCase):
         self.assertEqual(get_pdf_chunk_pages("gemini-2.5-flash", "manual", 29), 1)
         self.assertEqual(get_pdf_chunk_pages("gemini-2.5-pro", "manual", 12), 1)
 
+    def test_war_diary_default_keeps_verified_model_and_manual_overrides(self):
+        from chronicle_app.config import MODEL_LABEL_BY_KEY, MODEL_OVERRIDE_CHOICES
+        model = 'gemini-3.1-pro-preview'
+        for profile in ('military',):
+            self.assertEqual(PROFILE_PRESETS[profile]['model_name'], model)
+            self.assertEqual(get_preferred_profile_model(profile, cfg={'model_override':''}, profile_presets=PROFILE_PRESETS), model)
+            self.assertEqual(get_preferred_profile_model(profile, cfg={'model_override':'gemini-2.5-pro'}, profile_presets=PROFILE_PRESETS), 'gemini-2.5-pro')
+        self.assertIn('Preview', MODEL_LABEL_BY_KEY[model])
+        self.assertIn((model, MODEL_LABEL_BY_KEY[model]), MODEL_OVERRIDE_CHOICES)
+        self.assertIn('preview', get_model_tradeoff_text(model).lower())
+        self.assertEqual(resolve_model_for_available_keys(model, has_vendor_key_fn=lambda vendor: vendor=='openai'), 'gpt-4o')
+
+    def test_handwriting_and_comics_use_current_flash_by_default(self):
+        for profile in ('handwritten','comic'):
+            self.assertEqual(PROFILE_PRESETS[profile]['model_name'], 'gemini-3.8-flash')
+            self.assertEqual(get_preferred_profile_model(profile, cfg={'model_override':'gemini-2.5-pro'}, profile_presets=PROFILE_PRESETS), 'gemini-2.5-pro')
+
     def test_legal_profile_defaults_enable_reference_preservation(self):
         settings = PROFILE_PRESETS["legal"]
         self.assertTrue(settings["preserve_original_page_numbers"])
@@ -83,14 +101,14 @@ class RuntimePoliciesTest(unittest.TestCase):
 
     def test_medical_profile_defaults_favor_conservative_clinical_reading(self):
         settings = PROFILE_PRESETS["medical"]
-        self.assertEqual(settings["model_name"], "gemini-2.5-pro")
+        self.assertEqual(settings["model_name"], "gemini-3.1-pro-preview")
         self.assertTrue(settings["image_descriptions"])
         self.assertFalse(settings["modernize_punctuation"])
         self.assertFalse(settings["abbrev_expansion"])
 
     def test_comic_profile_defaults_favor_visual_story_recovery(self):
         settings = PROFILE_PRESETS["comic"]
-        self.assertEqual(settings["model_name"], "gemini-2.5-pro")
+        self.assertEqual(settings["model_name"], "gemini-3.8-flash")
         self.assertTrue(settings["image_descriptions"])
         self.assertTrue(settings["preserve_original_page_numbers"])
         self.assertTrue(settings["merge_files"])
@@ -98,14 +116,14 @@ class RuntimePoliciesTest(unittest.TestCase):
 
     def test_magazine_profile_defaults_favor_dense_periodical_recovery(self):
         settings = PROFILE_PRESETS["magazine"]
-        self.assertEqual(settings["model_name"], "gemini-2.5-pro")
+        self.assertEqual(settings["model_name"], "gemini-3.1-pro-preview")
         self.assertTrue(settings["image_descriptions"])
         self.assertTrue(settings["preserve_original_page_numbers"])
         self.assertFalse(settings["merge_files"])
 
     def test_modern_newspaper_profile_defaults_avoid_historical_transforms(self):
         settings = PROFILE_PRESETS["modern_newspaper"]
-        self.assertEqual(settings["model_name"], "gemini-2.5-pro")
+        self.assertEqual(settings["model_name"], "gemini-3.1-pro-preview")
         self.assertTrue(settings["image_descriptions"])
         self.assertTrue(settings["preserve_original_page_numbers"])
         self.assertTrue(settings["modernize_punctuation"])
@@ -114,7 +132,7 @@ class RuntimePoliciesTest(unittest.TestCase):
 
     def test_transcript_profile_defaults_favor_script_fidelity(self):
         settings = PROFILE_PRESETS["transcript"]
-        self.assertEqual(settings["model_name"], "gemini-2.5-pro")
+        self.assertEqual(settings["model_name"], "gemini-3.1-pro-preview")
         self.assertTrue(settings["image_descriptions"])
         self.assertTrue(settings["preserve_original_page_numbers"])
         self.assertTrue(settings["modernize_punctuation"])

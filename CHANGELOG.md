@@ -2,6 +2,18 @@
 
 This history describes changes users may notice. The desktop app release series began at 1.0.0 in April 2026. Earlier version numbers below belong to the original project and follow a different sequence.
 
+## [1.1.6] - 2026-11-08
+
+- Updated automatic Gemini engines to 3.8 Flash and 3.1 Pro Preview, with manual 2.5 compatibility choices retained.
+- Improved handwriting/war-diary reading and page-continuation handling, with safer printer-code and acronym preservation.
+- HTML-safe currency, punctuation and abbreviation transformations preserve markup and keyboard focus colours.
+
+- Colour-preserving comic scans with full-page context and closer views of lettering, captions and irregular frames.
+- Clearer comic panel, printed-text and description handling, including higher-resolution rendering for small-dimension comic PDFs.
+- Benchmark reporting that distinguishes structural accessibility from transcription fidelity.
+- Clearer Gemini key-field guidance that asks for one API key.
+- Mac build verification and automatic refresh of the configured distribution folder, with checked replacement and recovery after verification failure.
+
 ## [1.1.5] - 2026-11-08
 
 - Support for new Google AI Studio authorisation keys alongside older Gemini keys.

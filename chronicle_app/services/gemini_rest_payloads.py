@@ -45,7 +45,7 @@ def extract_gemini_text_from_data(data, *, error_prefix):
         .get("content", {})
         .get("parts", [])
     )
-    return "".join(part.get("text", "") for part in parts if isinstance(part, dict))
+    return "".join(part.get("text", "") for part in parts if isinstance(part, dict) and not part.get("thought"))
 
 
 def extract_gemini_text_from_response_bytes(response_bytes, *, error_prefix):

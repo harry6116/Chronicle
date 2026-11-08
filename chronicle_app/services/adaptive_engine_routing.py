@@ -1,6 +1,6 @@
 import os
 
-from chronicle_app.services.runtime_policies import DEFAULT_CLAUDE_MODEL, is_offline_model, normalize_model_name
+from chronicle_app.services.runtime_policies import DEFAULT_CLAUDE_MODEL, GEMINI_DEEP_MODEL, GEMINI_FAST_MODEL, is_gemini_deep_model, is_offline_model, normalize_model_name
 
 
 FORCE_DEEP_PROFILES = {
@@ -240,7 +240,7 @@ def select_execution_model_for_job(
     if pdf_reader_factory is None:
         result["routing_reason"] = "PDF preflight helpers were unavailable, so Chronicle kept the preset baseline engine."
         return result
-    if profile in SPECIALTY_BASELINE_PROFILES:
+    if profile in SPECIALTY_BASELINE_PROFILES or (baseline_model == GEMINI_FAST_MODEL and profile in {"handwritten", "comic"}):
         result["routing_reason"] = f"{profile} preset keeps its specialty baseline engine."
         result["difficulty"] = "specialty"
         return result
@@ -256,20 +256,25 @@ def select_execution_model_for_job(
     result["difficulty"] = assessment.get("difficulty", "unknown")
     result["routing_reason"] = assessment.get("reason", result["routing_reason"])
 
-    if baseline_model == "gemini-2.5-pro" and assessment.get("difficulty") in {"easy", "mixed"} and profile in (ADAPTIVE_FLASH_PROFILES | {"legal"}):
-        result["model_name"] = "gemini-2.5-flash"
-        result["auto_escalation_model"] = "gemini-2.5-pro"
+    current_pair = baseline_model in {GEMINI_FAST_MODEL, GEMINI_DEEP_MODEL}
+    fast_model = GEMINI_FAST_MODEL if current_pair else "gemini-2.5-flash"
+    deep_model = GEMINI_DEEP_MODEL if current_pair else "gemini-2.5-pro"
+    fast_label = "Gemini 3.8 Flash" if current_pair else "Gemini 2.5 Flash"
+    deep_label = "Gemini 3.1 Pro Preview" if current_pair else "Gemini 2.5 Pro"
+    if is_gemini_deep_model(baseline_model) and assessment.get("difficulty") in {"easy", "mixed"} and profile in (ADAPTIVE_FLASH_PROFILES | {"legal"}):
+        result["model_name"] = fast_model
+        result["auto_escalation_model"] = deep_model
         result["routing_reason"] = (
-            f"Auto selected Gemini 2.5 Flash first because the document looks {assessment.get('difficulty')}; "
+            f"Auto selected {fast_label} first because the document looks {assessment.get('difficulty')}; "
             f"{assessment.get('reason', '').rstrip('.')}. "
-            "Chronicle will escalate hard pages to Gemini 2.5 Pro if needed."
+            f"Chronicle will escalate hard pages to {deep_label} if needed."
         )
         return result
 
-    if baseline_model in {"gemini-2.5-flash", "gemini-2.5-pro"} and assessment.get("difficulty") == "hard":
-        result["model_name"] = "gemini-2.5-pro"
+    if baseline_model in {GEMINI_FAST_MODEL, GEMINI_DEEP_MODEL, "gemini-2.5-flash", "gemini-2.5-pro"} and assessment.get("difficulty") == "hard":
+        result["model_name"] = deep_model
         result["routing_reason"] = (
-            f"Auto kept Gemini 2.5 Pro because the document looks hard; {assessment.get('reason', '').rstrip('.')}"
+            f"Auto kept {deep_label} because the document looks hard; {assessment.get('reason', '').rstrip('.')}"
         ).strip()
         return result
 

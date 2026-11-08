@@ -8,6 +8,7 @@ from email.parser import BytesParser
 from chronicle_core import build_tabular_html_fragment, parse_csv_rows
 from chronicle_app.services.runtime_policies import wait_for_gemini_upload_ready
 from chronicle_app.services.security import sanitize_log_text
+from chronicle_app.services.comic_images import append_comic_detail_views
 
 try:  # pragma: no cover - optional import is environment dependent
     from PIL import Image
@@ -222,6 +223,28 @@ def prepare_image_for_scan(
         except Exception:
             pass
     return staged_path
+
+
+def prepare_comic_image_for_scan(path):
+    """Keep comic artwork in colour, using PNG for all provider transports."""
+    if os.path.splitext(path)[1].lower() == ".png":
+        return path
+    if Image is None:
+        raise RuntimeError("Comic image conversion requires Pillow.")
+    from PIL import ImageOps
+
+    converted_path = _make_temp_png()
+    try:
+        with Image.open(path) as image:
+            image = ImageOps.exif_transpose(image)
+            image.convert("RGB").save(converted_path, "PNG")
+    except Exception:
+        try:
+            os.remove(converted_path)
+        except OSError:
+            pass
+        raise
+    return converted_path
 
 
 def _strip_html_text(raw):
@@ -721,10 +744,13 @@ def process_img(
     if pause_cb:
         pause_cb()
     staged = image_prepare_fn(path, log_cb=log_cb, remove_fn=remove_fn)
-    enhanced = enhance_image_fn(staged)
+    enhanced = staged
     try:
+        enhanced = prepare_comic_image_for_scan(staged) if "COMICS / MANGA / GRAPHIC NOVELS RULES:" in prompt else enhance_image_fn(staged)
         if "claude" in model or "gpt" in model:
             payload = build_payload_fn(model, prompt, enhanced, "image/png")
+            if "COMICS / MANGA / GRAPHIC NOVELS RULES:" in prompt:
+                payload = append_comic_detail_views(payload, enhanced, model, build_payload_fn)
             key = build_request_cache_key_fn(model, prompt, "image", sha256_file_fn(enhanced))
             stream_with_cache_fn(
                 key,
@@ -766,7 +792,10 @@ def process_img(
                     log_cb(f"[Gemini Image] Waiting for image {os.path.basename(enhanced)} to become ready.")
                     uploaded = wait_for_gemini_upload_ready(client, uploaded, poll_sec=0.5, max_wait_sec=30.0, log_cb=log_cb)
                     log_cb(f"[Gemini Image] Image {os.path.basename(enhanced)} is ready.")
-                    response = generate_retry_fn(client, model, [uploaded, prompt], log_cb=log_cb)
+                    contents = [uploaded, prompt]
+                    if "COMICS / MANGA / GRAPHIC NOVELS RULES:" in prompt:
+                        contents = append_comic_detail_views(contents, enhanced, model, build_payload_fn)
+                    response = generate_retry_fn(client, model, contents, log_cb=log_cb)
                 except Exception:
                     _cleanup_upload()
                     raise

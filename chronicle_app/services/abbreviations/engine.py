@@ -1,5 +1,7 @@
 import re
 
+from chronicle_app.services.text_transforms import transform_reading_text
+
 from .civil_titles import CIVIL_TITLE_ENTRIES
 from .medical import MEDICAL_ENTRIES
 from .military import MILITARY_ENTRIES
@@ -55,11 +57,23 @@ def _expand_text_segment(text, doc_profile):
     return cleaned
 
 
+def _expand_preserving_acronyms(text, doc_profile):
+    parts = re.split(r"((?<!\w)(?:[A-Z]\.){2,}(?:[A-Z]\.?)?)", text)
+    result = []
+    for index, part in enumerate(parts):
+        if index % 2:
+            expanded = part
+            for entry in _iter_entries(doc_profile):
+                pattern, replacement = entry[:2]
+                flags = entry[2] if len(entry) > 2 else re.IGNORECASE
+                if re.fullmatch(pattern, part, flags=flags):
+                    expanded = replacement
+                    break
+            result.append(expanded)
+        else:
+            result.append(_expand_text_segment(part, doc_profile))
+    return "".join(result)
+
+
 def expand_abbreviations(text, doc_profile=None):
-    if not text:
-        return ""
-    parts = re.split(r"(<[^>]+>)", text)
-    return "".join(
-        part if part.startswith("<") and part.endswith(">") else _expand_text_segment(part, doc_profile)
-        for part in parts
-    )
+    return transform_reading_text(text, lambda segment: _expand_preserving_acronyms(segment, doc_profile))

@@ -2,6 +2,8 @@ import unittest
 import itertools
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import Mock, patch
+import types
 
 from tools.local_benchmark_pack_accessibility import (
     Case,
@@ -17,6 +19,59 @@ from tools.local_benchmark_pack_accessibility import (
 
 
 class BenchmarkScorecardTest(unittest.TestCase):
+    def test_blank_saved_app_key_does_not_silently_use_obsolete_key(self):
+        from tools.local_benchmark_pack_accessibility import load_gemini_client
+
+        with TemporaryDirectory() as directory:
+            app_data = Path(directory) / "Library/Application Support/Chronicle"
+            app_data.mkdir(parents=True)
+            (app_data / "api_keys.json").write_text('{"gemini": ""}')
+            google = types.ModuleType("google")
+            google.genai = types.SimpleNamespace(Client=Mock())
+            with patch.dict("os.environ", {}, clear=True), patch("sys.platform", "darwin"), patch("pathlib.Path.home", return_value=Path(directory)), patch.dict("sys.modules", {"google": google}), patch("tools.local_benchmark_pack_accessibility.resolve_gemini_key_path") as legacy:
+                with self.assertRaisesRegex(SystemExit, "No Gemini API key is saved"):
+                    load_gemini_client()
+                legacy.assert_not_called()
+                google.genai.Client.assert_not_called()
+
+    def test_html_audit_recognizes_main_with_accessible_label_and_reordered_attributes(self):
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "labelled.html"
+            path.write_text('<!doctype html><html dir="ltr" lang="en"><body><main aria-labelledby="title" role="main" id="content"><h1 id="title">Title</h1></main></body></html>')
+            checks = audit_html_output(path)
+        self.assertTrue(checks["has_main_landmark"])
+        self.assertTrue(checks["has_lang_dir_root"])
+
+    def test_live_client_uses_current_saved_app_key_before_legacy_file(self):
+        from tools.local_benchmark_pack_accessibility import load_gemini_client
+
+        with TemporaryDirectory() as directory:
+            home = Path(directory)
+            app_data = home / "Library/Application Support/Chronicle"
+            app_data.mkdir(parents=True)
+            (app_data / "api_keys.json").write_text('{"gemini": "disposable-current-key"}')
+            legacy = home / "legacy.txt"
+            legacy.write_text("disposable-obsolete-key")
+            client = Mock()
+            google = types.ModuleType("google")
+            google.genai = types.SimpleNamespace(Client=client)
+            with patch.dict("os.environ", {}, clear=True), patch.dict("sys.modules", {"google": google}), patch("sys.platform", "darwin"), patch("pathlib.Path.home", return_value=home), patch("tools.local_benchmark_pack_accessibility.resolve_gemini_key_path", return_value=legacy):
+                load_gemini_client()
+            client.assert_called_once_with(api_key="disposable-current-key")
+
+    def test_explicit_benchmark_key_file_overrides_saved_app_key(self):
+        from tools.local_benchmark_pack_accessibility import load_gemini_client
+
+        with TemporaryDirectory() as directory:
+            key_file = Path(directory) / "key.txt"
+            key_file.write_text("disposable-explicit-key")
+            client = Mock()
+            google = types.ModuleType("google")
+            google.genai = types.SimpleNamespace(Client=client)
+            with patch.dict("sys.modules", {"google": google}), patch.dict("os.environ", {"CHRONICLE_GEMINI_API_KEY_FILE": str(key_file)}):
+                load_gemini_client()
+            client.assert_called_once_with(api_key="disposable-explicit-key")
+
     def test_build_config_inherits_profile_defaults(self):
         case = Case(
             key="legal_case",
@@ -43,7 +98,7 @@ class BenchmarkScorecardTest(unittest.TestCase):
                 self.assertFalse(cfg["merge_files"])
                 self.assertTrue(cfg["image_descriptions"])
                 if case.profile in deep_scan_profiles:
-                    self.assertEqual(case.model, "gemini-2.5-pro")
+                    self.assertEqual(case.model, "gemini-3.1-pro-preview")
                 if case.profile == "newspaper":
                     self.assertTrue(cfg["preserve_original_page_numbers"])
                     self.assertFalse(cfg["modernize_punctuation"])
@@ -456,7 +511,8 @@ class BenchmarkScorecardTest(unittest.TestCase):
 
         self.assertEqual(summary["overall_grade"], "A+")
         self.assertIn("Average score: 100.0/100", markdown)
-        self.assertIn("Overall grade: A+", markdown)
+        self.assertIn("Overall structural grade: A+", markdown)
+        self.assertIn("do not certify transcription accuracy", markdown)
         self.assertIn("## trove_age", markdown)
 
     def test_accessibility_gate_fails_below_threshold_and_errors(self):

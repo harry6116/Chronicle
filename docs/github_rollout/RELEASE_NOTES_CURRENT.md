@@ -1,14 +1,19 @@
-# Chronicle 1.1.5
+# Chronicle 1.1.6
 
-Chronicle 1.1.5 supports Google’s new authorisation keys and improves API-key entry for Gemini, Claude and OpenAI.
+Chronicle 1.1.6 updates Gemini reading engines, improves comic-page and handwriting recovery, makes API-key guidance clearer and keeps local Mac build output current.
 
-## API keys
+## Improvements
 
-- Save new Google AI Studio authorisation keys, usually beginning with `AQ.`, in **File > API Keys...**. Older `AIza` keys remain supported.
-- Key entry no longer assumes a fixed key prefix or length. Gemini, Claude and OpenAI fields check for unsupported characters and explain how to correct a pasted key. An error returns focus to the affected field and selects its text for replacement.
-- Existing saved keys and settings are preserved. Unused provider fields may stay blank, including all three fields for Private Offline Mode.
-- Saving keys does not contact a provider or verify authentication, permissions or billing. The confirmation message now explains this distinction.
-- Logs and support bundles also redact Google’s new authorisation-key format. Existing OpenAI and Claude key redaction remains supported.
-- Updated help and setup instructions link to each provider’s API-key page and explain project billing and separate API access.
+- Automatic reading uses Gemini 3.8 Flash and Gemini 3.1 Pro Preview, selected by document type and difficulty. Handwriting and comics use 3.8 Flash; military records use 3.1 Pro Preview. Manual Gemini 2.5 choices remain available. Preview availability, processing time and provider charges can differ from the older engines.
+- Handwriting and war-diary reading preserve page continuations and cancelled text more clearly. Printer imprints and longer acronyms are protected from inappropriate expansion.
+- Reading transformations preserve HTML attributes, CSS focus colours, scripts and code examples.
 
-The Chronicle website, email contact, update checks and Private Offline Mode remain available.
+- Comic scans preserve colour and use a full-page view with closer views of dense lettering and narration. Comic PDFs with small printed page dimensions are rendered at a more readable resolution.
+- Comic reading scripts distinguish actual frames from numbered caption fragments, preserve printed spellings, and keep useful image descriptions as readable text rather than broken image references.
+- Benchmark summaries distinguish structural accessibility grades from source-transcription accuracy. Difficult text and visual descriptions still need review against the original.
+- Help now distinguishes Google One AI credits from the separate Gemini API billing used by Chronicle.
+- The Google Gemini key field asks for one Google AI Studio API key. Its guidance no longer suggests adding a second authorisation key.
+- Mac builds verify the app version, build stamp and signature, then refresh the configured distribution folder. Copied apps are checked file by file, including symbolic links.
+- If verification fails during replacement, the previous distribution app is restored. Successful refreshes remove the temporary replacement backup.
+
+Google authorisation keys, older Gemini keys, Claude keys and OpenAI keys remain supported. Saving a key stores it locally; provider access and billing are checked during extraction.

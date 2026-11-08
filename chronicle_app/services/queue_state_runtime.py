@@ -1,3 +1,4 @@
+from chronicle_app.services.runtime_policies import GEMINI_FAST_MODEL
 import os
 import re
 
@@ -19,7 +20,7 @@ def get_target_queue_indices_for_setting_change(queue, selected_indices, *, assi
 def apply_settings_to_rows(queue, indices, settings, *, row_setting_keys, label_from_model_fn):
     for idx in indices:
         queue[idx]["settings"] = {key: settings.get(key) for key in row_setting_keys}
-        queue[idx]["engine"] = label_from_model_fn(settings.get("model_name", "gemini-2.5-flash"))
+        queue[idx]["engine"] = label_from_model_fn(settings.get("model_name", GEMINI_FAST_MODEL))
 
 
 def estimate_path_work_units(
@@ -100,6 +101,8 @@ def format_scan_log_message(msg):
     def model_label(model):
         compact = str(model or "").strip()
         known = {
+            "gemini-3.8-flash": "Gemini 3.8 Flash",
+            "gemini-3.1-pro-preview": "Gemini 3.1 Pro Preview",
             "gemini-2.5-pro": "Gemini 2.5 Pro",
             "gemini-2.5-flash": "Gemini 2.5 Flash",
         }

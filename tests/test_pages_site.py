@@ -25,6 +25,7 @@ class PagesSiteTest(unittest.TestCase):
                 if path.suffix != '.html':
                     continue
                 soup = BeautifulSoup(path.read_text(), 'html.parser')
+                self.assertNotIn(soup.html.get('lang'), (None, '', 'und'), str(path))
                 for node in soup.select('[href], [src]'):
                     url = urlsplit(node.get('href') or node.get('src'))
                     if url.scheme or url.netloc:

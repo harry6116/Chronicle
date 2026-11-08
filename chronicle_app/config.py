@@ -1,4 +1,4 @@
-from chronicle_app.services.runtime_policies import DEFAULT_CLAUDE_MODEL, OFFLINE_PRIVATE_MODEL
+from chronicle_app.services.runtime_policies import DEFAULT_CLAUDE_MODEL, GEMINI_DEEP_MODEL, GEMINI_FAST_MODEL, OFFLINE_PRIVATE_MODEL
 
 TRANSLATION_TARGETS = [
     ("English", "en"),
@@ -41,7 +41,7 @@ PROFILE_CHOICES = [
 
 PROFILE_PRESETS = {
     "standard": {
-        "model_name": "gemini-2.5-pro",
+        "model_name": GEMINI_DEEP_MODEL,
         "translate_mode": "none",
         "translate_target": "English",
         "modernize_punctuation": True,
@@ -54,7 +54,7 @@ PROFILE_PRESETS = {
         "collision_mode": "auto",
     },
     "office": {
-        "model_name": "gemini-2.5-pro",
+        "model_name": GEMINI_DEEP_MODEL,
         "translate_mode": "none",
         "translate_target": "English",
         "modernize_punctuation": True,
@@ -67,7 +67,7 @@ PROFILE_PRESETS = {
         "collision_mode": "auto",
     },
     "government": {
-        "model_name": "gemini-2.5-pro",
+        "model_name": GEMINI_DEEP_MODEL,
         "translate_mode": "none",
         "translate_target": "English",
         "modernize_punctuation": True,
@@ -80,7 +80,7 @@ PROFILE_PRESETS = {
         "collision_mode": "auto",
     },
     "letters": {
-        "model_name": "gemini-2.5-pro",
+        "model_name": GEMINI_DEEP_MODEL,
         "translate_mode": "none",
         "translate_target": "English",
         "modernize_punctuation": False,
@@ -93,7 +93,7 @@ PROFILE_PRESETS = {
         "collision_mode": "auto",
     },
     "archival": {
-        "model_name": "gemini-2.5-pro",
+        "model_name": GEMINI_DEEP_MODEL,
         "translate_mode": "none",
         "translate_target": "English",
         "modernize_punctuation": False,
@@ -106,7 +106,7 @@ PROFILE_PRESETS = {
         "collision_mode": "auto",
     },
     "handwritten": {
-        "model_name": "gemini-2.5-pro",
+        "model_name": GEMINI_FAST_MODEL,
         "translate_mode": "none",
         "translate_target": "English",
         "modernize_punctuation": False,
@@ -119,7 +119,7 @@ PROFILE_PRESETS = {
         "collision_mode": "auto",
     },
     "medical": {
-        "model_name": "gemini-2.5-pro",
+        "model_name": GEMINI_DEEP_MODEL,
         "translate_mode": "none",
         "translate_target": "English",
         "modernize_punctuation": False,
@@ -132,7 +132,7 @@ PROFILE_PRESETS = {
         "collision_mode": "auto",
     },
     "military": {
-        "model_name": "gemini-2.5-pro",
+        "model_name": GEMINI_DEEP_MODEL,
         "translate_mode": "none",
         "translate_target": "English",
         "modernize_punctuation": False,
@@ -145,7 +145,7 @@ PROFILE_PRESETS = {
         "collision_mode": "auto",
     },
     "intelligence": {
-        "model_name": "gemini-2.5-pro",
+        "model_name": GEMINI_DEEP_MODEL,
         "translate_mode": "none",
         "translate_target": "English",
         "modernize_punctuation": False,
@@ -158,7 +158,7 @@ PROFILE_PRESETS = {
         "collision_mode": "auto",
     },
     "newspaper": {
-        "model_name": "gemini-2.5-pro",
+        "model_name": GEMINI_DEEP_MODEL,
         "translate_mode": "none",
         "translate_target": "English",
         "modernize_punctuation": False,
@@ -171,7 +171,7 @@ PROFILE_PRESETS = {
         "collision_mode": "auto",
     },
     "modern_newspaper": {
-        "model_name": "gemini-2.5-pro",
+        "model_name": GEMINI_DEEP_MODEL,
         "translate_mode": "none",
         "translate_target": "English",
         "modernize_punctuation": True,
@@ -184,7 +184,7 @@ PROFILE_PRESETS = {
         "collision_mode": "auto",
     },
     "book": {
-        "model_name": "gemini-2.5-pro",
+        "model_name": GEMINI_DEEP_MODEL,
         "translate_mode": "none",
         "translate_target": "English",
         "modernize_punctuation": False,
@@ -197,7 +197,7 @@ PROFILE_PRESETS = {
         "collision_mode": "auto",
     },
     "manual": {
-        "model_name": "gemini-2.5-flash",
+        "model_name": GEMINI_FAST_MODEL,
         "translate_mode": "none",
         "translate_target": "English",
         "modernize_punctuation": False,
@@ -210,7 +210,7 @@ PROFILE_PRESETS = {
         "collision_mode": "auto",
     },
     "forms": {
-        "model_name": "gemini-2.5-flash",
+        "model_name": GEMINI_FAST_MODEL,
         "translate_mode": "none",
         "translate_target": "English",
         "modernize_punctuation": False,
@@ -223,7 +223,7 @@ PROFILE_PRESETS = {
         "collision_mode": "auto",
     },
     "flyer": {
-        "model_name": "gemini-2.5-pro",
+        "model_name": GEMINI_DEEP_MODEL,
         "translate_mode": "none",
         "translate_target": "English",
         "modernize_punctuation": True,
@@ -236,7 +236,7 @@ PROFILE_PRESETS = {
         "collision_mode": "auto",
     },
     "brochure": {
-        "model_name": "gemini-2.5-pro",
+        "model_name": GEMINI_DEEP_MODEL,
         "translate_mode": "none",
         "translate_target": "English",
         "modernize_punctuation": True,
@@ -249,7 +249,7 @@ PROFILE_PRESETS = {
         "collision_mode": "auto",
     },
     "magazine": {
-        "model_name": "gemini-2.5-pro",
+        "model_name": GEMINI_DEEP_MODEL,
         "translate_mode": "none",
         "translate_target": "English",
         "modernize_punctuation": False,
@@ -262,7 +262,7 @@ PROFILE_PRESETS = {
         "collision_mode": "auto",
     },
     "comic": {
-        "model_name": "gemini-2.5-pro",
+        "model_name": GEMINI_FAST_MODEL,
         "translate_mode": "none",
         "translate_target": "English",
         "modernize_punctuation": False,
@@ -275,7 +275,7 @@ PROFILE_PRESETS = {
         "collision_mode": "auto",
     },
     "slides": {
-        "model_name": "gemini-2.5-pro",
+        "model_name": GEMINI_DEEP_MODEL,
         "translate_mode": "none",
         "translate_target": "English",
         "modernize_punctuation": True,
@@ -288,7 +288,7 @@ PROFILE_PRESETS = {
         "collision_mode": "auto",
     },
     "tabular": {
-        "model_name": "gemini-2.5-pro",
+        "model_name": GEMINI_DEEP_MODEL,
         "translate_mode": "none",
         "translate_target": "English",
         "modernize_punctuation": False,
@@ -301,7 +301,7 @@ PROFILE_PRESETS = {
         "collision_mode": "auto",
     },
     "academic": {
-        "model_name": "gemini-2.5-pro",
+        "model_name": GEMINI_DEEP_MODEL,
         "translate_mode": "none",
         "translate_target": "English",
         "modernize_punctuation": False,
@@ -314,7 +314,7 @@ PROFILE_PRESETS = {
         "collision_mode": "auto",
     },
     "transcript": {
-        "model_name": "gemini-2.5-pro",
+        "model_name": GEMINI_DEEP_MODEL,
         "translate_mode": "none",
         "translate_target": "English",
         "modernize_punctuation": True,
@@ -340,7 +340,7 @@ PROFILE_PRESETS = {
         "collision_mode": "auto",
     },
     "legal": {
-        "model_name": "gemini-2.5-pro",
+        "model_name": GEMINI_DEEP_MODEL,
         "translate_mode": "none",
         "translate_target": "English",
         "modernize_punctuation": False,
@@ -371,6 +371,8 @@ PROFILE_LABEL_TO_KEY = {label: key for key, label in PROFILE_CHOICES}
 PROFILE_KEY_TO_LABEL = {key: label for key, label in PROFILE_CHOICES}
 
 MODEL_LABEL_BY_KEY = {
+    GEMINI_FAST_MODEL: "Gemini 3.8 Flash",
+    GEMINI_DEEP_MODEL: "Gemini 3.1 Pro Preview",
     "gemini-2.5-flash": "Gemini 2.5 Flash",
     "gemini-2.5-pro": "Gemini 2.5 Pro",
     DEFAULT_CLAUDE_MODEL: "Claude Sonnet 4.6",
@@ -380,8 +382,10 @@ MODEL_LABEL_BY_KEY = {
 
 MODEL_OVERRIDE_CHOICES = [
     ("", "Automatic (Chronicle Chooses)"),
+    (GEMINI_FAST_MODEL, "Gemini 3.8 Flash"),
     ("gemini-2.5-flash", "Gemini 2.5 Flash"),
     ("gemini-2.5-pro", "Gemini 2.5 Pro"),
+    (GEMINI_DEEP_MODEL, "Gemini 3.1 Pro Preview"),
     (DEFAULT_CLAUDE_MODEL, "Claude Sonnet 4.6"),
     ("gpt-4o", "GPT-4o"),
     (OFFLINE_PRIVATE_MODEL, "Private Offline Mode"),
