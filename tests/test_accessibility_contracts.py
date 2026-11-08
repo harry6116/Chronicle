@@ -463,6 +463,15 @@ class AccessibilityContractsTest(unittest.TestCase):
             self.assertIn("Do not bury visible SFX only inside an image description", prompt)
             self.assertIn("Every panel/story-beat section must include a concise `[Image Description: ...]`", prompt)
 
+    def test_comic_prompt_preserves_source_numbering_and_marks_uncertain_text(self):
+        cfg = self._base_cfg(doc_profile="comic")
+        for prompt in (chronicle.get_prompt(cfg), chronicle_gui.build_prompt(cfg)):
+            self.assertIn("printed panel numbers", prompt)
+            self.assertIn("beneath or between panels", prompt)
+            self.assertIn("[illegible]", prompt)
+            self.assertIn("Do not turn a decorative title banner into an extra numbered panel", prompt)
+            self.assertIn("Do not reconstruct dialogue from the plot", prompt)
+
     def test_magazine_prompt_keeps_periodical_article_cleanup_rules(self):
         cfg = self._base_cfg(doc_profile="magazine")
 

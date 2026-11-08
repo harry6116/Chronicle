@@ -1021,13 +1021,17 @@ def process_image(client, file_path, output_path, format_type, prompt_text, mode
             cache_key = build_request_cache_key(model_name, prompt_text, "image-upload", sha256_file(enhanced_path))
             def _gemini_image_request():
                 uploaded = client.files.upload(file=enhanced_path)
-                uploaded = wait_for_gemini_upload_ready(client, uploaded, poll_sec=2.0)
-                response = generate_with_retry(client, model_name, [uploaded, prompt_text])
                 def _cleanup_upload():
                     try:
                         client.files.delete(name=uploaded.name)
                     except Exception as cleanup_ex:
                         print(f"Warning: could not delete temporary Gemini upload {uploaded.name}: {sanitize_log_text(cleanup_ex)}")
+                try:
+                    uploaded = wait_for_gemini_upload_ready(client, uploaded, poll_sec=2.0)
+                    response = generate_with_retry(client, model_name, [uploaded, prompt_text])
+                except Exception:
+                    _cleanup_upload()
+                    raise
                 return response, _cleanup_upload
             stream_with_cache(
                 cache_key,

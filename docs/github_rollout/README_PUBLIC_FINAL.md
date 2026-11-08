@@ -2,7 +2,7 @@
 
 Chronicle is an accessibility-first document recovery tool for difficult real-world material.
 
-Current public release line: **Chronicle 1.1.4**.
+Current public release line: **Chronicle 1.1.5**.
 
 It is especially strong on degraded scans, long-form books, archival records, legal and policy material, tables, handwriting, multi-column layouts, comics, manga, graphic novels, and mixed-format batches where preserving reading order, usable structure, and review workflow matters more than raw one-click speed.
 
@@ -103,7 +103,7 @@ Full guidance: `docs/user/PRIVATE_OFFLINE_MODE.md`.
 
 ## Current Public Release
 
-Chronicle `1.1.4` adds the new website and direct email contact to About Chronicle, with labelled contact actions and optional GitHub sponsorship.
+Chronicle `1.1.5` accepts new Google authorisation keys and improves API-key entry guidance and privacy for Gemini, Claude and OpenAI.
 
 Current release downloads:
 
@@ -155,6 +155,16 @@ Source mode is for building, testing, and developing the Chronicle GUI app from 
 - Ensure the staged bundle includes `build_windows.ps1`, `build_windows.bat`, `chronicle_app/`, `assets/`, and `docs/`
 
 ## API Keys and Provider Boundary
+
+Open **File > API Keys...** (shortcut **Alt+K**) and paste the key into its labelled provider field:
+
+- **Google Gemini:** create an API key in [Google AI Studio](https://aistudio.google.com/api-keys). New authorisation keys, usually beginning with `AQ.`, are supported alongside older `AIza` keys. Google now creates authorisation keys by default; see [Google’s API-key guide](https://aistudio.google.com/docs/api-key). Choose the Google Cloud project with the API billing or credits you intend to use.
+- **Anthropic Claude:** create an API key in the [Claude Console](https://platform.claude.com/settings/keys), scoped to the workspace you will use. This lets Chronicle select the workspace using the key alone. Claude chat access is separate from API access.
+- **OpenAI:** use an API key from the [OpenAI developer platform](https://platform.openai.com/api-keys), including a project key. ChatGPT access is separate from API access.
+
+Paste only the key, without quotes or an HTTP header such as `Authorization: Bearer`. Chronicle removes surrounding whitespace and checks for unsupported characters, without requiring a fixed prefix or length. Leave unused provider fields blank; all three may be blank for Private Offline Mode.
+
+Use **Show API keys** only when you want the characters visible. **Save API Keys** stores the entries locally; **Cancel** discards edits. Saving does not contact a provider or verify the key, permissions, model access, quota or billing. Run a short extraction to check provider access; online extraction can incur provider charges. Existing saved keys do not need to be re-entered unless you are replacing them. Known Google, OpenAI and Claude key formats are redacted from Chronicle’s logs and support bundles; keep your keys private.
 
 Chronicle stores API keys locally, but extracted content is sent to the selected provider API for processing.
 

@@ -747,10 +747,6 @@ def process_img(
                 }
                 log_cb(f"[Gemini Image] Uploading image {os.path.basename(enhanced)}.")
                 uploaded = client.files.upload(file=enhanced, config=upload_config)
-                log_cb(f"[Gemini Image] Waiting for image {os.path.basename(enhanced)} to become ready.")
-                uploaded = wait_for_gemini_upload_ready(client, uploaded, poll_sec=0.5, max_wait_sec=30.0, log_cb=log_cb)
-                log_cb(f"[Gemini Image] Image {os.path.basename(enhanced)} is ready.")
-                response = generate_retry_fn(client, model, [uploaded, prompt], log_cb=log_cb)
 
                 def _cleanup_upload():
                     try:
@@ -766,6 +762,14 @@ def process_img(
                     except Exception as cleanup_ex:
                         log_cb(f"Warning: could not delete temporary Gemini upload {uploaded.name}: {_safe_error(cleanup_ex)}")
 
+                try:
+                    log_cb(f"[Gemini Image] Waiting for image {os.path.basename(enhanced)} to become ready.")
+                    uploaded = wait_for_gemini_upload_ready(client, uploaded, poll_sec=0.5, max_wait_sec=30.0, log_cb=log_cb)
+                    log_cb(f"[Gemini Image] Image {os.path.basename(enhanced)} is ready.")
+                    response = generate_retry_fn(client, model, [uploaded, prompt], log_cb=log_cb)
+                except Exception:
+                    _cleanup_upload()
+                    raise
                 return response, _cleanup_upload
 
             stream_with_cache_fn(key, _gemini_img_request, out, fmt, f_obj, mem, log_cb, pause_cb=pause_cb)

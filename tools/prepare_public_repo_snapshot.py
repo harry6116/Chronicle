@@ -150,6 +150,7 @@ EXCLUDED_RELATIVE_PATHS = {
 }
 
 ALLOWED_TOOL_PATHS = {
+    "tools/comic_accuracy_audit.py",
     "tools/audit_handwriting_outputs.py",
     "tools/build_source_archive.py",
     "tools/build_pages_site.py",

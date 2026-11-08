@@ -30,6 +30,8 @@ Always verify current provider terms at time of use.
 
 ### 1) Key Types and Project Context
 
+Google AI Studio now creates authorisation keys by default. Chronicle accepts these keys (usually beginning with `AQ.`) and older `AIza` keys without a fixed prefix or length requirement. Paste the key into **File > API Keys... > Google Gemini API Key**. See [Google’s API-key guide](https://aistudio.google.com/docs/api-key). Saving only stores the key locally; provider authentication, permissions, quota and billing are checked during extraction. Replacing a key does not transfer credits between Google Cloud projects.
+
 - Ensure you are using the intended Google project and API key scope.
 - Mis-scoped keys, disabled APIs, or project restrictions can cause auth/permission failures.
 
@@ -72,6 +74,12 @@ Anthropic should be treated differently from Google's free-tier Gemini guidance:
 - Current Anthropic help guidance describes Claude Console/API use as requiring separate billing or credits.
 
 OpenAI follows the same broad principle that account tier and settings determine privacy posture. Chronicle cannot enforce upstream provider policy.
+
+## OpenAI and Claude Key Setup
+
+Use a project API key from the [OpenAI developer platform](https://platform.openai.com/api-keys). OpenAI API access and billing are separate from ChatGPT access. See [OpenAI’s authentication reference](https://developers.openai.com/api/reference/overview#authentication).
+
+For Claude, create a key in the [Claude Console](https://platform.claude.com/settings/keys) scoped to the workspace you intend to use. Workspace-scoped keys select the workspace without an additional ID. An unscoped key requires an extra workspace-ID header, which Chronicle’s key vault does not configure. Existing workspace API keys remain supported by Claude, although its current guidance prefers personal or service-account keys. See [Claude’s authentication guide](https://platform.claude.com/docs/en/manage-claude/authentication). Choose the key type and scope appropriate to your account; Claude chat access does not provide API access.
 
 ## API Key Legal/Security Baseline
 

@@ -27,6 +27,7 @@ Mac/build.command
 Mac/build_mac.py
 Mac/release_helpers.sh
 PLATFORM_LAYOUT.md
+PUBLIC_REPO_MANIFEST.txt
 Package_Release_Apps.command
 Prepare_Public_Repo.command
 Publish_GitHub_Release.command
@@ -186,9 +187,12 @@ sync_and_build_only.bat
 tests/test_accessibility_contracts.py
 tests/test_active_tree_parity.py
 tests/test_adaptive_engine_routing.py
+tests/test_api_key_dialog.py
 tests/test_app_files.py
 tests/test_benchmark_scorecard.py
 tests/test_book_cleanup.py
+tests/test_comic_accuracy_audit.py
+tests/test_comic_panel_audit.py
 tests/test_context_help.py
 tests/test_dense_newspaper_rendering.py
 tests/test_diagnostics.py
@@ -198,6 +202,7 @@ tests/test_gemini_rest_payloads.py
 tests/test_handwriting_forms.py
 tests/test_html_heading_cleanup.py
 tests/test_html_page_navigation.py
+tests/test_image_upload_cleanup.py
 tests/test_local_provider_runtime.py
 tests/test_mac_activity_runtime.py
 tests/test_mac_updater_integration.py
@@ -242,6 +247,7 @@ tools/audit_handwriting_outputs.py
 tools/build_pages_site.py
 tools/build_source_archive.py
 tools/check_platform_layout.sh
+tools/comic_accuracy_audit.py
 tools/install_git_hooks.sh
 tools/local_benchmark_pack_accessibility.py
 tools/precommit_secret_scan.sh

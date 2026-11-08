@@ -616,6 +616,8 @@ def run_case_with_watchdog(
 
 
 def audit_html_output(path: Path) -> dict:
+    from tools.comic_accuracy_audit import extract_panels
+
     text = path.read_text(encoding="utf-8", errors="ignore")
     lower = text.lower()
     stripped = text.lstrip()
@@ -624,14 +626,8 @@ def audit_html_output(path: Path) -> dict:
     )
     has_visual_elements = "<img" in lower or "<figure" in lower or "[image description:" in lower
     image_description_present = "[image description:" in lower or img_with_alt
-    panel_heading_matches = list(re.finditer(r"<h2\b[^>]*>\s*panel\b.*?</h2>", text, flags=re.IGNORECASE | re.DOTALL))
-    empty_panel_sections = []
-    for index, match in enumerate(panel_heading_matches):
-        end = panel_heading_matches[index + 1].start() if index + 1 < len(panel_heading_matches) else len(text)
-        segment = text[match.end():end]
-        segment_text = re.sub(r"<[^>]+>", " ", segment)
-        if not re.sub(r"\s+", " ", segment_text).strip():
-            empty_panel_sections.append(match.group(0))
+    panels = extract_panels(text)
+    empty_panel_sections = [panel for panel in panels if not panel['text'].strip()]
     bare_image_description_line = bool(
         re.search(r"(?im)^\s*\[(?:Image Description|Panel Description):[^\n<]*\]\s*$", text)
     )
@@ -642,7 +638,8 @@ def audit_html_output(path: Path) -> dict:
         "has_source_footer_cite": "<footer><cite>" in lower,
         "has_h1": "<h1" in lower,
         "has_h2": "<h2" in lower,
-        "has_panel_heading": bool(panel_heading_matches),
+        "has_panel_heading": bool(panels),
+        "all_panels_described": bool(panels) and all(panel['described'] for panel in panels),
         "no_empty_panel_sections": not empty_panel_sections,
         "no_bare_image_description_lines": not bare_image_description_line,
         "has_visual_elements": has_visual_elements,
@@ -713,6 +710,8 @@ def score_html_checks(profile: str, checks: dict) -> dict:
     for key, weight in weights.items():
         if key == "no_structural_regressions":
             passed = structural_clean
+        elif key == "has_image_description" and profile == "comic":
+            passed = bool(checks.get(key)) and checks.get("all_panels_described", True)
         elif key == "has_image_description" and profile != "comic" and not image_description_applicable(checks):
             passed = True
         elif key == "has_strikethrough_recovery" and not strikethrough_recovery_applicable(checks):
@@ -726,7 +725,7 @@ def score_html_checks(profile: str, checks: dict) -> dict:
         breakdown.append(
             {
                 "key": key,
-                "label": CHECK_LABELS.get(key, key),
+                "label": "Every panel has an image description" if key == "has_image_description" and profile == "comic" else CHECK_LABELS.get(key, key),
                 "passed": passed,
                 "points_earned": weight if passed else 0,
                 "points_possible": weight,

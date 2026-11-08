@@ -4,6 +4,7 @@ import re
 SENSITIVE_KEY_PARTS = ("api", "key", "token", "secret", "password", "credential")
 
 SECRET_PATTERNS = (
+    re.compile(r"(?<![A-Za-z0-9_])AQ\.[A-Za-z0-9._~+/=-]{12,}"),
     re.compile(r"AIza[0-9A-Za-z_-]{20,}"),
     re.compile(r"sk-[A-Za-z0-9_-]{20,}"),
     re.compile(r"ghp_[A-Za-z0-9_]{20,}"),

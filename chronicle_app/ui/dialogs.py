@@ -444,11 +444,11 @@ class ScheduleExtractionDialog(wx.Dialog):
 
 class ApiKeyDialog(wx.Dialog):
     @staticmethod
-    def _looks_like_gemini_key(value):
+    def _looks_like_api_key(value):
         key = str(value or "").strip()
         if not key:
             return True
-        return key.startswith("AIza") and len(key) == 39
+        return all(character.isascii() and (character.isalnum() or character in "-._~+/=") for character in key)
 
     def __init__(self, parent, *, initial_keys=None, save_keys=None):
         super().__init__(parent, title="Chronicle API Keys Vault", size=(560, 400))
@@ -481,7 +481,7 @@ class ApiKeyDialog(wx.Dialog):
         gemini_label = wx.StaticText(panel, label="Google Gemini Key:")
         self.tg = wx.TextCtrl(panel, style=wx.TE_PASSWORD)
         self.tg.SetName("Google Gemini API Key")
-        self.tg.SetToolTip("Enter your Google Gemini API key. Save stores it locally; Cancel discards changes.")
+        self.tg.SetToolTip("Enter your Google AI Studio API key, including a new authorisation key. Save stores it locally; Cancel discards changes.")
         self.tg.SetValue(self.keys.get("gemini", ""))
         self.grid.Add(gemini_label, flag=wx.ALIGN_CENTER_VERTICAL)
         self.grid.Add(self.tg, proportion=1, flag=wx.EXPAND)
@@ -489,7 +489,7 @@ class ApiKeyDialog(wx.Dialog):
         anthropic_label = wx.StaticText(panel, label="Anthropic Claude Key:")
         self.tc = wx.TextCtrl(panel, style=wx.TE_PASSWORD)
         self.tc.SetName("Anthropic Claude API Key")
-        self.tc.SetToolTip("Enter your Anthropic Claude API key. Leave blank if you do not use Claude.")
+        self.tc.SetToolTip("Enter your API key from the Claude Console. Leave blank if you do not use Claude.")
         self.tc.SetValue(self.keys.get("claude", ""))
         self.grid.Add(anthropic_label, flag=wx.ALIGN_CENTER_VERTICAL)
         self.grid.Add(self.tc, proportion=1, flag=wx.EXPAND)
@@ -497,7 +497,7 @@ class ApiKeyDialog(wx.Dialog):
         openai_label = wx.StaticText(panel, label="OpenAI GPT Key:")
         self.to = wx.TextCtrl(panel, style=wx.TE_PASSWORD)
         self.to.SetName("OpenAI GPT API Key")
-        self.to.SetToolTip("Enter your OpenAI API key. Leave blank if you do not use GPT.")
+        self.to.SetToolTip("Enter your API key from the OpenAI developer platform. Leave blank if you do not use GPT.")
         self.to.SetValue(self.keys.get("openai", ""))
         self.grid.Add(openai_label, flag=wx.ALIGN_CENTER_VERTICAL)
         self.grid.Add(self.to, proportion=1, flag=wx.EXPAND)
@@ -533,6 +533,7 @@ class ApiKeyDialog(wx.Dialog):
             replacement.SetValue(val)
             replacement.SetName(name)
             replacement.SetToolTip(txt.GetToolTipText())
+            replacement.MoveBeforeInTabOrder(txt)
             self.grid.Replace(txt, replacement)
             txt.Destroy()
             setattr(self, attr, replacement)
@@ -540,24 +541,34 @@ class ApiKeyDialog(wx.Dialog):
         self.Layout()
 
     def OnSave(self, event):
-        gemini_key = self.tg.GetValue().strip()
-        if not self._looks_like_gemini_key(gemini_key):
-            wx.MessageBox(
-                "The Google Gemini key does not look valid. Gemini keys usually start with 'AIza' and are 39 characters long.\n\nPlease check the key and try again.",
-                "Invalid Gemini API Key",
-                wx.OK | wx.ICON_WARNING,
-            )
-            self.tg.SetFocus()
-            self.tg.SetSelection(-1, -1)
-            return
-        self.keys = {
-            "gemini": gemini_key,
-            "claude": self.tc.GetValue().strip(),
-            "openai": self.to.GetValue().strip(),
-        }
+        keys = {}
+        for provider, label, control in (
+            ("gemini", "Google Gemini", self.tg),
+            ("claude", "Anthropic Claude", self.tc),
+            ("openai", "OpenAI", self.to),
+        ):
+            key = control.GetValue().strip()
+            if not self._looks_like_api_key(key):
+                wx.MessageBox(
+                    f"The {label} key contains unsupported characters.\n\n"
+                    "Paste only the API key, without spaces, quotes, or an HTTP header. "
+                    "Leave this field blank if you do not use this provider.",
+                    f"Invalid {label} API Key",
+                    wx.OK | wx.ICON_WARNING,
+                )
+                control.SetFocus()
+                control.SetSelection(-1, -1)
+                return
+            keys[provider] = key
+        self.keys = keys
         if self._save_keys is not None:
             self._save_keys(self.keys)
-        wx.MessageBox("API keys saved locally on this machine.", "Chronicle", wx.OK | wx.ICON_INFORMATION)
+        wx.MessageBox(
+            "API keys saved locally on this machine. Provider access, permissions and billing "
+            "are checked when you run an extraction.",
+            "Chronicle",
+            wx.OK | wx.ICON_INFORMATION,
+        )
         self.EndModal(wx.ID_OK)
 
 

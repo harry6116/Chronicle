@@ -51,6 +51,26 @@ class DiagnosticsTest(unittest.TestCase):
         self.assertNotIn("cccccccccccc", text)
         self.assertIn("x-api-key: [redacted]", text)
 
+    def test_sanitize_log_text_redacts_bare_and_labelled_provider_keys(self):
+        keys = (
+            "AQ." + "x" * 120 + "._-~+/=",
+            self._fake_gemini_key(),
+            "sk-proj-" + "y" * 150,
+            "sk-ant-api03-" + "z" * 90,
+        )
+        for key in keys:
+            for template in ("Provider returned {}", "x-goog-api-key: {}", "x-api-key: {}", "Authorization: Bearer {}", 'apiKey="{}"'):
+                with self.subTest(prefix=key[:10], template=template):
+                    text = sanitize_log_text(template.format(key))
+                    self.assertNotIn(key, text)
+                    self.assertNotIn(key[-20:], text)
+                    self.assertIn("[redacted]", text)
+
+    def test_auth_key_redaction_preserves_surrounding_diagnostic_text(self):
+        key = "AQ." + "x" * 120 + "._-~+/="
+        self.assertEqual(sanitize_log_text(f'Failed for "{key}"; retry later.'), 'Failed for "[redacted]"; retry later.')
+        self.assertEqual(sanitize_log_text("FAQ. Documentation is available."), "FAQ. Documentation is available.")
+
     def test_provider_capability_matrix_reports_configured_providers(self):
         text = build_provider_capability_matrix(
             {"gemini": "x"},
@@ -87,7 +107,7 @@ class DiagnosticsTest(unittest.TestCase):
                 build_stamp="build",
                 cfg={"api_key": "secret", "format_type": "html"},
                 queue=[{"path": "/tmp/private-client/a.pdf", "source_root": "/tmp/private-client", "settings": {"token": "abc"}}],
-                processing_log_lines=["line one", f"provider said api_key={self._fake_gemini_key('2')}"],
+                processing_log_lines=["line one", f"provider said api_key={self._fake_gemini_key('2')}", "provider said AQ." + "x" * 120],
                 session_file=session_path,
                 provider_matrix_text="matrix",
                 time_module=fake_time,
@@ -106,6 +126,7 @@ class DiagnosticsTest(unittest.TestCase):
             self.assertNotIn("private-client/a.pdf", json.dumps(queue))
             self.assertEqual(session["api_key"], "[redacted]")
             self.assertNotIn("AIza", processing_log)
+            self.assertNotIn("AQ.", processing_log)
 
     def test_redact_support_bundle_paths_preserves_basenames_only(self):
         redacted = redact_support_bundle_paths(

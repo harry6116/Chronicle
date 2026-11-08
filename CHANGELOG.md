@@ -2,6 +2,13 @@
 
 This history describes changes users may notice. The desktop app release series began at 1.0.0 in April 2026. Earlier version numbers below belong to the original project and follow a different sequence.
 
+## [1.1.5] - 2026-11-08
+
+- Support for new Google AI Studio authorisation keys alongside older Gemini keys.
+- API-key entry checks for Gemini, Claude and OpenAI without fixed prefix or length requirements, with clear correction guidance and focus on the affected field.
+- New Google authorisation keys are redacted from logs and support bundles.
+- Updated provider setup instructions and a save confirmation that distinguishes local storage from provider authentication and billing.
+
 ## [1.1.4] - 2026-11-08
 
 - New Chronicle website with downloads, the user guide, document examples, and release news: https://harry6116.github.io/.

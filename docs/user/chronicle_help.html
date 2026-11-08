@@ -202,6 +202,14 @@
 
         <section id="privacy" aria-labelledby="privacy-title">
           <h2 id="privacy-title">2. Privacy and API Keys</h2>
+          <p>Open <strong>File &gt; API Keys...</strong> (<kbd>Alt</kbd> + <kbd>K</kbd>) and use the labelled field for each provider.</p>
+          <ul>
+            <li><strong>Google Gemini:</strong> create a key in <a href="https://aistudio.google.com/api-keys">Google AI Studio</a>. New authorisation keys, usually beginning with <code>AQ.</code>, and older <code>AIza</code> keys are supported. Choose the Google Cloud project with your intended API billing or credits. See <a href="https://aistudio.google.com/docs/api-key">Google’s API-key guide</a>.</li>
+            <li><strong>Anthropic Claude:</strong> create an API key in the <a href="https://platform.claude.com/settings/keys">Claude Console</a>, scoped to the workspace you will use. This lets Chronicle select the workspace using the key alone. Claude chat access is separate from API access.</li>
+            <li><strong>OpenAI:</strong> use a key from the <a href="https://platform.openai.com/api-keys">OpenAI developer platform</a>, including a project key. ChatGPT access is separate from API access.</li>
+          </ul>
+          <p>Paste only the key, without quotes, spaces within the key or an HTTP header such as <code>Authorization: Bearer</code>. Surrounding whitespace is removed; no fixed prefix or length is required. Leave unused fields blank. All fields may be blank for Private Offline Mode.</p>
+          <p><strong>Save API Keys</strong> stores entries locally and <strong>Cancel</strong> discards edits. Saving does not contact providers or verify authentication, permissions, model access, quota or billing. Use a short extraction to check access; online extraction can incur provider charges. Existing saved keys only need changing when you replace them. Known Google, OpenAI and Claude key formats are redacted from logs and support bundles; keep keys private.</p>
           <ul>
             <li>Chronicle stores keys locally in your OS app-data profile.</li>
             <li>Keys can be saved to your OS keychain/keyring (Keychain on macOS) when available, and this is the recommended storage mode.</li>
