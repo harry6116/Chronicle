@@ -36,7 +36,7 @@ jobs:
       - name: Prepare website
         run: python tools/build_pages_site.py --release-json "$RUNNER_TEMP/chronicle-release.json" --output "$RUNNER_TEMP/chronicle-site"
       - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v4
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: ${{ runner.temp }}/chronicle-site
       - uses: actions/deploy-pages@v4

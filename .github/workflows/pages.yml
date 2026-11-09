@@ -54,7 +54,7 @@ jobs:
           wranglerVersion: "4.159.0"
           command: pages deploy "${{ runner.temp }}/chronicle-site" --project-name=chronicle-vir --branch=main
       - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v4
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: ${{ runner.temp }}/chronicle-site
       - uses: actions/deploy-pages@v4
