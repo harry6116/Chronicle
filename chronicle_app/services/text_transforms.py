@@ -68,3 +68,26 @@ def transform_reading_text(content, transform):
     for start, end in reversed(reader.edits):
         content = content[:start] + prose(content[start:end]) + content[end:]
     return content
+
+
+def add_reading_aid(text, pattern, expansion, *, flags=0, protect_acronyms=False):
+    """Keep the source token and add at most one unambiguous reading aid."""
+    parts = re.split(r"(\[[^\]\n]*\])", text)
+    for index in range(0, len(parts), 2):
+        segment = parts[index]
+        followed_by_aid = index + 1 < len(parts)
+
+        def replace(match):
+            original = match.group()
+            if protect_acronyms and re.fullmatch(r"(?:[A-Z]\.?){2,}", original):
+                return original
+            # Model-provided bracketed aids and uncertainty tags take priority.
+            if not segment[match.end():].strip() and followed_by_aid:
+                return original
+            spoken = expansion(match) if callable(expansion) else match.expand(expansion)
+            if original.strip().casefold() == spoken.strip().casefold():
+                return original
+            return f"{original} [{spoken.strip()}]"
+
+        parts[index] = re.sub(pattern, replace, segment, flags=flags)
+    return "".join(parts)

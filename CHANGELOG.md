@@ -2,6 +2,13 @@
 
 This history describes changes users may notice. The desktop app release series began at 1.0.0 in April 2026. Earlier version numbers below belong to the original project and follow a different sequence.
 
+## [1.1.8] - 2026-11-10
+
+- Resolved overlapping punctuation, abbreviation, table and output-format instructions.
+- Kept originals alongside optional reading aids, with protected clinical shorthand and identifiers.
+- Shared source-fidelity safeguards with newspaper strip recovery.
+- Preserved Unicode maths and used visible book paragraph boundaries without contextual word replacement.
+
 ## [1.1.7] - 2026-11-10
 
 - Added optional Gemini 4 Argon in Engine Override while retaining existing automatic presets.

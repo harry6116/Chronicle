@@ -441,7 +441,7 @@
             <li><strong>Translation</strong>: disable translation, keep original with bracketed translation, or translate only.</li>
             <li><strong>Punctuation</strong>: preserve archival punctuation or modernize legacy punctuation. If modernization or abbreviation expansion is enabled, reading may take a bit longer because Chronicle has to correct punctuation, suppress false punctuation from broken layouts, and expand abbreviations.</li>
             <li><strong>Units/Currency</strong>: keep original units only or add bracketed modern equivalents.</li>
-            <li><strong>Abbreviations</strong>: keep abbreviations as printed or expand them in brackets.</li>
+            <li><strong>Abbreviations</strong>: keep abbreviations as printed or add a bracketed reading aid beside the original when its meaning is unambiguous. Clinical shorthand, acronyms, initials and reference identifiers remain unchanged.</li>
             <li><strong>Image Descriptions</strong>: enable or disable generated image descriptions.</li>
             <li><strong>Original Page Numbers</strong>: suppress standalone folios or preserve them as explicit original-page references in the output.</li>
             <li><strong>Seamless Merge</strong>: save each queued source separately or merge them into one continuous output.</li>
@@ -559,7 +559,7 @@
         <section id="prefs" aria-labelledby="prefs-title">
           <h2 id="prefs-title">7. Preferences (All Pickers)</h2>
           <p>Chronicle uses picker-style controls for multi-choice settings so screen readers announce options consistently.</p>
-          <p><strong>Reading fidelity:</strong> Chronicle is configured for zero guessing and no broad spelling correction. A narrow readability exception allows intelligent column splicing, false-punctuation cleanup, and obvious print-artifact repair when the intended reading is clearly recoverable and factual meaning is preserved. If <em>Legacy Punctuation Mode</em> is enabled, only punctuation/spacing can be normalized beyond those layout repairs. Reading may also take a bit longer when punctuation modernization or abbreviation expansion is enabled, because Chronicle has to correct punctuation, suppress false punctuation from broken layouts, and expand abbreviations before finalizing the output. Spacing repair also keeps adjacent words from joining after punctuation cleanup.</p>
+          <p><strong>Reading fidelity:</strong> Chronicle is configured for zero guessing and no broad spelling correction. Layout repairs rejoin clearly wrapped words and paragraphs without replacing visible source letters. Uncertain words remain marked locally. If <em>Legacy Punctuation Mode</em> is enabled, only punctuation/spacing can be normalized beyond those layout repairs. Reading may also take a bit longer when punctuation modernization or abbreviation expansion is enabled, because Chronicle has to correct punctuation, suppress false punctuation from broken layouts, and expand abbreviations before finalizing the output. Spacing repair also keeps adjacent words from joining after punctuation cleanup.</p>
           <h3>Intelligent Column Splicing and Print Artifact Correction</h3>
           <ul>
             <li>Chronicle can rejoin words split across line or column breaks when the visible hyphen exists only because of physical layout constraints.</li>

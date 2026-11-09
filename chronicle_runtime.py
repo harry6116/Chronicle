@@ -319,14 +319,14 @@ def sanitize_model_output(text_content, format_type, doc_profile=None, preserve_
     )
 
 def apply_modern_punctuation(text_content):
-    return core_apply_modern_punctuation(text_content)
+    return core_apply_modern_punctuation(text_content, preserve_source_hyphens=True)
 
 def apply_modern_currency(text_content):
-    return core_apply_modern_currency(text_content)
+    return core_apply_modern_currency(text_content, preserve_original=True)
 
 
 def apply_expanded_abbreviations(text_content, doc_profile=None):
-    return core_apply_expanded_abbreviations(text_content, doc_profile)
+    return core_apply_expanded_abbreviations(text_content, doc_profile, preserve_original=True)
 
 def normalize_streamed_html_document(full_html, *, insert_page_navigation=True):
     return core_normalize_streamed_html_document(

@@ -295,7 +295,7 @@ class AccessibilityContractsTest(unittest.TestCase):
             self.assertIn("CORRUPTION QUARANTINE", prompt)
             self.assertIn("STRAY PROMPT/JUNK PHRASE SUPPRESSION", prompt)
             self.assertIn("FOLIO SUPPRESSION FOR PROSE", prompt)
-            self.assertIn("OBVIOUS OCR WORD REPAIR", prompt)
+            self.assertIn("Do not change letters, capitalization or source spelling", prompt)
             self.assertIn("TAIL-END SAFETY", prompt)
             self.assertIn("ENDING CONTINUITY", prompt)
             self.assertIn("WORD / DOCX OUTPUT RULES", prompt)
@@ -324,8 +324,8 @@ class AccessibilityContractsTest(unittest.TestCase):
         prompt = chronicle_gui.build_prompt(self._base_cfg(doc_profile="book", format_type="docx"))
 
         self.assertIn("HARD-RETURN FILTER FOR PROSE", prompt)
-        self.assertIn("Treat ordinary wrapped scan lines as one continuous paragraph", prompt)
-        self.assertIn("full stop, question mark, exclamation mark, or closing quotation mark", prompt)
+        self.assertIn("Use visible paragraph indentation, spacing and dialogue structure", prompt)
+        self.assertIn("A full stop or closing quotation mark alone does not establish a paragraph break", prompt)
 
     def test_book_prompt_distinguishes_apostrophes_from_dialogue_quotes(self):
         prompt = chronicle_gui.build_prompt(self._base_cfg(doc_profile="book", format_type="docx"))
@@ -543,8 +543,8 @@ class AccessibilityContractsTest(unittest.TestCase):
         for prompt in (cli_prompt, gui_prompt):
             self.assertIn("HANDWRITING UNCERTAINTY POLICY", prompt)
             self.assertIn("[Unclear Word: ...]", prompt)
-            self.assertIn("do not substitute a cleaner dictionary word from context", prompt)
-            self.assertIn("Do not expand abbreviated or broken handwritten words", prompt)
+            self.assertIn("Do not substitute a cleaner dictionary word from context", prompt)
+            self.assertIn("Do not complete broken handwritten words", prompt)
 
     def test_medical_prompt_keeps_clinical_uncertainty_contract(self):
         cfg = self._base_cfg(doc_profile="medical")
@@ -728,7 +728,7 @@ class AccessibilityContractsTest(unittest.TestCase):
             for fmt in formats:
                 with self.subTest(profile=profile_key, fmt=fmt):
                     prompt = chronicle_gui.build_prompt(self._base_cfg(doc_profile=profile_key, format_type=fmt))
-                    self.assertIn("WCAG 2.2 COMPLIANCE", prompt)
+                    self.assertIn("ACCESSIBLE OUTPUT STRUCTURE", prompt)
                     self.assertIn("ACCESSIBILITY REMEDIATION & RECOVERY", prompt)
                     self.assertIn("PDF / SCANNED PAGE RULES", prompt)
                     if fmt in ("html", "epub"):

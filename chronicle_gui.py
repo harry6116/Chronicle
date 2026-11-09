@@ -446,7 +446,7 @@ if getattr(sys, 'frozen', False):
 
 # --- CONSTANTS ---
 APP_NAME = "Chronicle"
-APP_VERSION = "1.1.7"
+APP_VERSION = "1.1.8"
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
@@ -1036,14 +1036,14 @@ def sanitize_model_output(content, fmt, doc_profile=None, preserve_original_page
     )
 
 def apply_modern_punctuation(content):
-    return core_apply_modern_punctuation(content)
+    return core_apply_modern_punctuation(content, preserve_source_hyphens=True)
 
 def apply_modern_currency(content):
-    return core_apply_modern_currency(content)
+    return core_apply_modern_currency(content, preserve_original=True)
 
 
 def apply_expanded_abbreviations(content, doc_profile=None):
-    return core_apply_expanded_abbreviations(content, doc_profile)
+    return core_apply_expanded_abbreviations(content, doc_profile, preserve_original=True)
 
 def normalize_streamed_html_document(full_html):
     return core_normalize_streamed_html_document(full_html)

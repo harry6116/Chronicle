@@ -75,5 +75,37 @@ def _expand_preserving_acronyms(text, doc_profile):
     return "".join(result)
 
 
-def expand_abbreviations(text, doc_profile=None):
-    return transform_reading_text(text, lambda segment: _expand_preserving_acronyms(segment, doc_profile))
+def expand_abbreviations(text, doc_profile=None, *, preserve_original=False):
+    if not preserve_original:
+        return transform_reading_text(text, lambda segment: _expand_preserving_acronyms(segment, doc_profile))
+    if str(doc_profile or "").lower() == "medical":
+        return text
+
+    def reading_aids(segment):
+        protected = [match.span() for match in re.finditer(r"\[[^\]\n]*\]", segment)]
+        candidates = []
+        for entry in _iter_entries(doc_profile):
+            pattern, replacement = entry[:2]
+            flags = entry[2] if len(entry) > 2 else re.IGNORECASE
+            for match in re.finditer(pattern, segment, flags=flags):
+                if re.match(r"\s*\[", segment[match.end():]):
+                    protected.append(match.span())
+                candidates.append((match.start(), match.end(), match.group(), match.expand(replacement)))
+
+        # Work from the original text once: a compound title must not be expanded
+        # again by a shorter glossary entry after its reading aid is inserted.
+        result = []
+        cursor = 0
+        for start, end, original, spoken in sorted(candidates, key=lambda item: (item[0], -item[1])):
+            if start < cursor or any(start < stop and end > begin for begin, stop in protected):
+                continue
+            if re.fullmatch(r"(?:[A-Z]\.?){2,}", original):
+                continue
+            if original.strip().casefold() == spoken.strip().casefold():
+                continue
+            result.extend((segment[cursor:start], f"{original} [{spoken.strip()}]"))
+            cursor = end
+        result.append(segment[cursor:])
+        return "".join(result)
+
+    return transform_reading_text(text, reading_aids)

@@ -4,7 +4,7 @@ import io
 import os
 import re
 from urllib.parse import quote
-from chronicle_app.services.text_transforms import transform_reading_text
+from chronicle_app.services.text_transforms import add_reading_aid, transform_reading_text
 
 from chronicle_app.services.book_cleanup import _apply_book_plain_text_cleanup
 from chronicle_app.services.book_cleanup import _normalize_book_dialogue_quotes
@@ -345,13 +345,15 @@ def apply_output_integrity_contract(text_content, format_type, doc_profile=None)
     return text_content
 
 
-def _modernize_punctuation_text(html_text: str) -> str:
+def _modernize_punctuation_text(html_text: str, *, preserve_source_hyphens=False) -> str:
     if not html_text:
         return ""
     cleaned = re.sub(r"\.-\s*(?=[a-zA-Z])", ". ", html_text)
     cleaned = re.sub(r",-\s*(?=[a-zA-Z])", ", ", cleaned)
     cleaned = re.sub(r"\.-", ".", cleaned)
     cleaned = re.sub(r",-", ",", cleaned)
+    if preserve_source_hyphens:
+        return cleaned
     cleaned = re.sub(
         r"\b([a-zA-Z]+)-(road|street|avenue|lane|parade|terrace|highway)\b",
         lambda match: f"{match.group(1)} {match.group(2).capitalize()}",
@@ -371,18 +373,27 @@ def _modernize_currency_text(html_text: str) -> str:
     return cleaned
 
 
-def apply_modern_punctuation(html_text: str) -> str:
-    return transform_reading_text(html_text, _modernize_punctuation_text)
+def apply_modern_punctuation(html_text: str, *, preserve_source_hyphens=False) -> str:
+    return transform_reading_text(
+        html_text, lambda text: _modernize_punctuation_text(text, preserve_source_hyphens=preserve_source_hyphens),
+    )
 
 
-def apply_modern_currency(html_text: str) -> str:
-    return transform_reading_text(html_text, _modernize_currency_text)
+def apply_modern_currency(html_text: str, *, preserve_original=False) -> str:
+    if not preserve_original:
+        return transform_reading_text(html_text, _modernize_currency_text)
+    pattern = r"(?<![\w/])(?:£\d+/\d+/-|\d+/-|\d+d\.?|£\d+(?![.,]\d))(?![\w/])"
+    return transform_reading_text(
+        html_text, lambda segment: add_reading_aid(
+            segment, pattern, lambda match: _modernize_currency_text(match.group()),
+        ),
+    )
 
 
-def apply_expanded_abbreviations(html_text: str, doc_profile=None) -> str:
+def apply_expanded_abbreviations(html_text: str, doc_profile=None, *, preserve_original=False) -> str:
     from chronicle_app.services.abbreviations import expand_abbreviations
 
-    return expand_abbreviations(html_text, doc_profile=doc_profile)
+    return expand_abbreviations(html_text, doc_profile=doc_profile, preserve_original=preserve_original)
 
 
 def _inject_html_toc(text_content, *, include_page_headings=True):

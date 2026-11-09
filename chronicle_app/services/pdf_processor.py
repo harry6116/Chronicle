@@ -16,6 +16,7 @@ import time
 import urllib.error
 import urllib.request
 
+from chronicle_app.services.prompting import build_newspaper_strip_prompt
 from chronicle_app.services.processing_runtime import CLAUDE_FILES_API_BETA
 from chronicle_app.services.processing_runtime import GEMINI_GENERATE_TIMEOUT_MS
 from chronicle_app.services.processing_runtime import PrecleanStream
@@ -1476,14 +1477,7 @@ def process_pdf(
             tile_num = tile_idx + 1
             image_name = f"chronicle_page_{source_page}_strip_{tile_num}.png"
             image_bytes = build_page_tile_png_bytes(page_idx, tile_idx, tile_count)
-            tile_prompt = (
-                "OCR this historical newspaper image strip. "
-                f"It is source page {source_page}, strip {tile_num} of {tile_count} in left-to-right order. "
-                "Transcribe as much visible text as possible. Preserve headings and item boundaries. "
-                "Read each column from top to bottom before moving to the next column. "
-                "Do not summarize. This is a dense newspaper strip, not a cover page. "
-                "Return plain text only."
-            )
+            tile_prompt = build_newspaper_strip_prompt(source_page, tile_num, tile_count)
             tile_key = build_request_cache_key_fn(
                 request_model,
                 tile_prompt,

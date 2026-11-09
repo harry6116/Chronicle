@@ -86,8 +86,8 @@ class ReleasePackagingGuardsTest(unittest.TestCase):
             with mock.patch.object(build_mac.subprocess, "run") as signing:
                 build_mac.finalize_app_metadata(app, ROOT / "chronicle_gui.py")
             info = plistlib.loads(metadata.read_bytes())
-            self.assertEqual(info["CFBundleShortVersionString"], "1.1.7")
-            self.assertEqual(info["CFBundleVersion"], "1.1.7")
+            self.assertEqual(info["CFBundleShortVersionString"], "1.1.8")
+            self.assertEqual(info["CFBundleVersion"], "1.1.8")
             self.assertEqual(info["CFBundleIdentifier"], "Chronicle")
             self.assertIn("--sign", signing.call_args.args[0])
 
