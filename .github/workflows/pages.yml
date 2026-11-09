@@ -46,6 +46,13 @@ jobs:
         run: gh api repos/harry6116/Chronicle/releases/latest > "$RUNNER_TEMP/chronicle-release.json"
       - name: Prepare website
         run: python tools/build_pages_site.py --release-json "$RUNNER_TEMP/chronicle-release.json" --output "$RUNNER_TEMP/chronicle-site"
+      - name: Deploy Cloudflare Pages
+        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          wranglerVersion: "4.159.0"
+          command: pages deploy "${{ runner.temp }}/chronicle-site" --project-name=chronicle-vir --branch=main
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4
         with:
