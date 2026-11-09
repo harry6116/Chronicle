@@ -26,6 +26,7 @@ from chronicle_app.services.dense_newspaper_rendering import stream_plain_newspa
 from chronicle_app.services.gemini_rest_payloads import build_gemini_file_payload
 from chronicle_app.services.gemini_rest_payloads import build_gemini_inline_image_payload
 from chronicle_app.services.gemini_rest_payloads import extract_gemini_text_from_data
+from chronicle_app.services.generation_completion import require_complete_generation
 from chronicle_app.services.gemini_rest_payloads import extract_gemini_text_from_response_bytes
 from chronicle_app.services.nla_newspaper import contains_nla_ocr_marker
 from chronicle_app.services.nla_newspaper import extract_nla_page_id
@@ -981,6 +982,7 @@ def process_pdf(
             )
         ok, value = result_q.get()
         if ok:
+            require_complete_generation(value)
             return value
         raise value
 

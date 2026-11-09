@@ -332,9 +332,9 @@ class AccessibilityContractsTest(unittest.TestCase):
 
         self.assertIn("QUOTE DISAMBIGUATION", prompt)
         self.assertIn("Keep true apostrophes in contractions and possessives", prompt)
-        self.assertIn("DIALOGUE QUOTE NORMALIZATION", prompt)
-        self.assertIn("normalize those dialogue quotes into proper double quotation marks", prompt)
-        self.assertIn("Convert opening and closing dialogue quotes consistently across the paragraph", prompt)
+        self.assertIn("Preserve the source quotation marks", prompt)
+        self.assertIn("single-quoted dialogue is not an OCR error", prompt)
+        self.assertNotIn("Convert opening and closing dialogue quotes", prompt)
 
     def test_book_prompt_suppresses_ocr_wrappers_and_enforces_page_reference_discipline(self):
         prompt = chronicle_gui.build_prompt(
@@ -347,13 +347,13 @@ class AccessibilityContractsTest(unittest.TestCase):
         self.assertIn("Do not leave duplicate bare number lines", prompt)
         self.assertIn("HEADING FUSION PREVENTION", prompt)
         self.assertIn("CHAPTER-FOLIO PRESERVATION", prompt)
-        self.assertIn("MATHEMATICAL PAGINATION & BLIND FOLIOS", prompt)
-        self.assertIn("perfectly sequential", prompt)
+        self.assertIn("VISIBLE PAGINATION ONLY", prompt)
+        self.assertIn("Never infer an unprinted folio", prompt)
         self.assertIn("FOLIO DE-DUPLICATION (ANTI-FUSION)", prompt)
         self.assertIn("Never output artifacts such as `[Original Page Number: 82]81`", prompt)
         self.assertIn("FRONT-MATTER ISOLATION", prompt)
         self.assertIn("Treat review blurbs, `Books by` lists, contents pages, copyright blocks", prompt)
-        self.assertIn("GLOBAL QUOTE NORMALIZATION", prompt)
+        self.assertNotIn("GLOBAL QUOTE NORMALIZATION", prompt)
 
     def test_transcript_prompt_keeps_script_dialogue_contract(self):
         cfg = self._base_cfg(doc_profile="transcript", preserve_original_page_numbers=True)

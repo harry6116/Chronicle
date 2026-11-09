@@ -4,7 +4,7 @@ Chronicle is an accessibility-first document recovery tool for archival, academi
 
 Chronicle is a desktop GUI application. The public repository is intended to publish the current app source code, build scripts, and documentation for that GUI app. There is no separate supported Chronicle CLI product.
 
-Current public release target: **Chronicle 1.1.6**.
+Current public release target: **Chronicle 1.1.7**.
 
 **Built for hard documents.**
 
@@ -104,4 +104,4 @@ Current source-repository license: GNU AGPLv3.
 
 ## Status
 
-This project is the active standalone Chronicle GUI app line. Chronicle 1.1.6 clarifies Gemini key entry and verifies and refreshes the configured Mac distribution folder after builds.
+This project is the active standalone Chronicle GUI app line. Chronicle 1.1.7 adds optional Gemini 4 Argon reading, protects transcription fidelity, reports incomplete model responses and adds Ko-fi support.

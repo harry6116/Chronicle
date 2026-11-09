@@ -11,6 +11,7 @@ from chronicle_core import clean_text_artifacts, sanitize_model_output
 from chronicle_app.services.pdf_auth import authenticate_pdf_document
 from chronicle_app.services.processing_runtime import GEMINI_GENERATE_TIMEOUT_MS
 from chronicle_app.services.runtime_policies import wait_for_gemini_upload_ready
+from chronicle_app.services.generation_completion import require_complete_generation
 
 
 LEGACY_PDF_CHUNK_PAGES = 3
@@ -21,6 +22,7 @@ GEMINI_FILE_DELETE_TIMEOUT_MS = 30_000
 def _append_streamed_text(response, fmt, file_obj, memory):
     emitted = []
     for chunk in response:
+        require_complete_generation(chunk)
         text = getattr(chunk, "text", None)
         if not text:
             continue

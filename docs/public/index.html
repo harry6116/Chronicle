@@ -68,7 +68,7 @@
         <h1 id="page-title">Chronicle — bringing documents to life</h1>
         <p class="lead">Turn difficult scans and documents into readable, accessible text.</p>
         <p>Chronicle is open-source software. <a href="https://github.com/harry6116/Chronicle">View the source code on GitHub</a>.</p>
-        <p class="lead">Chronicle goes beyond standard optical character recognition (OCR). It uses AI visual understanding, primarily Google Gemini, to recover text and organise reading order, headings, and tables from handwriting, archives, newspapers, books, and comics. Save results as HTML, Word, plain text, or other formats.</p>
+        <p class="lead">Chronicle uses AI, primarily Google Gemini, to read scans and organise the text into headings, paragraphs and tables. It can work with handwriting, archives, newspapers, books and comics. Save the result as HTML, Word, plain text or another supported format.</p>
         <p>Designed for keyboard and screen-reader use. AI can misread, omit, or invent text. Check important results against the original. <a href="disclaimer.html">Read the AI accuracy and privacy disclaimer</a>.</p>
         <div class="cta-row">
           <a class="cta primary" href="#downloads">Download Chronicle</a>
@@ -129,26 +129,26 @@
       <section id="proof" aria-labelledby="proof-title">
         <h2 id="proof-title">See examples</h2>
         <p class="lead">
-          Compare original pages with Chronicle’s results. Choose an example below; keyboard users can switch tabs with the arrow keys.
+          Compare source pages with saved Chronicle results, including errors that still need review. Each example has a text description and an accessible result page. Choose a tab below; use the arrow keys to move between tabs.
         </p>
         <div class="card proof-grid">
           <div>
-            <div class="showcase-nav" role="tablist" aria-label="Document showcase cases">
+            <div class="showcase-nav" role="tablist" aria-label="Document examples">
               <button class="showcase-tab" id="tab-war-diary" role="tab" aria-selected="true" aria-controls="panel-war-diary" tabindex="0">
-                <strong>War diary order</strong>
-                <span>Typed military order page with handwritten marks, strike-through recovery, and a distribution table.</span>
+                <strong>Handwritten war diary</strong>
+                <span>A First World War diary with nine entries in a five-column table.</span>
               </button>
               <button class="showcase-tab" id="tab-newspaper" role="tab" aria-selected="false" aria-controls="panel-newspaper" tabindex="-1">
                 <strong>Historical newspaper</strong>
-                <span>Dense front page with columns, notices, advertisement blocks, and publication metadata.</span>
+                <span>A two-column clipping with a portrait and a headline improved in a newer reading.</span>
               </button>
               <button class="showcase-tab" id="tab-varus" role="tab" aria-selected="false" aria-controls="panel-varus" tabindex="-1">
                 <strong>Roman disaster text</strong>
                 <span>Early printed classical history covering the loss of Varus and the three legions in Germany.</span>
               </button>
-              <button class="showcase-tab" id="tab-cromwell" role="tab" aria-selected="false" aria-controls="panel-cromwell" tabindex="-1">
-                <strong>Cromwell letters</strong>
-                <span>Early modern correspondence recovered into readable, review-ready structure.</span>
+              <button class="showcase-tab" id="tab-wwi-letter" role="tab" aria-selected="false" aria-controls="panel-wwi-letter" tabindex="-1">
+                <strong>First World War letter</strong>
+                <span>A typed letter with old currency amounts and spoken reading aids.</span>
               </button>
             </div>
           </div>
@@ -156,26 +156,18 @@
           <div>
             <section class="showcase-panel" id="panel-war-diary" role="tabpanel" aria-labelledby="tab-war-diary">
               <figure>
-                <img
-                  src="showcase_assets/chronicle-showcase-war-diary.png"
-                  alt="Before and after comparison for a World War II war diary page. On the left is a faded scanned military order with typed lines, handwritten marks, and a distribution list at the bottom. On the right is Chronicle's structured output with a clear heading, readable order points, and the recovered distribution table."
-                >
-                <figcaption>
-                  <span class="proof">Military Records / War Diaries / Orders</span><br>
-                  One sample page from WO 95/1668/3/2 showing Chronicle turning a difficult archival scan into structured, review-ready HTML.
+                <img src="showcase_assets/war-diary-source.jpg" alt="Faded First World War diary with nine handwritten entries in five columns, covering places, dates, times, events and appendix references." aria-describedby="diary-summary">
+                <figcaption id="diary-summary">The battalion’s journey from Larkhill to France in 1915, set out as an accessible table. Some readings, including signature initials, remain uncertain.
+                  <br><a href="showcase_samples/war-diary.html">Compare the diary source and saved result, with a detailed image description</a>
                 </figcaption>
               </figure>
             </section>
 
             <section class="showcase-panel" id="panel-newspaper" role="tabpanel" aria-labelledby="tab-newspaper" hidden>
               <figure>
-                <img
-                  src="showcase_assets/chronicle-showcase-newspaper.png"
-                  alt="Before and after comparison for a historical newspaper page. On the left is a crowded front page of The Age from April 30, 1930, with narrow columns and dense text. On the right is Chronicle's structured output showing restored publication details and recovered article sections such as births, marriages, and deaths."
-                >
-                <figcaption>
-                  <span class="proof">Historical Newspapers / Press Layouts</span><br>
-                  A real front-page newspaper sample showing Chronicle recovering reading order, section headings, and publication attribution from a dense multi-column layout.
+                <img src="showcase_assets/newspaper-source.png" alt="A two-column 1944 newspaper clipping headed STARS OF THE AIR, with a portrait of Sumner Locke-Elliott." aria-describedby="newspaper-summary">
+                <figcaption id="newspaper-summary">A Wodonga and Towong Sentinel article from 15 December 1944. A newer result reads “STARS OF THE AIR” correctly; the comparison explains the older misreading and the remaining review needed.
+                  <br><a href="showcase_samples/newspaper.html">Compare the newspaper source and saved result, with a detailed image description</a>
                 </figcaption>
               </figure>
             </section>
@@ -184,11 +176,11 @@
               <figure>
                 <img
                   src="showcase_assets/chronicle-showcase-varus.png"
-                  alt="Before and after comparison for an early printed Roman-history page about the Varus disaster. On the left is a difficult old-style printed source page with long-s forms and dense historical prose. On the right is Chronicle's structured output restoring readable paragraphs and chapter flow."
+                  alt="Older comparison graphic: a 1724 Roman-history scan appears beside a short list of chapter headings, with most of the output area blank." aria-describedby="varus-description"
                 >
                 <figcaption>
-                  <span class="proof">Ancient Sources / Early Print / Historical Recovery</span><br>
-                  A Chronicle demo built from a public-domain Velleius Paterculus scan covering the loss of Varus and the three legions, with a companion Tacitus battlefield-aftermath sample.
+                  <span class="proof">Early printed Roman history</span><br>
+                  <span id="varus-description">This older graphic is titled “Roman Loss of the Three Legions”. The left side shows a page of Velleius Paterculus with dense print and long-s letter forms. The right side shows only a contents list for chapters CXVII to CXX, rather than the full transcription. Open the saved HTML samples below to read the actual results; the graphic alone is not evidence of their completeness.</span>
                   <br><a href="showcase_samples/varus-velleius-sample.html">Open the Chronicle Velleius sample</a>
                   <br><a href="showcase_samples/varus-tacitus-sample.html">Open the Chronicle Tacitus sample</a>
                   <br><a href="https://archive.org/details/bim_eighteenth-century_the-roman-history-of-c-_velleius-paterculus_1724">View the Velleius source edition</a>
@@ -197,17 +189,11 @@
               </figure>
             </section>
 
-            <section class="showcase-panel" id="panel-cromwell" role="tabpanel" aria-labelledby="tab-cromwell" hidden>
+            <section class="showcase-panel" id="panel-wwi-letter" role="tabpanel" aria-labelledby="tab-wwi-letter" hidden>
               <figure>
-                <img
-                  src="showcase_assets/chronicle-showcase-cromwell.png"
-                  alt="Before and after comparison for an Oliver Cromwell letters page. On the left is an older printed collected-letters source page with dense prose and period typography. On the right is Chronicle's output reorganized into readable, review-friendly letter text."
-                >
-                <figcaption>
-                  <span class="proof">Letters / Correspondence / Early Modern Print</span><br>
-                  A public-domain Cromwell letters example showing Chronicle keeping the reading flow of correspondence intact instead of flattening it into generic OCR text.
-                  <br><a href="showcase_samples/cromwell-letters-sample.html">Open the Chronicle Cromwell sample</a>
-                  <br><a href="https://archive.org/details/olivercromwells01cromiala">View the source edition</a>
+                <img src="showcase_assets/wwi-letter-source.png" alt="Typed transcription of Ross Rowney’s November 1915 letter to Rose, with a long body paragraph, old currency amounts and a short sign-off." aria-describedby="letter-summary">
+                <figcaption id="letter-summary">A letter written at sea in November 1915. Chronicle’s saved result adds reading aids such as “1 shilling” beside the original amount. The source is a typed transcription, not the handwritten letter.
+                  <br><a href="showcase_samples/wwi-letter.html">Compare the letter source and saved result, with a detailed image description</a>
                 </figcaption>
               </figure>
             </section>
@@ -220,10 +206,11 @@
         <div class="support-grid">
           <article class="card">
             <h3>Optional donations</h3>
-            <p>Support is optional and helps fund development, accessibility testing, and API costs. Give once with no monthly commitment, or choose monthly sponsorship. GitHub sign-in is required for GitHub Sponsors.</p>
+            <p>Donations are optional. They help pay for development, accessibility testing and API use. You can give once or sponsor the project monthly. GitHub Sponsors requires a GitHub account.</p>
             <div class="cta-row">
               <a class="cta primary" href="https://github.com/sponsors/harry6116?frequency=one-time">Give once with GitHub Sponsors</a>
               <a class="cta secondary" href="https://github.com/sponsors/harry6116">Monthly GitHub sponsorship</a>
+              <a class="cta secondary" href="https://ko-fi.com/mmarshallvoa86">Support on Ko-fi</a>
               <a class="cta secondary" href="https://buymeacoffee.com/thevoiceguy">Buy Me a Coffee</a>
               <a class="cta secondary" href="https://paypal.me/MarshallVoiceovers">Donate via PayPal</a>
             </div>

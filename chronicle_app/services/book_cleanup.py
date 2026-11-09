@@ -61,29 +61,7 @@ def _normalize_book_page_markers(text: str) -> str:
         r"\1",
         text,
     )
-    marker_pattern = re.compile(r"(?m)^\[Original Page Number:\s*(\d+)\]\s*$")
-    matches = list(marker_pattern.finditer(cleaned))
-    if len(matches) < 2:
-        return cleaned
-
-    parts = []
-    last_index = 0
-    previous_number = None
-    for match in matches:
-        current_number = int(match.group(1))
-        insertion = ""
-        if previous_number is not None and current_number - previous_number > 1:
-            insertion = "\n".join(
-                f"[Original Page Number: {number}]"
-                for number in range(previous_number + 1, current_number)
-            ) + "\n"
-        parts.append(cleaned[last_index:match.start()])
-        parts.append(insertion)
-        parts.append(match.group(0))
-        last_index = match.end()
-        previous_number = current_number
-    parts.append(cleaned[last_index:])
-    return "".join(parts)
+    return cleaned
 
 
 def _repair_obvious_book_scan_wraps(text: str) -> str:
@@ -115,7 +93,6 @@ def _apply_book_plain_text_cleanup(text: str, preserve_original_page_numbers: bo
     cleaned = _cleanup_numeric_quote_noise(cleaned)
     cleaned = re.sub(r"([^\n])((?:#{1,6})\s+[A-Z])", r"\1\n\2", cleaned)
     cleaned = _split_fused_book_front_matter(cleaned)
-    cleaned = _normalize_book_dialogue_quotes(cleaned)
     cleaned = _repair_obvious_book_scan_wraps(cleaned)
     if preserve_original_page_numbers:
         cleaned = re.sub(

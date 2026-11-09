@@ -27,7 +27,6 @@ Mac/build.command
 Mac/build_mac.py
 Mac/release_helpers.sh
 PLATFORM_LAYOUT.md
-PUBLIC_REPO_MANIFEST.txt
 Package_Release_Apps.command
 Prepare_Public_Repo.command
 Publish_GitHub_Release.command
@@ -85,6 +84,7 @@ chronicle_app/services/document_processors.py
 chronicle_app/services/exporters.py
 chronicle_app/services/file_cleanup.py
 chronicle_app/services/gemini_rest_payloads.py
+chronicle_app/services/generation_completion.py
 chronicle_app/services/handwriting_forms.py
 chronicle_app/services/html_heading_cleanup.py
 chronicle_app/services/html_page_navigation.py
@@ -164,14 +164,20 @@ docs/public/showcase_assets/chronicle-showcase-cromwell.png
 docs/public/showcase_assets/chronicle-showcase-newspaper.png
 docs/public/showcase_assets/chronicle-showcase-varus.png
 docs/public/showcase_assets/chronicle-showcase-war-diary.png
+docs/public/showcase_assets/newspaper-source.png
+docs/public/showcase_assets/war-diary-source.jpg
+docs/public/showcase_assets/wwi-letter-source.png
 docs/public/showcase_samples/README.md
 docs/public/showcase_samples/comics/README.md
 docs/public/showcase_samples/comics/little_nemo_before_after.md
 docs/public/showcase_samples/comics/little_nemo_chronicle_after.html
 docs/public/showcase_samples/comics/little_nemo_public_domain_before.png
 docs/public/showcase_samples/cromwell-letters-sample.html
+docs/public/showcase_samples/newspaper.html
 docs/public/showcase_samples/varus-tacitus-sample.html
 docs/public/showcase_samples/varus-velleius-sample.html
+docs/public/showcase_samples/war-diary.html
+docs/public/showcase_samples/wwi-letter.html
 docs/reference/CHANGELOG.md
 docs/reference/Chronicle_Accessibility_Compliance_Statement.md
 docs/reference/Chronicle_Technical_Architecture_Deep_Dive.md
@@ -202,6 +208,7 @@ tests/test_diagnostics.py
 tests/test_document_processors.py
 tests/test_exporters.py
 tests/test_gemini_rest_payloads.py
+tests/test_generation_completion.py
 tests/test_handwriting_forms.py
 tests/test_html_heading_cleanup.py
 tests/test_html_page_navigation.py
@@ -225,10 +232,12 @@ tests/test_pdf_page_boundaries.py
 tests/test_pdf_processor.py
 tests/test_pdf_rendering.py
 tests/test_processing_runtime.py
+tests/test_prompt_fidelity.py
 tests/test_public_docs_security.py
 tests/test_queue_runtime.py
 tests/test_queue_state_runtime.py
 tests/test_recovery_workstation.py
+tests/test_release_checksums.py
 tests/test_release_notes_ui.py
 tests/test_release_packaging_guards.py
 tests/test_run_control_runtime.py

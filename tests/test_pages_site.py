@@ -9,12 +9,39 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class PagesSiteTest(unittest.TestCase):
+    def test_featured_examples_include_source_descriptions_and_real_html_results(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / 'site'
+            build_site(ROOT, output)
+            index = BeautifulSoup((output / 'index.html').read_text(encoding='utf-8'), 'html.parser')
+            examples = index.find(id='proof')
+            for name in ('war-diary', 'wwi-letter', 'newspaper'):
+                self.assertIsNotNone(examples.find('a', href=f'showcase_samples/{name}.html'))
+                page = BeautifulSoup((output / f'showcase_samples/{name}.html').read_text(encoding='utf-8'), 'html.parser')
+                self.assertEqual(len(page.find_all('h1')), 1)
+                self.assertIsNotNone(page.find(id='before'))
+                self.assertIsNotNone(page.find(id='after'))
+                self.assertIsNotNone(page.find(id='source-description'))
+                self.assertTrue(page.find('img')['alt'])
+                self.assertIsNone(page.find('script'))
+            diary = BeautifulSoup((output / 'showcase_samples/war-diary.html').read_text(encoding='utf-8'), 'html.parser')
+            self.assertIsNotNone(diary.table.caption)
+            self.assertEqual(len(diary.select('th[scope="col"]')), 5)
+            self.assertIn('Battalion received orders', diary.table.get_text())
+            letter = (output / 'showcase_samples/wwi-letter.html').read_text(encoding='utf-8')
+            self.assertIn('1 shilling', letter)
+            self.assertIn('typed transcription', letter)
+            newspaper = (output / 'showcase_samples/newspaper.html').read_text(encoding='utf-8')
+            self.assertIn('STARS OF THE AIR', newspaper)
+            self.assertIn('BEARS OF THE AIR', newspaper)
+            self.assertIn('manually corrected', newspaper)
+
     def test_generated_site_has_working_local_links_and_only_public_assets(self):
         with tempfile.TemporaryDirectory() as directory:
             output = (Path(directory) / 'site').resolve()
             build_site(ROOT, output)
             self.assertTrue((output / 'user-guide.html').is_file())
-            disclaimer = BeautifulSoup((output / 'disclaimer.html').read_text(), 'html.parser')
+            disclaimer = BeautifulSoup((output / 'disclaimer.html').read_text(encoding='utf-8'), 'html.parser')
             self.assertIn('Data Processing Boundary', disclaimer.get_text())
             self.assertNotIn('Skip to release notes', disclaimer.get_text())
             self.assertIn('provider retention policies', disclaimer.get_text())
@@ -24,7 +51,7 @@ class PagesSiteTest(unittest.TestCase):
                     self.assertIn(path.suffix, ('.html', '.png', '.jpg', '.jpeg', '.svg', ''))
                 if path.suffix != '.html':
                     continue
-                soup = BeautifulSoup(path.read_text(), 'html.parser')
+                soup = BeautifulSoup(path.read_text(encoding='utf-8'), 'html.parser')
                 self.assertNotIn(soup.html.get('lang'), (None, '', 'und'), str(path))
                 for node in soup.select('[href], [src]'):
                     url = urlsplit(node.get('href') or node.get('src'))
@@ -34,8 +61,21 @@ class PagesSiteTest(unittest.TestCase):
                     self.assertTrue(target.is_relative_to(output), str(target))
                     self.assertTrue(target.is_file(), str(target))
                     if url.fragment and target.suffix == '.html':
-                        document = BeautifulSoup(target.read_text(), 'html.parser')
+                        document = BeautifulSoup(target.read_text(encoding='utf-8'), 'html.parser')
                         self.assertIsNotNone(document.find(id=unquote(url.fragment)), str(target) + '#' + url.fragment)
+
+    def test_support_links_are_unique_and_named(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / 'site'
+            build_site(ROOT, output)
+            support = BeautifulSoup((output / 'index.html').read_text(encoding='utf-8'), 'html.parser').find(id='support')
+            destinations = {}
+            for link in support.find_all('a'):
+                url = link['href'].replace('https://www.', 'https://')
+                destinations.setdefault(url, []).append(link)
+            for url in ('https://ko-fi.com/mmarshallvoa86', 'https://buymeacoffee.com/thevoiceguy', 'https://paypal.me/MarshallVoiceovers'):
+                self.assertEqual(len(destinations.get(url, [])), 1, url)
+                self.assertTrue(destinations[url][0].get_text(' ', strip=True))
 
     def test_nonempty_destination_is_preserved(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -43,7 +83,7 @@ class PagesSiteTest(unittest.TestCase):
             marker.write_text('keep')
             with self.assertRaises(ValueError):
                 build_site(ROOT, directory)
-            self.assertEqual(marker.read_text(), 'keep')
+            self.assertEqual(marker.read_text(encoding='utf-8'), 'keep')
 
 
 class PagesReleaseTest(unittest.TestCase):
@@ -61,13 +101,13 @@ class PagesReleaseTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory) / 'site'
             build_site(ROOT, output, release=self.release())
-            soup = BeautifulSoup((output / 'index.html').read_text(), 'html.parser')
+            soup = BeautifulSoup((output / 'index.html').read_text(encoding='utf-8'), 'html.parser')
             announcement = soup.find(id='release-announcement')
             self.assertIn('Chronicle 2.0.0', announcement.get_text())
             self.assertEqual(len(announcement.select('li')), 3)
             self.assertEqual(announcement.time['datetime'], '2026-11-08')
             self.assertEqual(announcement.select_one('a')['href'], 'release-notes.html')
-            notes = BeautifulSoup((output / 'release-notes.html').read_text(), 'html.parser')
+            notes = BeautifulSoup((output / 'release-notes.html').read_text(encoding='utf-8'), 'html.parser')
             self.assertIn('More changes', notes.get_text())
             self.assertIn('<script>unsafe</script>', notes.get_text())
             self.assertIsNone(notes.find('script'))
@@ -93,6 +133,6 @@ class PagesReleaseTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory) / 'site'
             build_site(ROOT, output)
-            soup = BeautifulSoup((output / 'index.html').read_text(), 'html.parser')
+            soup = BeautifulSoup((output / 'index.html').read_text(encoding='utf-8'), 'html.parser')
             self.assertNotIn('Chronicle 1.1.3', soup.get_text())
             self.assertIn('latest release', soup.find(id='release-announcement').get_text().lower())

@@ -1,5 +1,6 @@
 import base64
 import json
+from chronicle_app.services.generation_completion import require_complete_generation
 
 
 def build_gemini_file_payload(*, file_uri, mime_type, text_prompt):
@@ -40,6 +41,7 @@ def extract_gemini_text_from_data(data, *, error_prefix):
     if "error" in data:
         message = data.get("error", {}).get("message") or data["error"]
         raise RuntimeError(f"{error_prefix}: {message}")
+    require_complete_generation(data)
     parts = (
         data.get("candidates", [{}])[0]
         .get("content", {})

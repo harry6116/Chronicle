@@ -9,6 +9,7 @@ from collections import OrderedDict
 
 from chronicle_app.services.runtime_policies import get_online_engine_settings, normalize_model_name
 from chronicle_app.services.comic_images import comic_generation_config
+from chronicle_app.services.generation_completion import require_complete_generation
 
 CLAUDE_FILES_API_BETA = "files-api-2025-04-14"
 _ONLINE_ENGINE_SETTINGS = get_online_engine_settings()
@@ -165,6 +166,7 @@ def handle_stream(
     clean_text_fn,
     stream_chunk_timeout_sec=STREAM_CHUNK_TIMEOUT_SEC,
 ):
+    require_complete_generation(response)
     if heartbeat is not None:
         heartbeat.ping()
     raw_parts = []
@@ -199,6 +201,7 @@ def handle_stream(
                     break
                 if ok is None:
                     raise value
+                require_complete_generation(value)
                 if pause_cb:
                     pause_cb()
                 if heartbeat is not None:
@@ -263,6 +266,7 @@ def handle_stream(
             if ok is None:
                 raise value
             chunk = value
+            require_complete_generation(chunk)
             if pause_cb:
                 pause_cb()
             if heartbeat is not None:

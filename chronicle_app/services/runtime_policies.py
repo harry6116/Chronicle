@@ -3,6 +3,7 @@ import time
 
 GEMINI_DEEP_MODEL = "gemini-3.1-pro-preview"
 GEMINI_FAST_MODEL = "gemini-3.8-flash"
+GEMINI_REASONING_MODEL = "gemini-4-argon"
 DEFAULT_CLAUDE_MODEL = "claude-sonnet-4-6"
 OFFLINE_PRIVATE_MODEL = "chronicle-offline-private"
 GEMINI_FILE_POLL_TIMEOUT_MS = 30_000
@@ -19,6 +20,7 @@ MODEL_VENDOR_BY_PREFIX = (
 )
 
 MODEL_FALLBACK_ORDER = {
+    GEMINI_REASONING_MODEL: (GEMINI_REASONING_MODEL, GEMINI_DEEP_MODEL, GEMINI_FAST_MODEL, DEFAULT_CLAUDE_MODEL, "gpt-4o"),
     GEMINI_FAST_MODEL: (GEMINI_FAST_MODEL, DEFAULT_CLAUDE_MODEL, "gpt-4o"),
     GEMINI_DEEP_MODEL: (GEMINI_DEEP_MODEL, DEFAULT_CLAUDE_MODEL, "gpt-4o"),
     "gemini-2.5-flash": (
@@ -169,7 +171,7 @@ def normalize_model_name(model_name):
 
 
 def is_gemini_deep_model(model_name):
-    return normalize_model_name(model_name).lower() in {GEMINI_DEEP_MODEL, "gemini-2.5-pro"}
+    return normalize_model_name(model_name).lower() in {GEMINI_DEEP_MODEL, GEMINI_REASONING_MODEL, "gemini-2.5-pro"}
 
 
 def is_offline_model(model_name):
@@ -250,8 +252,10 @@ def wait_for_gemini_upload_ready(
 
 def get_model_tradeoff_text(model_name):
     key = normalize_model_name(model_name).lower()
+    if key == GEMINI_REASONING_MODEL:
+        return "Gemini 4 Argon is an optional reasoning engine for difficult pages. It recovered more text in selected dense-page tests, but can still misread handwriting and comic lettering. Provider costs and processing time vary."
     if key == GEMINI_FAST_MODEL:
-        return "Current fast Gemini engine for clean pages and large batches. Complex scans can still need the deeper reading engine."
+        return "Gemini 3.8 Flash is the current fast engine for clean pages and large batches. Complex scans can still need the deeper reading engine."
     if key == "gemini-2.5-flash":
         return "Fastest option for clean pages and large batches. Best when you want speed and lower cost."
     if key == GEMINI_DEEP_MODEL:
@@ -293,7 +297,7 @@ def get_processing_speed_warning(profile_key, model_name):
     }
     if profile in slow_profiles:
         return slow_profiles[profile]
-    if model in {"gemini-2.5-pro", GEMINI_DEEP_MODEL}:
+    if is_gemini_deep_model(model):
         return "Warning: Deep Engine is Chronicle's slowest option. Expect longer runs on difficult scans and large files."
     if "claude" in model or "gpt" in model:
         return "Warning: This engine is slower than Chronicle's fastest Gemini path on large visual batches."
@@ -323,7 +327,7 @@ def estimate_run_effort(profile_key, model_name, total_units, *, file_size_mb=No
     score = units
     if heavy_profile:
         score += 8
-    if model in {"gemini-2.5-pro", GEMINI_DEEP_MODEL} or "claude" in model or "gpt" in model:
+    if is_gemini_deep_model(model) or "claude" in model or "gpt" in model:
         score += 6
     if file_size_mb is not None:
         try:
@@ -347,6 +351,7 @@ def build_profile_selection_summary(profile_key, current_model_name, *, profile_
         profile_presets.get(profile_key, profile_presets["standard"]).get("model_name", GEMINI_FAST_MODEL)
     )
     model_label_map = {
+        GEMINI_REASONING_MODEL: "Gemini 4 Argon",
         GEMINI_FAST_MODEL: "Fast Engine (Gemini 3.8 Flash)",
         "gemini-2.5-flash": "Fast Engine (Gemini 2.5 Flash)",
         "gemini-2.5-pro": "Deep Engine (Gemini 2.5 Pro)",

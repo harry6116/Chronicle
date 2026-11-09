@@ -7,7 +7,7 @@ RELEASE_DIR="${CHRONICLE_RELEASE_ASSET_DIR:-$HOME/Documents/Chronicle Release Ap
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 . "$SCRIPT_DIR/release_helpers.sh"
-SNAPSHOT_DIR="$ROOT_DIR/artifacts/public_repo_stage/Chronicle"
+SNAPSHOT_DIR="${CHRONICLE_PUBLIC_SNAPSHOT_DIR:-$ROOT_DIR/artifacts/public_repo_stage/Chronicle}"
 RELEASE_STAGING_DIR="$RELEASE_DIR/.packaging-staging"
 
 WINDOWS_ZIP="$RELEASE_DIR/Chronicle.windows.zip"
@@ -206,6 +206,15 @@ if [[ ! -d "$SNAPSHOT_DIR" ]]; then
   wait_for_close
   exit 1
 fi
+
+echo "Verifying release ZIPs and refreshing checksums..."
+(
+  cd "$RELEASE_DIR"
+  /usr/bin/unzip -tq Chronicle.mac.zip
+  /usr/bin/unzip -tq Chronicle.windows.zip
+  /usr/bin/shasum -a 256 Chronicle.mac.zip Chronicle.windows.zip > checksums.sha256.tmp
+  mv checksums.sha256.tmp checksums.sha256
+)
 
 echo ""
 echo "Release ZIPs are ready:"

@@ -2,6 +2,14 @@
 
 This history describes changes users may notice. The desktop app release series began at 1.0.0 in April 2026. Earlier version numbers below belong to the original project and follow a different sequence.
 
+## [1.1.7] - 2026-11-10
+
+- Added optional Gemini 4 Argon in Engine Override while retaining existing automatic presets.
+- Preserved source quotation marks and page-number gaps, with stronger column and uncertainty guidance.
+- Reported token-limited responses as incomplete and removed the command-line newspaper character cutoff.
+- Corrected current-model help and added Ko-fi to optional support choices.
+- Updated the website address and added accessible source/result comparisons with explicit accuracy limits.
+
 ## [1.1.6] - 2026-11-08
 
 - Updated automatic Gemini engines to 3.8 Flash and 3.1 Pro Preview, with manual 2.5 compatibility choices retained.

@@ -1,4 +1,4 @@
-from chronicle_app.services.runtime_policies import DEFAULT_CLAUDE_MODEL, GEMINI_DEEP_MODEL, GEMINI_FAST_MODEL, OFFLINE_PRIVATE_MODEL
+from chronicle_app.services.runtime_policies import DEFAULT_CLAUDE_MODEL, GEMINI_DEEP_MODEL, GEMINI_FAST_MODEL, GEMINI_REASONING_MODEL, OFFLINE_PRIVATE_MODEL
 
 TRANSLATION_TARGETS = [
     ("English", "en"),
@@ -371,6 +371,7 @@ PROFILE_LABEL_TO_KEY = {label: key for key, label in PROFILE_CHOICES}
 PROFILE_KEY_TO_LABEL = {key: label for key, label in PROFILE_CHOICES}
 
 MODEL_LABEL_BY_KEY = {
+    GEMINI_REASONING_MODEL: "Gemini 4 Argon",
     GEMINI_FAST_MODEL: "Gemini 3.8 Flash",
     GEMINI_DEEP_MODEL: "Gemini 3.1 Pro Preview",
     "gemini-2.5-flash": "Gemini 2.5 Flash",
@@ -382,6 +383,7 @@ MODEL_LABEL_BY_KEY = {
 
 MODEL_OVERRIDE_CHOICES = [
     ("", "Automatic (Chronicle Chooses)"),
+    (GEMINI_REASONING_MODEL, "Gemini 4 Argon"),
     (GEMINI_FAST_MODEL, "Gemini 3.8 Flash"),
     ("gemini-2.5-flash", "Gemini 2.5 Flash"),
     ("gemini-2.5-pro", "Gemini 2.5 Pro"),

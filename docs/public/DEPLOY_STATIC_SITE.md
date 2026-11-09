@@ -46,7 +46,7 @@ Without release metadata, a local build displays a generic latest-release link r
 GitHub Pages also supports a domain you own, such as `www.example.org`, or a subdomain such as `chronicle.example.org`. GitHub provides hosting; domain registration and renewal are separate.
 
 1. Verify the domain in your GitHub account's **Settings > Pages** using the TXT record GitHub supplies. Keep that record.
-2. Add the chosen hostname in the Chronicle repository's **Settings > Pages > Custom domain** before pointing DNS to GitHub.
+2. Add the chosen hostname in the `harry6116.github.io` hosting repository's **Settings > Pages > Custom domain** before pointing DNS to GitHub.
 3. For a subdomain, set its DNS CNAME target to `harry6116.github.io` (without `/Chronicle/`). For a root domain, use the A or ALIAS/ANAME records in GitHub's current documentation.
 4. Wait for DNS and certificate provisioning, then enable **Enforce HTTPS** and check redirects and every local link.
 

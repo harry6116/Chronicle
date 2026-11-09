@@ -21,13 +21,12 @@ class BookCleanupTests(unittest.TestCase):
         self.assertIn("ARTEMIS FOWL\n\nNEVER BEFORE HAS A CRIMINAL MASTERMIND", cleaned)
         self.assertIn("NEVER BEFORE HAS A CRIMINAL MASTERMIND\n\nPENGUIN BOOKS", cleaned)
 
-    def test_page_marker_cleanup_fills_missing_sequential_markers(self):
+    def test_page_marker_cleanup_preserves_numbering_gaps(self):
         raw = "[Original Page Number: 1]\nBody\n[Original Page Number: 4]"
 
         cleaned = _normalize_book_page_markers(raw)
 
-        self.assertIn("[Original Page Number: 2]", cleaned)
-        self.assertIn("[Original Page Number: 3]", cleaned)
+        self.assertEqual(cleaned, raw)
 
 
 if __name__ == "__main__":

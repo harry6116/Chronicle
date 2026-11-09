@@ -417,7 +417,7 @@
               <tr>
                 <th scope="row">Open User Guide / About Chronicle / Support Chronicle</th>
                 <td>Help menu entries for documentation, build details, and optional donation links.</td>
-                <td><strong>Support Chronicle...</strong> offers <strong>GitHub Sponsors: One-time</strong>, <strong>GitHub Sponsors: Monthly</strong>, <strong>Buy Me a Coffee</strong>, and <strong>PayPal</strong>. <strong>About Chronicle...</strong> shows the app version, runtime type, Python, and wx version, with optional GitHub sponsorship actions.</td>
+                <td><strong>Support Chronicle...</strong> offers <strong>GitHub Sponsors: One-time</strong>, <strong>GitHub Sponsors: Monthly</strong>, <strong>Buy Me a Coffee</strong>, <strong>PayPal</strong>, and <strong>Ko-fi</strong>. <strong>About Chronicle...</strong> shows the app version, runtime type, Python, and wx version, with optional GitHub sponsorship actions.</td>
               </tr>
             </tbody>
           </table>
@@ -481,19 +481,24 @@
             </thead>
             <tbody>
               <tr>
+                <th scope="row">Gemini 4 Argon</th>
+                <td>Optional reasoning engine for difficult pages, selected in Engine Override.</td>
+                <td>Can still misread text and visual details. Costs and response time vary.</td>
+              </tr>
+              <tr>
                 <th scope="row">Gemini 3.8 Flash</th>
-                <td>Fast batch throughput and lower-cost processing.</td>
-                <td>Less robust than Pro on degraded or complex documents.</td>
+                <td>Fast processing for clear pages and large batches.</td>
+                <td>Small lettering, faint handwriting and complex layouts can still need review.</td>
               </tr>
               <tr>
                 <th scope="row">Gemini 3.1 Pro Preview</th>
                 <td>Difficult scans, archival nuance, dense structure.</td>
-                <td>Higher cost and slower than Flash.</td>
+                <td>Response time and charges depend on the page and provider settings.</td>
               </tr>
               <tr>
                 <th scope="row">Claude Sonnet 4.6</th>
-                <td>High-quality narrative and instruction adherence; currently the strongest non-Gemini PDF option in Chronicle.</td>
-                <td>Can be slower/pricey depending on workload; dense PDFs can still require chunking or fallback.</td>
+                <td>An alternative for structured reading and complex instructions.</td>
+                <td>Large visual documents can take longer and cost more. Difficult pages may need another engine.</td>
               </tr>
               <tr>
                 <th scope="row">GPT-4o</th>
@@ -510,7 +515,7 @@
 
         <section id="presets" aria-labelledby="presets-title">
           <h2 id="presets-title">6. Document Presets</h2>
-          <p>Presets align reading rules with document class and automatically choose the most suitable engine behind the scenes. When <strong>Engine Override</strong> stays on <strong>Automatic</strong>, Chronicle can start easier PDFs on the faster Gemini path and keep <strong>Gemini 3.1 Pro Preview</strong> in reserve for hard pages or hard whole-document cases. Manual engine overrides belong in Preferences and advanced settings. Gemini 2.5 Flash and Gemini 2.5 Pro remain available there for compatibility. Handwriting and comic profiles use Gemini 3.8 Flash automatically; military records use Gemini 3.1 Pro Preview. Gemini 3.1 Pro Preview availability can change; provider charges and processing time can differ from the older models.</p>
+          <p>Presets align reading rules with document class and choose a reading engine for that type of document. When <strong>Engine Override</strong> stays on <strong>Automatic</strong>, Chronicle can start easier PDFs on the faster Gemini path and keep <strong>Gemini 3.1 Pro Preview</strong> in reserve for hard pages or hard whole-document cases. Manual engine overrides belong in Preferences and advanced settings. Gemini 4 Argon is also available as an optional engine for difficult pages. It is not a guarantee of better results on every document. Gemini 2.5 Flash and Gemini 2.5 Pro remain available for compatibility. Handwriting and comic profiles use Gemini 3.8 Flash automatically; military records use Gemini 3.1 Pro Preview. Gemini 3.1 Pro Preview availability can change; provider charges and processing time can differ from the older models.</p>
           <p>The broadest presets are now designed so that ordinary PDFs, damaged Word exports, messy HTML, and public-sector reports still come back as something cleaner and more accessible, not just as a literal copy of the source defects.</p>
           <table>
             <caption>Preset map</caption>
@@ -578,7 +583,7 @@
           </ul>
           <ul>
             <li>Document Profile</li>
-            <li>Engine Override (Automatic, Gemini 3.8 Flash, Gemini 3.1 Pro Preview, Gemini 2.5 Flash, Gemini 2.5 Pro, Claude Sonnet 4.6, GPT-4o, or Private Offline Mode)</li>
+            <li>Engine Override (Automatic, Gemini 4 Argon, Gemini 3.8 Flash, Gemini 3.1 Pro Preview, Gemini 2.5 Flash, Gemini 2.5 Pro, Claude Sonnet 4.6, GPT-4o, or Private Offline Mode)</li>
             <li>Language Translation</li>
             <li>Translation Target Language</li>
             <li>Legacy Punctuation Mode</li>
@@ -808,12 +813,12 @@
         <section id="build" aria-labelledby="build-title">
           <h2 id="build-title">13. Build and Frozen App Notes</h2>
           <h3>Help, About, and Support entries</h3>
-          <p>Choose Help &gt; About Chronicle for the Chronicle Website, Email Michael, and GitHub Issues actions. Email Michael opens your email app to chronicle.vir@gmail.com. The website is https://harry6116.github.io/. About also offers optional one-time and monthly GitHub sponsorship; Buy Me a Coffee and PayPal remain in the Support menu.</p>
-          <p>Support is optional. <a href="https://github.com/sponsors/harry6116?frequency=one-time">Give once with GitHub Sponsors</a> for a single payment with no monthly commitment, or <a href="https://github.com/sponsors/harry6116">choose monthly sponsorship</a>. GitHub sign-in is required.</p>
+          <p>Choose Help &gt; About Chronicle for the Chronicle Website, Email Michael, and GitHub Issues actions. Email Michael opens your email app to chronicle.vir@gmail.com. The website is https://chroniclevir.com/. About also offers GitHub sponsorship and Ko-fi. Buy Me a Coffee, PayPal and all the other donation choices are available in the Support menu.</p>
+          <p>Donations are optional. <a href="https://github.com/sponsors/harry6116?frequency=one-time">Give once with GitHub Sponsors</a>, <a href="https://github.com/sponsors/harry6116">sponsor monthly</a>, or <a href="https://ko-fi.com/mmarshallvoa86">support Chronicle on Ko-fi</a>. GitHub Sponsors requires a GitHub account. Buy Me a Coffee and PayPal are also available in the Support menu.</p>
           <ul>
             <li><strong>Help &gt; Open User Guide</strong> opens this documentation in the default browser.</li>
             <li><strong>Help &gt; About Chronicle...</strong> shows build and runtime details, plus a GitHub Sponsors button. One-time support is available without a monthly commitment.</li>
-            <li><strong>Help &gt; Support Chronicle...</strong> opens a donation chooser with <strong>GitHub Sponsors: One-time</strong>, <strong>GitHub Sponsors: Monthly</strong>, <strong>Buy Me a Coffee</strong>, and <strong>PayPal</strong>.</li>
+            <li><strong>Help &gt; Support Chronicle...</strong> opens a donation chooser with <strong>GitHub Sponsors: One-time</strong>, <strong>GitHub Sponsors: Monthly</strong>, <strong>Buy Me a Coffee</strong>, <strong>PayPal</strong>, and <strong>Ko-fi</strong>.</li>
             <li>On macOS, <strong>File &gt; Check Mac Folder Access...</strong> prompts for folder-access remediation when permission issues block scanning or folder ingestion.</li>
           </ul>
 
@@ -830,7 +835,7 @@
             <li><strong>Help &gt; About Chronicle...</strong> shows build and runtime details, plus a GitHub Sponsors button.</li>
             <li><strong>Help &gt; Check for Updates</strong> checks for a newer download. Release notes use a standard read-only text field: use arrow keys to read, select and copy text, and Tab or Shift+Tab to visit the update actions. Escape closes the notes. Packaged apps can install an available update after confirmation; the queue-close choice is completed before installation starts.</li>
             <li><strong>Remind Me Later</strong> closes the update notes and keeps Chronicle running. A quiet reminder appears in the status bar and processing log next time Chronicle starts, until that version is installed. It does not schedule a restart. When ready, return to Check for Updates and choose <strong>Install and Restart Now</strong>. <strong>Go to Release</strong> opens the selected release in your browser.</li>
-            <li><strong>Help &gt; Support Chronicle...</strong> opens the in-app donation chooser with <strong>GitHub Sponsors: One-time</strong>, <strong>GitHub Sponsors: Monthly</strong>, <strong>Buy Me a Coffee</strong>, and <strong>PayPal</strong>.</li>
+            <li><strong>Help &gt; Support Chronicle...</strong> opens the in-app donation chooser with <strong>GitHub Sponsors: One-time</strong>, <strong>GitHub Sponsors: Monthly</strong>, <strong>Buy Me a Coffee</strong>, <strong>PayPal</strong>, and <strong>Ko-fi</strong>.</li>
           </ul>
           <p class="top-link"><a href="#page-title">Back to top</a></p>
         </section>

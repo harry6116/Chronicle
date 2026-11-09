@@ -83,7 +83,6 @@ from chronicle_core import (
     apply_expanded_abbreviations as core_apply_expanded_abbreviations,
     apply_handwriting_audit_flag as core_apply_handwriting_audit_flag,
     build_tabular_html_fragment as core_build_tabular_html_fragment,
-    build_newspaper_safety_notice as core_build_newspaper_safety_notice,
     clean_text_artifacts as core_clean_text_artifacts,
     csv_to_accessible_text as core_csv_to_accessible_text,
     get_newspaper_profile_rules as core_get_newspaper_profile_rules,
@@ -705,10 +704,11 @@ def _filter_streaming_inline_image_payload(text, state):
     return "".join(result)
 
 def handle_stream(response, output_path, format_type, file_obj=None, memory_list=None, profile_key=None):
+    from chronicle_app.services.generation_completion import require_complete_generation
     global heartbeat
+    require_complete_generation(response)
     heartbeat.ping()
     emitted = []
-    total_chars = 0
     inline_image_state = {"suppressing": False, "quote": '"'} if format_type in ("html", "epub") else None
     try:
         if isinstance(response, str) or (hasattr(response, "text") and getattr(response, "text")):
@@ -720,6 +720,7 @@ def handle_stream(response, output_path, format_type, file_obj=None, memory_list
             append_generated_text(format_type, file_obj=file_obj, memory_list=memory_list, text=clean_chunk)
             return "".join(emitted)
         for chunk in response:
+            require_complete_generation(chunk)
             heartbeat.ping()
             text_val = ""
             if hasattr(chunk, 'text') and chunk.text: text_val = chunk.text
@@ -731,14 +732,7 @@ def handle_stream(response, output_path, format_type, file_obj=None, memory_list
                     text_val = _filter_streaming_inline_image_payload(text_val, inline_image_state)
                 clean_chunk = sanitize_model_output(clean_text_artifacts(text_val), format_type)
                 emitted.append(clean_chunk)
-                total_chars += len(clean_chunk)
                 append_generated_text(format_type, file_obj=file_obj, memory_list=memory_list, text=clean_chunk)
-                if profile_key == "newspaper" and format_type == "html" and total_chars >= 12000:
-                    notice = core_build_newspaper_safety_notice(format_type)
-                    if notice:
-                        append_generated_text(format_type, file_obj=file_obj, memory_list=memory_list, text="\n" + notice)
-                        emitted.append("\n" + notice)
-                    break
     finally:
         heartbeat.stop()
     return "".join(emitted)

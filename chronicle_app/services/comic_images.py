@@ -1,6 +1,7 @@
 """Full-page context and colour detail views for comic transcription."""
 
 import io
+import re
 
 from PIL import Image
 
@@ -157,7 +158,8 @@ def append_comic_detail_views(contents, path, model, build_payload_fn):
 
 
 def comic_generation_config(contents, model=None):
-    if str(model or "").startswith("gemini-3"):
+    family = re.match(r"gemini-(\d+)(?:[.-]|$)", str(model or "").lower())
+    if family and int(family.group(1)) >= 3:
         return {}
     parts = contents if isinstance(contents, (list, tuple)) else [contents]
     if any(isinstance(part, str) and "COMICS / MANGA / GRAPHIC NOVELS RULES:" in part for part in parts):

@@ -1828,14 +1828,14 @@ To ITALY
         self.assertNotIn("End of OCR", cleaned)
         self.assertNotIn("[Original Page Number: 2]\n2\n", cleaned)
 
-    def test_book_plain_text_cleanup_normalizes_dialogue_quotes_and_heading_fusion(self):
+    def test_book_plain_text_cleanup_preserves_dialogue_quotes_and_repairs_heading_fusion(self):
         raw = "doesn't know could hurt him . . .# Books by Eoin Colfer\n'Why must you circle so, Butler?' asked Artemis.\n'You know perfectly well why, Artemis,' replied Butler."
 
         cleaned = sanitize_model_output(raw, "txt", "book", True)
 
         self.assertIn("doesn't know could hurt him . . .\n# Books by Eoin Colfer", cleaned)
-        self.assertIn('"Why must you circle so, Butler?" asked Artemis.', cleaned)
-        self.assertIn('"You know perfectly well why, Artemis," replied Butler.', cleaned)
+        self.assertIn("'Why must you circle so, Butler?' asked Artemis.", cleaned)
+        self.assertIn("'You know perfectly well why, Artemis,' replied Butler.", cleaned)
 
     def test_book_plain_text_cleanup_splits_fused_front_matter_blocks(self):
         raw = (
@@ -1851,7 +1851,7 @@ To ITALY
         self.assertIn("ARTEMIS FOWL\n\nNEVER BEFORE HAS A CRIMINAL MASTERMIND", cleaned)
         self.assertIn("NEVER BEFORE HAS A CRIMINAL MASTERMIND\n\nPENGUIN BOOKS", cleaned)
 
-    def test_book_plain_text_cleanup_infers_missing_page_markers_sequentially(self):
+    def test_book_plain_text_cleanup_preserves_missing_page_marker_gaps(self):
         raw = (
             "[Original Page Number: 52]\n"
             "Chapter opening text.\n"
@@ -1861,9 +1861,9 @@ To ITALY
 
         cleaned = sanitize_model_output(raw, "txt", "book", True)
 
-        self.assertIn("[Original Page Number: 53]\n[Original Page Number: 54]\n[Original Page Number: 55]", cleaned)
+        self.assertEqual(cleaned, raw)
 
-    def test_book_plain_text_cleanup_normalizes_wrapped_front_matter_quotes(self):
+    def test_book_plain_text_cleanup_preserves_wrapped_front_matter_quotes(self):
         raw = (
             "'Pacy, playful and very funny, an inventive mix of myth\n"
             "and modernity, magic and crime' - Time\n"
@@ -1871,8 +1871,8 @@ To ITALY
 
         cleaned = sanitize_model_output(raw, "txt", "book", True)
 
-        self.assertIn('"Pacy, playful and very funny, an inventive mix of myth', cleaned)
-        self.assertIn('and modernity, magic and crime" - Time', cleaned)
+        self.assertIn("'Pacy, playful and very funny, an inventive mix of myth", cleaned)
+        self.assertIn("and modernity, magic and crime' - Time", cleaned)
 
     def test_book_plain_text_cleanup_removes_numeric_quote_noise_from_barcode_lines(self):
         raw = 'ISBN 0-14-138269-4\n9"780141"382692"\nA$22.95 RRP'

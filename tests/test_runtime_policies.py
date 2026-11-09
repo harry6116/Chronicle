@@ -199,3 +199,16 @@ class RuntimePoliciesTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class OptionalReasoningEngineTests(unittest.TestCase):
+    def test_argon_override_is_named_and_preserves_existing_automatic_defaults(self):
+        from chronicle_app.config import MODEL_LABEL_BY_KEY, MODEL_OVERRIDE_CHOICES
+        from chronicle_app.services.runtime_policies import GEMINI_REASONING_MODEL, is_gemini_deep_model
+        self.assertEqual(GEMINI_REASONING_MODEL, 'gemini-4-argon')
+        self.assertIn((GEMINI_REASONING_MODEL, 'Gemini 4 Argon'), MODEL_OVERRIDE_CHOICES)
+        self.assertEqual(MODEL_LABEL_BY_KEY[GEMINI_REASONING_MODEL], 'Gemini 4 Argon')
+        self.assertTrue(is_gemini_deep_model(GEMINI_REASONING_MODEL))
+        self.assertEqual(get_preferred_profile_model('newspaper', cfg={'model_override': GEMINI_REASONING_MODEL}, profile_presets=PROFILE_PRESETS), GEMINI_REASONING_MODEL)
+        self.assertEqual(PROFILE_PRESETS['military']['model_name'], 'gemini-3.1-pro-preview')
+        self.assertEqual(PROFILE_PRESETS['comic']['model_name'], 'gemini-3.8-flash')
+        self.assertIn('optional', get_model_tradeoff_text(GEMINI_REASONING_MODEL))

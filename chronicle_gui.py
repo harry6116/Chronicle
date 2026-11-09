@@ -234,7 +234,7 @@ from chronicle_app.services.adaptive_engine_routing import select_execution_mode
 from chronicle_app.ui.bindings import bind_named
 from chronicle_app.ui.context_help import install_context_help_filter, show_context_help_dialog
 from chronicle_app.ui.release_notes import show_release_notes_dialog
-from chronicle_app.ui.sponsorship import show_about_dialog, SPONSOR_URL, ONE_TIME_URL
+from chronicle_app.ui.sponsorship import show_about_dialog, SPONSOR_URL, ONE_TIME_URL, KOFI_URL
 from chronicle_app.ui.bindings import defer_menu_action
 from chronicle_app.services.scan_flow_runtime import (
     apply_scan_settings as shared_apply_scan_settings,
@@ -446,7 +446,7 @@ if getattr(sys, 'frozen', False):
 
 # --- CONSTANTS ---
 APP_NAME = "Chronicle"
-APP_VERSION = "1.1.6"
+APP_VERSION = "1.1.7"
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
@@ -2081,7 +2081,7 @@ class MainFrame(wx.Frame):
         return GEMINI_FAST_MODEL
 
     def LabelFromModel(self, model_name):
-        return MODEL_LABEL_BY_KEY.get(model_name, 'Gemini 2.5 Flash')
+        return MODEL_LABEL_BY_KEY.get(model_name, str(model_name or 'Automatic'))
 
     def GetModelGuideText(self, label):
         guides = {
@@ -2095,7 +2095,11 @@ class MainFrame(wx.Frame):
                 f"{OFFLINE_PRIVATE_MODE_SUITABILITY}"
             ),
         }
-        return guides.get(label, guides['Gemini 2.5 Flash'])
+        if label not in guides:
+            for model, model_label in MODEL_LABEL_BY_KEY.items():
+                if label == model_label:
+                    return get_model_tradeoff_text(model)
+        return guides.get(label, 'Choose an available reading engine in Preferences.')
 
     def SafeSetStatusText(self, text):
         status_bar = self.GetStatusBar()
@@ -4076,9 +4080,9 @@ class MainFrame(wx.Frame):
     def OnDonate(self, e):
         dlg = wx.SingleChoiceDialog(
             self,
-            "If you'd like to support the developer, donations help cover ongoing testing and API usage costs.\n\nChoose One-time for a single payment with no monthly commitment. GitHub sign-in is required.\n\nChoose a donation method:",
+            "Donations are optional and help pay for development, accessibility testing and API use.\n\nGitHub Sponsors offers one-time and monthly contributions and requires a GitHub account. Other options open their own donation pages.\n\nChoose a donation method:",
             "Support Chronicle",
-            ["GitHub Sponsors: One-time", "GitHub Sponsors: Monthly", "Buy Me a Coffee", "PayPal"],
+            ["GitHub Sponsors: One-time", "GitHub Sponsors: Monthly", "Buy Me a Coffee", "PayPal", "Ko-fi"],
         )
         if dlg.ShowModal() == wx.ID_OK:
             choice = dlg.GetStringSelection()
@@ -4090,6 +4094,8 @@ class MainFrame(wx.Frame):
                 self.OpenExternalLink(DONATE_BUYMEACOFFEE_URL, "Buy Me a Coffee")
             elif choice == "PayPal":
                 self.OpenExternalLink(DONATE_PAYPAL_URL, "PayPal")
+            elif choice == "Ko-fi":
+                self.OpenExternalLink(KOFI_URL, "Ko-fi")
         dlg.Destroy()
 
     def OnPrefs(self, e):
