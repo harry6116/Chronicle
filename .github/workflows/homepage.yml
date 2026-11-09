@@ -35,7 +35,7 @@ jobs:
         run: gh api repos/harry6116/Chronicle/releases/latest > "$RUNNER_TEMP/chronicle-release.json"
       - name: Prepare website
         run: python tools/build_pages_site.py --release-json "$RUNNER_TEMP/chronicle-release.json" --output "$RUNNER_TEMP/chronicle-site"
-      - uses: actions/configure-pages@v5
+      - uses: actions/configure-pages@v6
       - uses: actions/upload-pages-artifact@v4
         with:
           path: ${{ runner.temp }}/chronicle-site
