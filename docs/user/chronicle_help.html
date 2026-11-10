@@ -470,6 +470,9 @@
 
         <section id="models" aria-labelledby="models-title">
           <h2 id="models-title">5. Automatic Reading Engine and Best Use</h2>
+          <p><strong>Automatic Flash/Argon (PDFs and images)</strong> is a separate Engine Override choice. Each PDF or image page starts with Gemini 3.8 Flash. Empty output, explicit uncertainty, a document-structure warning or an output limit can trigger one retry pass with Gemini 4 Argon. The next page starts with Flash again.</p>
+          <p>Choose this option explicitly in Preferences to use it. For files already queued, select them and use <strong>Apply Current Settings To Selected</strong>. The existing <strong>Automatic (Chronicle Chooses)</strong> setting keeps its preset-based behaviour. The new option requires a Gemini API key; other file formats use Flash without page escalation. Extra reads use API credit and take more time. Automatic checks cannot catch every confidently wrong transcription, so compare important results with the original.</p>
+          <p>Only the selected reading is written to the result. If an optional Argon retry fails, an already complete Flash reading is retained for review. A page without a complete reading is reported as an error. Automatic-page logging reports engine and review needs without assigning a transcription-accuracy grade. Remaining uncertainty stays visible. Originals are retained when this mode leaves pages marked for review, even if deletion after reading is enabled.</p>
           <table>
             <caption>Model guidance</caption>
             <thead>
@@ -583,7 +586,7 @@
           </ul>
           <ul>
             <li>Document Profile</li>
-            <li>Engine Override (Automatic, Gemini 4 Argon, Gemini 3.8 Flash, Gemini 3.1 Pro Preview, Gemini 2.5 Flash, Gemini 2.5 Pro, Claude Sonnet 4.6, GPT-4o, or Private Offline Mode)</li>
+            <li>Engine Override (Automatic, Automatic Flash/Argon for PDFs and images, Gemini 4 Argon, Gemini 3.8 Flash, Gemini 3.1 Pro Preview, Gemini 2.5 Flash, Gemini 2.5 Pro, Claude Sonnet 4.6, GPT-4o, or Private Offline Mode)</li>
             <li>Language Translation</li>
             <li>Translation Target Language</li>
             <li>Legacy Punctuation Mode</li>
@@ -601,7 +604,7 @@
           <h3>Preference dialog behavior</h3>
           <ul>
             <li><strong>Document Profile</strong> updates its tooltip dynamically so the dialog explains the selected preset.</li>
-            <li><strong>Engine Override</strong> lets you keep automatic preset-based routing or force a specific engine from Preferences.</li>
+            <li><strong>Engine Override</strong> offers the existing preset-based Automatic setting, the separate Automatic Flash/Argon option for PDF and image pages, and specific model choices.</li>
             <li>When <strong>Engine Override</strong> is left on <strong>Automatic</strong>, Chronicle follows the preset recommendation, can start supported easy PDFs on the faster Gemini path, and then falls back only to providers with configured API keys instead of trying to use an unavailable provider.</li>
             <li>Automatic routing is designed to keep easy technical/business/government-style PDFs moving faster while preserving the deeper engine for hard pages, hard documents, and specialist profiles that still need the conservative path.</li>
             <li>For PDF-heavy work, <strong>Automatic</strong> is usually the safest choice unless you have a specific reason to force Claude or GPT.</li>

@@ -1,7 +1,7 @@
 import copy
 import os
 
-from chronicle_app.services.runtime_policies import get_model_vendor, is_offline_model
+from chronicle_app.services.runtime_policies import FLASH_ARGON_MODE, get_model_vendor, is_offline_model
 
 
 def begin_run_start(*, resume_incomplete_only, scheduled_start_ts):
@@ -160,6 +160,8 @@ def find_missing_api_key_requirement(
         model = str(settings.get("model_name") or model_from_label_fn(row["engine"]))
         if is_offline_model(model):
             continue
+        if settings.get("model_override") == FLASH_ARGON_MODE:
+            model = FLASH_ARGON_MODE
         vendor = get_model_vendor(model)
         if has_vendor_key_fn(vendor):
             continue

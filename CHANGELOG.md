@@ -2,6 +2,13 @@
 
 This history describes changes users may notice. The desktop app release series began at 1.0.0 in April 2026. Earlier version numbers below belong to the original project and follow a different sequence.
 
+## [1.1.9] - 2026-11-10
+
+- Added the separate Automatic Flash/Argon option for PDF and image pages, preserving existing Automatic behaviour.
+- Started each page with Flash and retried flagged pages with Argon without changing the next page's starting engine.
+- Buffered page attempts so only the selected reading is written, with bounded retries and explicit review needs.
+- Explained API credit, processing-time and automatic-detection limits in the guide and engine help.
+
 ## [1.1.8] - 2026-11-10
 
 - Resolved overlapping punctuation, abbreviation, table and output-format instructions.

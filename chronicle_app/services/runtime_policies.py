@@ -4,6 +4,7 @@ import time
 GEMINI_DEEP_MODEL = "gemini-3.1-pro-preview"
 GEMINI_FAST_MODEL = "gemini-3.8-flash"
 GEMINI_REASONING_MODEL = "gemini-4-argon"
+FLASH_ARGON_MODE = "automatic-flash-argon"
 DEFAULT_CLAUDE_MODEL = "claude-sonnet-4-6"
 OFFLINE_PRIVATE_MODEL = "chronicle-offline-private"
 GEMINI_FILE_POLL_TIMEOUT_MS = 30_000
@@ -185,6 +186,8 @@ def persist_runtime_settings_to_cfg(cfg, settings):
 
 def get_preferred_profile_model(profile_key, *, cfg, profile_presets):
     raw_override = str(cfg.get("model_override", "") or "").strip()
+    if raw_override == FLASH_ARGON_MODE:
+        return GEMINI_FAST_MODEL
     if raw_override:
         return normalize_model_name(raw_override)
     return normalize_model_name(
@@ -252,6 +255,8 @@ def wait_for_gemini_upload_ready(
 
 def get_model_tradeoff_text(model_name):
     key = normalize_model_name(model_name).lower()
+    if key == FLASH_ARGON_MODE:
+        return "For PDFs and images, starts each page with Gemini 3.8 Flash and retries a flagged page once with Gemini 4 Argon. The next page starts with Flash again. Extra reads take time and use API credit. Automatic checks cannot catch every error; review important results. Other file formats use Flash without page escalation. Requires a Gemini API key."
     if key == GEMINI_REASONING_MODEL:
         return "Gemini 4 Argon is an optional reasoning engine for difficult pages. It recovered more text in selected dense-page tests, but can still misread handwriting and comic lettering. Provider costs and processing time vary."
     if key == GEMINI_FAST_MODEL:

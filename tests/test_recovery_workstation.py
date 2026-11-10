@@ -32,8 +32,8 @@ class RecoveryWorkstationTest(unittest.TestCase):
             routing={"difficulty": "hard"},
         )
 
-        self.assertEqual(len(plan["capabilities"]), 15)
-        self.assertEqual(len(CAPABILITY_REGISTRY), 15)
+        self.assertEqual(len(plan["capabilities"]), 14)
+        self.assertEqual(len(CAPABILITY_REGISTRY), 14)
         self.assertTrue(plan["sensitive_mode"]["recommended"])
         self.assertEqual(plan["economics"]["effort"], "long")
         self.assertIn("medical abbreviations", plan["domain_pack"]["pack_items"])
@@ -56,7 +56,7 @@ class RecoveryWorkstationTest(unittest.TestCase):
         self.assertIn("Triage signals:", text)
         self.assertIn("Batch economics:", text)
         self.assertIn("Sensitive document mode:", text)
-        self.assertIn("Implemented capability areas:", text)
+        self.assertIn("Review information:", text)
 
     def test_sensitive_mode_is_recommended_for_private_profiles(self):
         self.assertTrue(recommend_sensitive_mode({"doc_profile": "legal"})["recommended"])
@@ -105,7 +105,7 @@ class RecoveryWorkstationTest(unittest.TestCase):
             html = workbench.read_text(encoding="utf-8")
             self.assertIn('role="main"', html)
             self.assertIn("Skip to review content", html)
-            self.assertIn("Recovery Workstation Capabilities", html)
+            self.assertIn("Review information", html)
             self.assertIn("does not copy extracted document text", html)
             self.assertNotIn("Body text.", html)
             self.assertNotIn(tmpdir, html)
@@ -114,3 +114,21 @@ class RecoveryWorkstationTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ReviewArtifactPrivacyTest(unittest.TestCase):
+    def test_receipts_exclude_private_configuration_and_maintainer_material(self):
+        import json
+        with tempfile.TemporaryDirectory(prefix='ChronicleReceiptTest-') as directory:
+            output = Path(directory) / 'reading.html'
+            output.write_text('<h1>Reading</h1><p>Source text.</p>', encoding='utf-8')
+            artifacts = write_recovery_workstation_artifacts(source_path=str(Path(directory)/'source.pdf'), output_path=str(output), fmt='html',
+                job_cfg={'doc_profile':'standard','abbrev_expansion':False,'output_dir':'PRIVATE_PATH_SENTINEL','custom_prompt':'PRIVATE_RULE_SENTINEL','api_key':'PRIVATE_KEY_SENTINEL'})
+            content = '\n'.join(Path(path).read_text(encoding='utf-8') for key, path in artifacts.items() if key.endswith('_path'))
+            for marker in ('PRIVATE_PATH_SENTINEL','PRIVATE_RULE_SENTINEL','PRIVATE_KEY_SENTINEL','Maintainability Roadmap','service-extraction priorities'):
+                self.assertNotIn(marker, content)
+            self.assertNotIn(directory, content)
+            receipt = json.loads(next(Path(directory).glob('*.chronicle_receipt.json')).read_text(encoding='utf-8'))
+            self.assertNotIn('maintainability', receipt['plan'])
+            self.assertNotIn('accessibility_contract', receipt['plan']['profile_variant'])
+            self.assertEqual(receipt['plan']['profile_variant']['overrides'], {'abbrev_expansion':False})

@@ -1,6 +1,6 @@
 import os
 
-from chronicle_app.services.runtime_policies import DEFAULT_CLAUDE_MODEL, GEMINI_DEEP_MODEL, GEMINI_FAST_MODEL, is_gemini_deep_model, is_offline_model, normalize_model_name
+from chronicle_app.services.runtime_policies import DEFAULT_CLAUDE_MODEL, FLASH_ARGON_MODE, GEMINI_REASONING_MODEL, GEMINI_DEEP_MODEL, GEMINI_FAST_MODEL, is_gemini_deep_model, is_offline_model, normalize_model_name
 
 
 FORCE_DEEP_PROFILES = {
@@ -31,7 +31,7 @@ ADAPTIVE_FLASH_PROFILES = {
 
 
 def should_use_automatic_engine(job_cfg):
-    return not str(job_cfg.get("model_override", "") or "").strip()
+    return str(job_cfg.get("model_override", "") or "").strip() in {"", FLASH_ARGON_MODE}
 
 
 def _sample_page_indices(total_pages, selected_page_indices, *, max_pages=18):
@@ -220,6 +220,20 @@ def select_execution_model_for_job(
             "routing_reason": "Private Offline Mode selected; Chronicle will use the local model pack only.",
             "auto_escalation_model": None,
             "difficulty": "offline",
+        }
+    if str(job_cfg.get("model_override") or "").strip() == FLASH_ARGON_MODE:
+        from chronicle_app.services.document_processors import SUPPORTED_IMAGE_EXTENSIONS
+        scan_input = ext.lower() == ".pdf" or ext.lower() in SUPPORTED_IMAGE_EXTENSIONS
+        return {
+            "model_name": GEMINI_FAST_MODEL,
+            "baseline_model": baseline_model,
+            "routing_mode": "adaptive",
+            "routing_reason": (
+                "Each page starts with Gemini 3.8 Flash. Explicit uncertainty, empty output, structure warnings or an output limit can trigger one Argon page retry; the next page starts with Flash. Review important results."
+                if scan_input else "Automatic Flash/Argon page checks apply to PDFs and images. This file uses Flash without page escalation."
+            ),
+            "auto_escalation_model": GEMINI_REASONING_MODEL if scan_input else None,
+            "difficulty": "per-page" if scan_input else "baseline",
         }
     manual_override = not should_use_automatic_engine(job_cfg)
     profile = str(job_cfg.get("doc_profile", "standard") or "standard").lower()

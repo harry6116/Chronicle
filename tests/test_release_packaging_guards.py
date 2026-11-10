@@ -84,10 +84,12 @@ class ReleasePackagingGuardsTest(unittest.TestCase):
             metadata = app / "Contents/Info.plist"
             metadata.write_bytes(plistlib.dumps({"CFBundleShortVersionString": "0.0.0", "CFBundleIdentifier": "Chronicle"}))
             with mock.patch.object(build_mac.subprocess, "run") as signing:
-                build_mac.finalize_app_metadata(app, ROOT / "chronicle_gui.py")
+                source = Path(directory) / "source.py"
+                source.write_text('APP_VERSION = "9.8.7"\n', encoding="utf-8")
+                build_mac.finalize_app_metadata(app, source)
             info = plistlib.loads(metadata.read_bytes())
-            self.assertEqual(info["CFBundleShortVersionString"], "1.1.8")
-            self.assertEqual(info["CFBundleVersion"], "1.1.8")
+            self.assertEqual(info["CFBundleShortVersionString"], "9.8.7")
+            self.assertEqual(info["CFBundleVersion"], "9.8.7")
             self.assertEqual(info["CFBundleIdentifier"], "Chronicle")
             self.assertIn("--sign", signing.call_args.args[0])
 

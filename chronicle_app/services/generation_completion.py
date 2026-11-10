@@ -1,6 +1,12 @@
 """Reject provider responses that ended before the extraction was complete."""
 
 
+class IncompleteGenerationError(RuntimeError):
+    def __init__(self, reason):
+        self.reason = str(reason).upper()
+        super().__init__('The model response is incomplete. Review the source page and retry with a smaller page region or another reading engine.')
+
+
 def _field(value, name):
     return value.get(name) if isinstance(value, dict) else getattr(value, name, None)
 
@@ -24,4 +30,4 @@ def require_complete_generation(response):
             continue
         name = str(getattr(reason, 'name', reason)).rsplit('.', 1)[-1].upper()
         if name in incomplete:
-            raise RuntimeError('The model response is incomplete. Review the source page and retry with a smaller page region or another reading engine.')
+            raise IncompleteGenerationError(name)

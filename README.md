@@ -2,7 +2,7 @@
 
 Chronicle is an accessibility-first document recovery tool for difficult real-world material.
 
-Current public release line: **Chronicle 1.1.8**.
+Current public release line: **Chronicle 1.1.9**.
 
 It is especially strong on degraded scans, long-form books, archival records, legal and policy material, tables, handwriting, multi-column layouts, comics, manga, graphic novels, and mixed-format batches where preserving reading order, usable structure, and review workflow matters more than raw one-click speed.
 
@@ -103,7 +103,7 @@ Full guidance: `docs/user/PRIVATE_OFFLINE_MODE.md`.
 
 ## Current Public Release
 
-Chronicle `1.1.8` resolves overlapping scanning instructions and keeps optional reading aids consistent with the original text.
+Chronicle `1.1.9` adds a separate automatic Flash/Argon option for PDF and image pages while keeping the existing Automatic setting available.
 
 Current release downloads:
 

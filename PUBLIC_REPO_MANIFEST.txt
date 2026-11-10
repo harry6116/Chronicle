@@ -97,6 +97,7 @@ chronicle_app/services/offline_prompting.py
 chronicle_app/services/ordering_runtime.py
 chronicle_app/services/output_cleanup.py
 chronicle_app/services/output_quality.py
+chronicle_app/services/page_engine_routing.py
 chronicle_app/services/pdf_auth.py
 chronicle_app/services/pdf_page_boundaries.py
 chronicle_app/services/pdf_processor.py
@@ -207,6 +208,7 @@ tests/test_dense_newspaper_rendering.py
 tests/test_diagnostics.py
 tests/test_document_processors.py
 tests/test_exporters.py
+tests/test_flash_argon_routing.py
 tests/test_gemini_rest_payloads.py
 tests/test_generation_completion.py
 tests/test_handwriting_forms.py

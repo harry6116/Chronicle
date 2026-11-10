@@ -608,7 +608,7 @@ class PrefsDialog(wx.Dialog):
         self.mo = wx.Choice(panel, choices=[label for _, label in self.model_override_choices])
         self.mo.SetName("Engine Override")
         self.mo.SetToolTip(
-            "Optional. Automatic follows the document preset. A specific engine forces that provider when available."
+            "Automatic follows the document preset. Automatic Flash/Argon is a separate option: PDF and image pages start with Flash and a flagged page gets one Argon retry; the next page starts with Flash. Extra reads use API credit and cannot catch every error. Requires a Gemini key. Other formats use Flash without page escalation. A specific engine keeps that model."
         )
         vbox.Add(self.mo, flag=wx.LEFT | wx.RIGHT | wx.EXPAND, border=10)
 

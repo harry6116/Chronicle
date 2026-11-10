@@ -13,7 +13,7 @@ from chronicle_app.services.document_processors import (
     SOURCE_TEXT_EXTENSIONS,
 )
 from chronicle_app.services.local_provider_runtime import process_offline_document
-from chronicle_app.services.runtime_policies import is_offline_model
+from chronicle_app.services.runtime_policies import GEMINI_FAST_MODEL, GEMINI_REASONING_MODEL, is_offline_model
 
 
 def build_confidence_callback(*, enabled, file_name, describe_quality_score_fn, log_cb):
@@ -21,6 +21,12 @@ def build_confidence_callback(*, enabled, file_name, describe_quality_score_fn, 
         return None
 
     def confidence_cb(page_num, score, method, _fn=file_name):
+        if method == 'automatic-review-required':
+            return  # The page reader already announced the remaining review need.
+        if method in {'automatic-flash', 'automatic-argon'}:
+            engine = 'Gemini 4 Argon' if method == 'automatic-argon' else 'Gemini 3.8 Flash'
+            log_cb(f"[Page] {_fn} page {page_num}: read with {engine}. No transcription-accuracy grade is assigned.")
+            return
         score10 = max(1.0, min(10.0, score * 10.0))
         desc = describe_quality_score_fn(score10, method)
         log_cb(f"[Confidence] {_fn} page {page_num}: {score10:.1f}/10 - {desc}")
@@ -157,6 +163,22 @@ def dispatch_processing_for_job(
             client, path, temp_path, fmt, prompt, model, file_obj, memory, processing_log,
             pause_cb=pause_cb, page_progress_cb=page_progress_cb, resume_from_batch=resume_from_unit,
         )
+    if ext in SUPPORTED_IMAGE_EXTENSIONS and model == GEMINI_FAST_MODEL and auto_escalation_model == GEMINI_REASONING_MODEL:
+        from chronicle_app.services.page_engine_routing import read_adaptive_page
+        def read_image(request_model):
+            page_memory = []
+            process_img_fn(client, path, temp_path, fmt, prompt, request_model, None, page_memory, processing_log, pause_cb=pause_cb)
+            return ''.join(str(part) for part in page_memory)
+        result = read_adaptive_page(read_image, fmt=fmt, log_cb=processing_log, pause_cb=pause_cb)
+        if pause_cb:
+            pause_cb()
+        if file_obj is not None:
+            file_obj.write(result.text)
+            if hasattr(file_obj, 'flush'):
+                file_obj.flush()
+        if memory is not None:
+            memory.append(result.text)
+        return {'automatic_argon_pages': [1] if result.model == GEMINI_REASONING_MODEL else [], 'automatic_review_pages': [1] if result.needs_review else []}
     if ext in SUPPORTED_IMAGE_EXTENSIONS:
         return process_img_fn(client, path, temp_path, fmt, prompt, model, file_obj, memory, processing_log, pause_cb=pause_cb)
     if ext in RENDERABLE_DOCUMENT_EXTENSIONS:
@@ -323,6 +345,8 @@ def process_job_content(
         process_text_fn=process_text_fn,
         resume_from_unit=resume_from_unit,
     )
+    if isinstance(processing_result, dict) and 'automatic_review_pages' in processing_result:
+        cfg['automatic_review_pages'] = list(processing_result['automatic_review_pages'])
     if memory is not None and hasattr(memory, "read_text_since") and start_mem_checkpoint is not None:
         extracted_for_file = memory.read_text_since(start_mem_checkpoint)
     else:

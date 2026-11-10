@@ -1,5 +1,6 @@
 from chronicle_app.services.runtime_policies import is_gemini_deep_model
 import gc
+import inspect
 import concurrent.futures
 import html
 import io
@@ -102,7 +103,7 @@ def _safe_error(value):
     return sanitize_log_text(value)
 
 
-def process_pdf(
+def _process_pdf_pages(
     client,
     path,
     out,
@@ -139,6 +140,7 @@ def process_pdf(
     wait_for_gemini_upload_ready_fn=wait_for_gemini_upload_ready,
     allow_text_layer_fallback=False,
     urlopen_fn=None,
+    page_attempt_only=False,
 ):
     reader = pdf_reader_cls(path)
     allow_text_layer_fallback = bool(
@@ -889,7 +891,11 @@ def process_pdf(
             finally:
                 cleanup_temp_pdf(tmp_path)
         log_cb(f"[Gemini PDF] Waiting for slice {pdf_name} to become ready.")
-        uploaded = wait_for_gemini_upload_ready_fn(client, uploaded, log_cb=log_cb, poll_sec=0.5, max_wait_sec=30.0)
+        try:
+            uploaded = wait_for_gemini_upload_ready_fn(client, uploaded, log_cb=log_cb, poll_sec=0.5, max_wait_sec=30.0)
+        except Exception:
+            cleanup_gemini_upload(uploaded)
+            raise
         log_cb(f"[Gemini PDF] Slice {pdf_name} is ready.")
         return uploaded
 
@@ -1769,56 +1775,62 @@ def process_pdf(
                     cache_key = build_request_cache_key_fn(model, prompt, "pdf-upload", f"{curr}:{end}:{pdf_fingerprint}")
 
                     def _gemini_pdf_request():
-                        if dense_newspaper_strip_model:
-                            image_name = f"chronicle_page_{selected_page_indices[curr] + 1}.png"
-                            image_bytes = build_page_png_bytes(curr)
-                            uploaded = upload_gemini_image_slice(image_name, image_bytes)
+                        uploaded = None
+                        try:
+                            if dense_newspaper_strip_model:
+                                image_name = f"chronicle_page_{selected_page_indices[curr] + 1}.png"
+                                image_bytes = build_page_png_bytes(curr)
+                                uploaded = upload_gemini_image_slice(image_name, image_bytes)
+                                log_cb(
+                                    f"[Gemini Image] Requesting dense newspaper page output for source page "
+                                    f"{selected_page_indices[curr] + 1} via {normalize_model_name(dense_newspaper_strip_model)}."
+                                )
+                                response = stream_gemini_file_rest_text(
+                                    dense_newspaper_strip_model,
+                                    uploaded,
+                                    prompt,
+                                    "image/png",
+                                )
+                                if response is None:
+                                    response = generate_gemini_nonstream(dense_newspaper_strip_model, [uploaded, prompt])
+
+                                def _cleanup_upload():
+                                    cleanup_gemini_upload(uploaded)
+
+                                return response, _cleanup_upload
+                            uploaded = upload_gemini_pdf_slice(pdf_name, pdf_bytes)
+                            page_span = _format_source_page_span(
+                                selected_page_indices[curr] + 1,
+                                selected_page_indices[end - 1] + 1,
+                                total_document_pages,
+                            )
                             log_cb(
-                                f"[Gemini Image] Requesting dense newspaper page output for source page "
-                                f"{selected_page_indices[curr] + 1} via {normalize_model_name(dense_newspaper_strip_model)}."
+                                f"[Gemini PDF] Requesting model output for {page_span} via {normalize_model_name(model)}."
                             )
-                            response = stream_gemini_file_rest_text(
-                                dense_newspaper_strip_model,
-                                uploaded,
-                                prompt,
-                                "image/png",
-                            )
-                            if response is None:
-                                response = generate_gemini_nonstream(dense_newspaper_strip_model, [uploaded, prompt])
+                            if is_dense_newspaper_pdf() and is_gemini_deep_model(model):
+                                log_cb(
+                                    "[Gemini PDF] Dense newspaper Pro request is using bounded REST streaming when available "
+                                    "so a silent stream cannot stall the run."
+                                )
+                                response = stream_gemini_file_rest_text(
+                                    model,
+                                    uploaded,
+                                    prompt,
+                                    "application/pdf",
+                                )
+                                if response is None:
+                                    response = generate_gemini_nonstream(model, [uploaded, prompt])
+                            else:
+                                response = generate_retry_fn(client, model, [uploaded, prompt], log_cb=log_cb)
 
                             def _cleanup_upload():
                                 cleanup_gemini_upload(uploaded)
 
                             return response, _cleanup_upload
-                        uploaded = upload_gemini_pdf_slice(pdf_name, pdf_bytes)
-                        page_span = _format_source_page_span(
-                            selected_page_indices[curr] + 1,
-                            selected_page_indices[end - 1] + 1,
-                            total_document_pages,
-                        )
-                        log_cb(
-                            f"[Gemini PDF] Requesting model output for {page_span} via {normalize_model_name(model)}."
-                        )
-                        if is_dense_newspaper_pdf() and is_gemini_deep_model(model):
-                            log_cb(
-                                "[Gemini PDF] Dense newspaper Pro request is using bounded REST streaming when available "
-                                "so a silent stream cannot stall the run."
-                            )
-                            response = stream_gemini_file_rest_text(
-                                model,
-                                uploaded,
-                                prompt,
-                                "application/pdf",
-                            )
-                            if response is None:
-                                response = generate_gemini_nonstream(model, [uploaded, prompt])
-                        else:
-                            response = generate_retry_fn(client, model, [uploaded, prompt], log_cb=log_cb)
-
-                        def _cleanup_upload():
-                            cleanup_gemini_upload(uploaded)
-
-                        return response, _cleanup_upload
+                        except Exception:
+                            if uploaded is not None:
+                                cleanup_gemini_upload(uploaded)
+                            raise
 
                     local_memory = []
                     generated = stream_with_cache_fn(cache_key, _gemini_pdf_request, out, fmt, None, local_memory, log_cb, pause_cb=pause_cb)
@@ -1835,6 +1847,9 @@ def process_pdf(
                 if curr > 0 and curr % 2 == 0:
                     gc.collect()
             except Exception as ex:
+                if page_attempt_only and not allow_text_layer_fallback:
+                    cleanup_temp_pdf(tmp_pdf)
+                    raise
                 openai_pdf_fallback = is_openai_pdf_base64_fallback(ex)
                 if total == 1:
                     if openai_pdf_fallback:
@@ -2111,3 +2126,77 @@ def process_pdf(
     return {
         "used_dense_newspaper_local_ocr": used_dense_newspaper_local_ocr,
     }
+
+
+_PDF_PROCESS_SIGNATURE = inspect.signature(_process_pdf_pages)
+_PDF_PUBLIC_SIGNATURE = _PDF_PROCESS_SIGNATURE.replace(parameters=[parameter for parameter in _PDF_PROCESS_SIGNATURE.parameters.values() if parameter.name != "page_attempt_only"])
+
+
+def process_pdf(*args, **kwargs):
+    arguments = _PDF_PUBLIC_SIGNATURE.bind(*args, **kwargs)
+    arguments.apply_defaults()
+    settings = arguments.arguments
+    from chronicle_app.services.runtime_policies import GEMINI_FAST_MODEL, GEMINI_REASONING_MODEL
+    if normalize_model_name(settings['model']) != GEMINI_FAST_MODEL or settings['auto_escalation_model'] != GEMINI_REASONING_MODEL:
+        return _process_pdf_pages(*args, **kwargs)
+
+    from chronicle_app.services.page_engine_routing import read_adaptive_page
+    reader = settings['pdf_reader_cls'](settings['path'])
+    try:
+        selected = settings['parse_pdf_page_scope_spec_fn'](settings['page_scope'], len(reader.pages))
+        used_local_ocr = False
+        argon_pages = []
+        review_pages = []
+        for done, page_index in enumerate(selected, 1):
+            confidence = {}
+            attempts = {}
+
+            def read_page(request_model):
+                page_memory = []
+                page_settings = dict(settings)
+                page_settings.update(
+                    model=request_model, auto_escalation_model=None, f_obj=None, mem=page_memory, page_attempt_only=True,
+                    pdf_reader_cls=lambda _: reader,
+                    page_scope=str(page_index + 1),
+                    parse_pdf_page_scope_spec_fn=lambda _scope, _total: [page_index],
+                    page_progress_cb=None,
+                    confidence_cb=lambda *record: confidence.update({request_model: record}),
+                )
+                attempts[request_model] = _process_pdf_pages(**page_settings)
+                return ''.join(str(part) for part in page_memory)
+
+            result = read_adaptive_page(
+                read_page, fmt=settings['fmt'], log_cb=settings['log_cb'],
+                pause_cb=settings['pause_cb'], page_label=f'Page {page_index + 1}',
+            )
+            if settings['pause_cb']:
+                settings['pause_cb']()
+            if settings['f_obj'] is not None:
+                settings['f_obj'].write(result.text)
+                if hasattr(settings['f_obj'], 'flush'):
+                    settings['f_obj'].flush()
+            if settings['mem'] is not None:
+                settings['mem'].append(result.text)
+            used_local_ocr = used_local_ocr or bool((attempts.get(result.model) or {}).get('used_dense_newspaper_local_ocr'))
+            if result.model == GEMINI_REASONING_MODEL:
+                argon_pages.append(page_index + 1)
+            if result.needs_review:
+                review_pages.append(page_index + 1)
+            if settings['confidence_cb'] and result.model in confidence:
+                record = confidence[result.model]
+                method = 'automatic-review-required' if result.needs_review else ('automatic-argon' if result.model == GEMINI_REASONING_MODEL else 'automatic-flash')
+                settings['confidence_cb'](record[0], record[1], method)
+            if settings['page_progress_cb']:
+                try:
+                    settings['page_progress_cb'](done, len(selected), page_index + 1)
+                except TypeError:
+                    settings['page_progress_cb'](done, len(selected))
+        return {'used_dense_newspaper_local_ocr': used_local_ocr, 'automatic_argon_pages': argon_pages, 'automatic_review_pages': review_pages}
+    finally:
+        close = getattr(reader, 'close', None)
+        if callable(close):
+            close()
+
+
+
+process_pdf.__signature__ = _PDF_PUBLIC_SIGNATURE

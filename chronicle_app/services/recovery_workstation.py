@@ -5,6 +5,7 @@ import re
 import time
 
 from chronicle_app.services.output_quality import analyze_output_quality
+from chronicle_app.services.runtime_policies import FLASH_ARGON_MODE
 
 
 CAPABILITY_REGISTRY = [
@@ -22,7 +23,6 @@ CAPABILITY_REGISTRY = [
     ("confidence_heatmap", "Confidence Heatmap", "page and warning index for review"),
     ("batch_economics", "Batch Economics", "effort, provider, and quota-risk estimation"),
     ("export_personas", "A11y-First Export Templates", "output intent labels and guidance"),
-    ("maintainability_roadmap", "Maintainability Roadmap", "next service-extraction priorities"),
 ]
 
 
@@ -87,7 +87,9 @@ def classify_triage(path, job_cfg, *, ext=None, total_units=0, routing=None):
     if total_units and total_units >= 50:
         signals.append("large batch or long document")
         recommendations.append("Run a first-pages trial before committing provider quota.")
-    if str((job_cfg or {}).get("model_override") or "").strip():
+    if (job_cfg or {}).get("model_override") == FLASH_ARGON_MODE:
+        signals.append("automatic Flash/Argon page routing")
+    elif str((job_cfg or {}).get("model_override") or "").strip():
         signals.append("manual engine override")
     difficulty = str(routing.get("difficulty") or "")
     if difficulty:
@@ -257,14 +259,6 @@ def export_persona_for_format(fmt, *, doc_profile="standard"):
     }
 
 
-def maintainability_roadmap():
-    return [
-        "Extract legal HTML cleanup from chronicle_core.py as a cohesive service.",
-        "Extract provider/upload orchestration from pdf_processor.py.",
-        "Keep Review Workbench and receipts in service modules so the GUI remains thin.",
-    ]
-
-
 def build_workstation_plan(*, path="", output_path="", job_cfg=None, fmt="", selected_model="", total_units=0, routing=None, qa_report=None):
     job_cfg = job_cfg or {}
     profile = str(job_cfg.get("doc_profile") or "standard").lower()
@@ -272,7 +266,16 @@ def build_workstation_plan(*, path="", output_path="", job_cfg=None, fmt="", sel
         "capabilities": CAPABILITY_REGISTRY,
         "triage": classify_triage(path, job_cfg, ext=os.path.splitext(path or "")[1], total_units=total_units, routing=routing),
         "economics": build_batch_economics(job_cfg, selected_model=selected_model, total_units=total_units),
-        "profile_variant": build_profile_variant(f"{profile.title()} Review", profile, job_cfg),
+        "profile_variant": {
+            "name": f"{profile.title()} Review",
+            "base_profile": profile,
+            "overrides": {key: job_cfg[key] for key in (
+                'format_type', 'translate_mode', 'translate_target', 'modernize_punctuation',
+                'unit_conversion', 'abbrev_expansion', 'image_descriptions',
+                'preserve_original_page_numbers', 'page_navigation_links', 'large_print',
+                'academic_footnote_mode', 'academic_annotation_mode',
+            ) if key in job_cfg},
+        },
         "recovery_actions": recommend_recovery_actions("Done", output_path=output_path, warnings=(qa_report or {}).get("warnings")),
         "sensitive_mode": recommend_sensitive_mode(job_cfg),
         "domain_pack": domain_pack_for_profile(profile),
@@ -280,7 +283,6 @@ def build_workstation_plan(*, path="", output_path="", job_cfg=None, fmt="", sel
         "book_reconstruction": build_book_reconstruction_plan(profile),
         "confidence_heatmap": build_confidence_heatmap(qa_report, total_units=total_units),
         "export_persona": export_persona_for_format(fmt, doc_profile=profile),
-        "maintainability": maintainability_roadmap(),
     }
 
 
@@ -289,7 +291,7 @@ def format_workstation_plan_text(plan):
     lines = [
         "Recovery Workbench Plan",
         "",
-        "Priority 1: Review Workbench and Extraction Receipts are enabled after successful single-output extractions.",
+        "Review the saved reading and compare flagged sections with the original.",
         "",
         "Triage signals:",
     ]
@@ -322,7 +324,7 @@ def format_workstation_plan_text(plan):
             f"- {export_persona.get('intent', '')}",
             f"- {export_persona.get('guidance', '')}",
             "",
-            "Implemented capability areas:",
+            "Review information:",
         ]
     )
     lines.extend(f"- {label}: {purpose}" for _key, label, purpose in plan.get("capabilities", []))
@@ -361,7 +363,7 @@ def build_extraction_receipt_text(receipt):
     economics = receipt.get("plan", {}).get("economics", {})
     for key in ("provider", "selected_model", "estimated_units", "effort", "quota_risk"):
         lines.append(f"- {key.replace('_', ' ').title()}: {economics.get(key, '')}")
-    lines.extend(["", "## Future Workstation Capabilities", ""])
+    lines.extend(["", "## Review information", ""])
     for _key, label, purpose in CAPABILITY_REGISTRY:
         lines.append(f"- {label}: {purpose}")
     return "\n".join(lines)
@@ -408,7 +410,7 @@ def build_review_workbench_html(receipt):
         <li><a href="#warnings">Warnings</a></li>
         <li><a href="#review-points">Review Points</a></li>
         <li><a href="#privacy">Privacy</a></li>
-        <li><a href="#capabilities">Capabilities</a></li>
+        <li><a href="#capabilities">Review information</a></li>
       </ul>
     </nav>
   </header>
@@ -436,7 +438,7 @@ def build_review_workbench_html(receipt):
       <p>This workbench does not copy extracted document text. Review the saved Chronicle output file directly when content inspection is needed.</p>
     </section>
     <section id="capabilities" aria-labelledby="capabilities-heading">
-      <h2 id="capabilities-heading">Recovery Workstation Capabilities</h2>
+      <h2 id="capabilities-heading">Review information</h2>
       <ul>{capability_items}</ul>
     </section>
   </main>
@@ -463,6 +465,12 @@ def write_recovery_workstation_artifacts(
         return {}
     output_sample = _read_output_excerpt(output_path)
     qa_report = analyze_output_quality(output_sample, fmt=fmt, doc_profile=(job_cfg or {}).get("doc_profile", "standard"))
+    review_pages = (job_cfg or {}).get('automatic_review_pages') or []
+    if review_pages:
+        warning = 'Automatic reading needs review on source pages: ' + ', '.join(str(page) for page in review_pages)
+        qa_report['ok'] = False
+        qa_report['warnings'].append(warning)
+        qa_report['summary'] = warning
     plan = build_workstation_plan(
         path=source_path,
         output_path=output_path,
@@ -483,12 +491,11 @@ def write_recovery_workstation_artifacts(
         "file_name": file_name or os.path.basename(source_path or output_path),
         "format": fmt,
         "doc_profile": (job_cfg or {}).get("doc_profile", "standard"),
-        "engine_label": engine_label or (job_cfg or {}).get("model_name", ""),
+        "engine_label": "Automatic Flash/Argon (PDFs and images)" if (job_cfg or {}).get("model_override") == FLASH_ARGON_MODE else (engine_label or (job_cfg or {}).get("model_name", "")),
         "total_units": int(total_units or 0),
         "qa_summary": qa_report.get("summary", "Output QA unavailable."),
         "qa_report": qa_report,
         "plan": plan,
-        "review_workbench_path": workbench_path,
         "review_workbench_name": os.path.basename(workbench_path),
     }
     _write_text(workbench_path, build_review_workbench_html(receipt))

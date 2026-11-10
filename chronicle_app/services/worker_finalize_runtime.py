@@ -529,8 +529,11 @@ def finalize_single_output(
     return output_path
 
 
-def maybe_delete_source_file(path, *, delete_source_on_success, is_protected_path_fn, remove_fn=os.remove, log_cb):
+def maybe_delete_source_file(path, *, delete_source_on_success, is_protected_path_fn, remove_fn=os.remove, log_cb, needs_review=False):
     if not delete_source_on_success:
+        return False
+    if needs_review:
+        log_cb("Original source retained because the automatic reading still needs review.")
         return False
     if is_protected_path_fn(path):
         log_cb(f"Protected folder rule: not deleting source file in protected directory: {path}")
@@ -740,6 +743,7 @@ def finalize_job_success(
     maybe_delete_source_file(
         source_path,
         delete_source_on_success=bool(delete_source_on_success),
+        needs_review=bool(job_cfg.get("automatic_review_pages")),
         is_protected_path_fn=is_protected_path_fn,
         log_cb=log_cb,
     )

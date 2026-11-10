@@ -83,6 +83,7 @@ from chronicle_app.config import (
     TRANSLATION_TARGETS,
 )
 from chronicle_app.services.runtime_policies import (
+    FLASH_ARGON_MODE,
     DEFAULT_CLAUDE_MODEL,
     OFFLINE_PRIVATE_MODEL,
     build_profile_selection_summary as shared_build_profile_selection_summary,
@@ -446,7 +447,7 @@ if getattr(sys, 'frozen', False):
 
 # --- CONSTANTS ---
 APP_NAME = "Chronicle"
-APP_VERSION = "1.1.8"
+APP_VERSION = "1.1.9"
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
@@ -2058,7 +2059,7 @@ class MainFrame(wx.Frame):
                 self.queue,
                 paths,
                 settings=settings,
-                engine_label=self.LabelFromModel(settings.get("model_name", GEMINI_FAST_MODEL)),
+                engine_label=self.EngineLabelForSettings(settings),
                 row_setting_keys=ROW_SETTING_KEYS,
                 source_root=os.path.dirname(paths[0]) if len(paths) == 1 else None,
             )
@@ -2082,6 +2083,10 @@ class MainFrame(wx.Frame):
 
     def LabelFromModel(self, model_name):
         return MODEL_LABEL_BY_KEY.get(model_name, str(model_name or 'Automatic'))
+
+    def EngineLabelForSettings(self, settings):
+        model = FLASH_ARGON_MODE if settings.get("model_override") == FLASH_ARGON_MODE else settings.get("model_name", GEMINI_FAST_MODEL)
+        return self.LabelFromModel(model)
 
     def GetModelGuideText(self, label):
         guides = {
@@ -2136,6 +2141,9 @@ class MainFrame(wx.Frame):
         model_name = self.ResolveModelNameForAvailableKeys(preferred_model_name)
         label = self.LabelFromModel(model_name)
         manual_override = str(OFFLINE_PRIVATE_MODEL if getattr(self, "processing_mode_choice", None) and self.processing_mode_choice.GetSelection() == 1 else self.cfg.get("model_override", "") or "").strip()
+        if manual_override == FLASH_ARGON_MODE:
+            self.SafeSetStatusText("Automatic Flash/Argon: PDF/image pages start with Flash; flagged pages get one Argon retry. The next page starts with Flash. Extra API usage; review important results.")
+            return
         model_help = self.GetModelGuideText('Automatic' if not manual_override else label)
         speed_warning = get_processing_speed_warning(profile_key, model_name)
         status_text = f"{('Automatic' if not manual_override else label)}: {model_help}"
@@ -2187,7 +2195,9 @@ class MainFrame(wx.Frame):
             normalize_pdf_page_scope_text_fn=normalize_pdf_page_scope_text,
             parse_pdf_page_scope_spec_fn=parse_pdf_page_scope_spec,
         )
-        selected_model = self.ResolveModelNameForAvailableKeys(str(routing.get("model_name") or preferred_model_name))
+        selected_model = str(routing.get("model_name") or preferred_model_name)
+        if routing.get("routing_mode") != "adaptive":
+            selected_model = self.ResolveModelNameForAvailableKeys(selected_model)
         profile_label = PROFILE_KEY_TO_LABEL.get(settings.get("doc_profile", "standard"), "Standard")
         unit_estimate = shared_estimate_current_file_total_units(
             ext,
@@ -2210,7 +2220,7 @@ class MainFrame(wx.Frame):
             ),
         )
         file_name = os.path.basename(path)
-        mode_label = "manual override" if str(settings.get("model_override", "") or "").strip() else "automatic preflight"
+        mode_label = "automatic Flash/Argon" if routing.get("routing_mode") == "adaptive" else ("manual override" if str(settings.get("model_override", "") or "").strip() else "automatic preflight")
         strategy = "Deep scan path" if ext == ".pdf" or ext in SUPPORTED_IMAGE_EXTENSIONS or ext in RENDERABLE_DOCUMENT_EXTENSIONS else "Direct source-text path"
         reason = str(routing.get("routing_reason", "") or "No preflight reason available.")
         if ext in SOURCE_TEXT_EXTENSIONS | {".epub", ".mobi", ".fb2"} | {".pptx", ".ppt"}:
@@ -2451,7 +2461,7 @@ class MainFrame(wx.Frame):
         elif shared_is_offline_model(mode_cfg.get("model_override")):
             mode_cfg["model_override"] = ""
         preferred_model_name = get_preferred_profile_model(selected_profile, mode_cfg)
-        selected_model_name = self.ResolveModelNameForAvailableKeys(preferred_model_name)
+        selected_model_name = GEMINI_FAST_MODEL if mode_cfg.get("model_override") == FLASH_ARGON_MODE else self.ResolveModelNameForAvailableKeys(preferred_model_name)
         cfg = dict(self.cfg)
         cfg["model_override"] = OFFLINE_PRIVATE_MODEL if mode_is_offline else mode_cfg.get("model_override", "")
         cfg['format_type'] = fmt_map.get(self.format_choice.GetSelection(), 'html')
@@ -2486,7 +2496,7 @@ class MainFrame(wx.Frame):
         )
         normalized["model_override"] = str(normalized.get("model_override", "") or "")
         row["settings"] = {key: normalized.get(key) for key in ROW_SETTING_KEYS}
-        row["engine"] = self.LabelFromModel(row["settings"].get("model_name", GEMINI_FAST_MODEL))
+        row["engine"] = self.EngineLabelForSettings(row["settings"])
         return row["settings"]
 
     def FormatRowSettingsSummary(self, settings):
@@ -2623,7 +2633,8 @@ class MainFrame(wx.Frame):
         speed_warning = get_processing_speed_warning(profile_key, model_name)
         tooltip = profile_tooltip_text(profile_key)
         if str(self.cfg.get("model_override", "") or "").strip():
-            tooltip = f"{tooltip}\n\nPreference override: {self.LabelFromModel(preferred_model_name)}."
+            preference_label = self.LabelFromModel(FLASH_ARGON_MODE) if self.cfg.get("model_override") == FLASH_ARGON_MODE else self.LabelFromModel(preferred_model_name)
+            tooltip = f"{tooltip}\n\nPreference override: {preference_label}."
         if model_name != preferred_model_name and any(self.keys.values()):
             preferred_label = self.LabelFromModel(preferred_model_name)
             tooltip = (
@@ -3539,7 +3550,7 @@ class MainFrame(wx.Frame):
 
     def AddPathEntries(self, paths, source_root=None):
         settings = self.BuildSettingsFromControls()
-        engine = self.LabelFromModel(settings.get("model_name", GEMINI_FAST_MODEL))
+        engine = self.EngineLabelForSettings(settings)
         return shared_add_path_entries(
             self.queue,
             paths,
@@ -4589,14 +4600,14 @@ class MainFrame(wx.Frame):
                     f"{self.current_file_page_done}/{self.current_file_page_total} {self.current_file_unit_label} processed.",
                     engine_event=True,
                 )
-                if routing_mode == "automatic" and routing_reason:
+                if routing_mode in {"automatic", "adaptive"} and routing_reason:
                     self.Log(f"[Auto Engine] {routing_reason}", engine_event=True)
                 if memory_telemetry:
                     self.Log(f"[Memory] Peak RSS before task: {get_peak_rss_mb():.1f} MB", engine_event=True)
                 try:
                     shared_process_job_content(
                         ext,
-                        cfg=self.cfg,
+                        cfg=job_cfg,
                         path=fp,
                         file_name=fn,
                         temp_path=temp_path,
