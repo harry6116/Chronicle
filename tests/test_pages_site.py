@@ -9,6 +9,28 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class PagesSiteTest(unittest.TestCase):
+    def test_reviewed_pulp_magazine_example_explains_full_issue_and_corrections(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / 'site'
+            build_site(ROOT, output)
+            index = BeautifulSoup((output / 'index.html').read_text(), 'html.parser')
+            tab = index.find(id='tab-astounding')
+            self.assertIsNotNone(tab)
+            self.assertEqual(tab['aria-controls'], 'panel-astounding')
+            panel = index.find(id='panel-astounding')
+            self.assertTrue(panel.has_attr('hidden'))
+            self.assertIsNotNone(panel.find('a', href='showcase_samples/astounding-1945-05.html'))
+            explanation = BeautifulSoup((output / 'showcase_samples/astounding-1945-05.html').read_text(), 'html.parser')
+            for phrase in ('181', '24 illustration descriptions', 'two contents references', 'word by word'):
+                self.assertIn(phrase, explanation.get_text().lower())
+            self.assertIsNotNone(explanation.find(id='source-description'))
+            self.assertIsNotNone(explanation.find('a', href='astounding-1945-05-reading-copy.html'))
+            reading = BeautifulSoup((output / 'showcase_samples/astounding-1945-05-reading-copy.html').read_text(), 'html.parser')
+            self.assertEqual(len(reading.select('section.source-page')), 181)
+            self.assertEqual([heading['id'] for heading in reading.select('section.source-page > h2')],
+                             [f'page-{number}' for number in range(1, 182)])
+            self.assertIsNotNone(reading.find(id='review-notes'))
+
     def test_featured_examples_include_source_descriptions_and_real_html_results(self):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory) / 'site'
