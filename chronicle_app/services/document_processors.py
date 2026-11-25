@@ -390,7 +390,7 @@ def _build_source_text_prompt(prompt, *, source_kind, doc_profile=None):
         "- Do not add visual-guess OCR repairs that are only appropriate for faded, skewed, or image-only scans.\n"
         "- Apply accessibility cleanup conservatively: fix only genuine structural/accessibility defects, not normal born-digital wording or punctuation.\n"
     )
-    if profile in {"legal", "government"}:
+    if profile in {"legal", "government", "reports"}:
         mode += (
             "- Be especially strict about legal/government hierarchy, cross-references, schedules, tables, and citation fidelity.\n"
         )

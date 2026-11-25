@@ -1,5 +1,6 @@
 import re
 import unittest
+from tempfile import TemporaryDirectory
 from pathlib import Path
 
 from bs4 import BeautifulSoup
@@ -144,18 +145,6 @@ class PublicDocsSecurityTest(unittest.TestCase):
                 REPO_ROOT / "docs/github_rollout/README_PUBLIC_FINAL.md",
                 r"Current public release line: \*\*Chronicle ([^*]+)\*\*",
             ),
-            "PROJECT_OVERVIEW_GITHUB.md": (
-                REPO_ROOT / "docs/github_rollout/PROJECT_OVERVIEW_GITHUB.md",
-                r"Current public release target: \*\*Chronicle ([^*]+)\*\*",
-            ),
-            "README_GITHUB_ROLLOUT_PACK.md": (
-                REPO_ROOT / "docs/github_rollout/README_GITHUB_ROLLOUT_PACK.md",
-                r"Current target release: `Chronicle ([^`]+)`",
-            ),
-            "LAUNCH_RUNBOOK.md": (
-                REPO_ROOT / "docs/github_rollout/LAUNCH_RUNBOOK.md",
-                r"Current target release: `Chronicle ([^`]+)`",
-            ),
         }
         mismatches = []
         for label, (path, pattern) in checks.items():
@@ -164,6 +153,29 @@ class PublicDocsSecurityTest(unittest.TestCase):
             if actual != expected:
                 mismatches.append(f"{label}: expected {expected}, found {actual}")
         self.assertEqual(mismatches, [])
+
+    def test_release_planning_docs_stay_out_of_public_source_and_app_help(self):
+        from tools.prepare_public_repo_snapshot import should_exclude, stage_public_app_docs
+
+        paths = (
+            "github_rollout/LAUNCH_RUNBOOK.md",
+            "github_rollout/MIGRATION_NOTES_OLD_TO_NEW.md",
+            "github_rollout/PROJECT_OVERVIEW_GITHUB.md",
+            "github_rollout/PUBLIC_REPO_BOOTSTRAP.md",
+            "github_rollout/README_GITHUB_ROLLOUT_PACK.md",
+            "github_rollout/REPOSITORY_OVERHAUL_CHECKLIST.md",
+            "public/DEPLOY_STATIC_SITE.md",
+            "public/WEBSITE_LAUNCH_PLAN.md",
+        )
+        with TemporaryDirectory() as directory:
+            app_docs = Path(directory)
+            stage_public_app_docs(REPO_ROOT, app_docs)
+            for relative in paths:
+                with self.subTest(path=relative):
+                    self.assertTrue(should_exclude("docs/" + relative))
+                    self.assertFalse((app_docs / relative).exists())
+            self.assertTrue((app_docs / "user/chronicle_help.html").is_file())
+            self.assertTrue((app_docs / "github_rollout/RELEASE_NOTES_CURRENT.md").is_file())
 
     def test_public_html_has_basic_accessibility_structure(self):
         issues = []

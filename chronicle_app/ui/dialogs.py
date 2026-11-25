@@ -5,7 +5,7 @@ import time
 import wx
 import wx.adv as wxadv
 
-from chronicle_app.config import MODEL_OVERRIDE_CHOICES, PROFILE_CHOICES, TRANSLATION_TARGETS
+from chronicle_app.config import MODEL_OVERRIDE_CHOICES, TRANSLATION_TARGETS, profile_choices_for_key
 
 
 class FirstLaunchNoticeDialog(wx.Dialog):
@@ -451,14 +451,15 @@ class ApiKeyDialog(wx.Dialog):
             return True
         return all(character.isascii() and (character.isalnum() or character in "-._~+/=") for character in key)
 
-    def __init__(self, parent, *, initial_keys=None, save_keys=None):
-        super().__init__(parent, title="Chronicle API Keys Vault", size=(560, 400))
+    def __init__(self, parent, *, initial_keys=None, save_keys=None, import_key=None):
+        super().__init__(parent, title="Chronicle API Keys", size=(560, 440))
         self.keys = dict(initial_keys or {"gemini": "", "claude": "", "openai": ""})
         self._save_keys = save_keys
+        self._import_key = import_key
         panel = wx.Panel(self)
         vbox = wx.BoxSizer(wx.VERTICAL)
 
-        header = wx.StaticText(panel, label="Secure Vault: API keys are stored locally on this machine.")
+        header = wx.StaticText(panel, label="API keys are saved in your operating system’s credential store.")
         header.SetName("Secure Vault Instructions")
         vbox.Add(header, flag=wx.ALL, border=10)
 
@@ -504,7 +505,10 @@ class ApiKeyDialog(wx.Dialog):
         self.grid.Add(self.to, proportion=1, flag=wx.EXPAND)
 
         vbox.Add(self.grid, proportion=1, flag=wx.ALL | wx.EXPAND, border=10)
-
+        if import_key is not None:
+            import_button = wx.Button(panel, label="Import from system credential store…")
+            import_button.Bind(wx.EVT_BUTTON, self.OnImport)
+            vbox.Add(import_button, flag=wx.LEFT | wx.RIGHT | wx.BOTTOM, border=10)
         self.chk = wx.CheckBox(panel, label="Show API keys")
         self.chk.SetName("Show API Keys")
         self.chk.SetToolTip("When enabled, API key characters are visible for verification.")
@@ -522,6 +526,50 @@ class ApiKeyDialog(wx.Dialog):
         btns.Realize()
         vbox.Add(btns, flag=wx.ALIGN_RIGHT | wx.ALL, border=10)
         panel.SetSizer(vbox)
+        self.tg.SetFocus()
+
+    def OnImport(self, event):
+        dialog = wx.SingleChoiceDialog(
+            self, "Choose the provider for the imported key.", "Import API Key",
+            ["Google Gemini", "Anthropic Claude", "OpenAI"],
+        )
+        try:
+            if dialog.ShowModal() != wx.ID_OK:
+                return
+            field_name = ("tg", "tc", "to")[dialog.GetSelection()]
+        finally:
+            dialog.Destroy()
+        mac = wx.Platform == "__WXMAC__"
+        prompts = [("Keychain service", "Enter the exact service name of the generic Keychain item."),
+                   ("Keychain account", "Enter the exact account name of the item. Leave blank for an empty account.")] if mac else [
+                       ("Credential target", "Enter the exact name of the generic credential in Windows Credential Manager.")
+                   ]
+        values = []
+        for title, prompt in prompts:
+            dialog = wx.TextEntryDialog(self, prompt, title)
+            try:
+                if dialog.ShowModal() != wx.ID_OK:
+                    return
+                values.append(dialog.GetValue())
+            finally:
+                dialog.Destroy()
+        if not values[0].strip():
+            wx.MessageBox("Enter a credential item name.", "Import API Key", wx.OK | wx.ICON_WARNING, parent=self)
+            return
+        try:
+            value = self._import_key(values[0], values[1] if mac else "").strip()
+        except RuntimeError as error:
+            wx.MessageBox(str(error), "Import API Key", wx.OK | wx.ICON_WARNING, parent=self)
+            return
+        if not self._looks_like_api_key(value):
+            wx.MessageBox("This item does not contain a compatible API key.", "Import API Key", wx.OK | wx.ICON_WARNING, parent=self)
+            return
+        if self.chk.GetValue():
+            self.chk.SetValue(False)
+            self.OnToggle(None)
+        field = getattr(self, field_name)
+        field.SetValue(value)
+        field.SetFocus()
 
     def OnToggle(self, event):
         style = 0 if self.chk.GetValue() else wx.TE_PASSWORD
@@ -561,14 +609,19 @@ class ApiKeyDialog(wx.Dialog):
                 control.SetSelection(-1, -1)
                 return
             keys[provider] = key
-        self.keys = keys
         if self._save_keys is not None:
-            self._save_keys(self.keys)
+            try:
+                self._save_keys(keys)
+            except RuntimeError as error:
+                wx.MessageBox(str(error), "API Keys Could Not Be Saved", wx.OK | wx.ICON_WARNING, parent=self)
+                return
+        self.keys = keys
         wx.MessageBox(
-            "API keys saved locally on this machine. Provider access, permissions and billing "
+            "API keys saved in the system credential store. Provider access, permissions and billing "
             "are checked when you run an extraction.",
             "Chronicle",
             wx.OK | wx.ICON_INFORMATION,
+            parent=self,
         )
         self.EndModal(wx.ID_OK)
 
@@ -593,12 +646,15 @@ class PrefsDialog(wx.Dialog):
         self._profile_tooltip_text = profile_tooltip_text
         self._apply_profile_preset = apply_profile_preset
 
-        panel = wx.Panel(self)
+        panel = wx.ScrolledWindow(self, style=wx.VSCROLL | wx.TAB_TRAVERSAL)
+        panel.SetScrollRate(0, 12)
         vbox = wx.BoxSizer(wx.VERTICAL)
 
         vbox.Add(wx.StaticText(panel, label="Document Profile:"), flag=wx.LEFT | wx.TOP, border=10)
-        self.dp = wx.Choice(panel, choices=[label for _, label in PROFILE_CHOICES])
         selected_profile = cfg.get("doc_profile", "standard")
+        self.profile_choices = profile_choices_for_key(selected_profile)
+        self.dp = wx.Choice(panel, choices=[label for _, label in self.profile_choices])
+        self.dp.SetName("Document Preset")
         self.dp.SetToolTip(profile_tooltip_text(selected_profile))
         self.dp.Bind(wx.EVT_CHOICE, self.OnProfileChanged)
         vbox.Add(self.dp, flag=wx.LEFT | wx.RIGHT | wx.EXPAND, border=10)
@@ -611,6 +667,12 @@ class PrefsDialog(wx.Dialog):
             "Automatic follows the document preset. Automatic Flash/Argon is a separate option: PDF and image pages start with Flash and a flagged page gets one Argon retry; the next page starts with Flash. Extra reads use API credit and cannot catch every error. Requires a Gemini key. Other formats use Flash without page escalation. A specific engine keeps that model."
         )
         vbox.Add(self.mo, flag=wx.LEFT | wx.RIGHT | wx.EXPAND, border=10)
+
+        vbox.Add(wx.StaticText(panel, label="Webpage PDF reading mode"), flag=wx.LEFT | wx.TOP, border=10)
+        self.webpage_mode = wx.Choice(panel, choices=["Full extraction", "Article only for webpage PDFs"])
+        self.webpage_mode.SetName("Webpage PDF Reading Mode")
+        self.webpage_mode.SetSelection(int(cfg.get("webpage_reading_mode") == "article"))
+        vbox.Add(self.webpage_mode, flag=wx.LEFT | wx.RIGHT | wx.EXPAND, border=10)
 
         vbox.Add(wx.StaticText(panel, label="Language Translation:"), flag=wx.LEFT | wx.TOP, border=10)
         self.ct = wx.Choice(
@@ -768,7 +830,7 @@ class PrefsDialog(wx.Dialog):
 
         tmap = {"none": 0, "both": 1, "english_only": 2}
         cmap = {"skip": 0, "overwrite": 1, "auto": 2}
-        pmap = {key: i for i, (key, _) in enumerate(PROFILE_CHOICES)}
+        pmap = {key: i for i, (key, _) in enumerate(self.profile_choices)}
         model_override_map = {key: i for i, (key, _) in enumerate(self.model_override_choices)}
         self.dp.SetSelection(pmap.get(selected_profile, 0))
         self.mo.SetSelection(model_override_map.get(str(cfg.get("model_override", "") or ""), 0))
@@ -801,27 +863,47 @@ class PrefsDialog(wx.Dialog):
         self.UpdateAcademicControlState()
         self.OnTranslationModeChanged()
 
+        actions = wx.Panel(self, style=wx.TAB_TRAVERSAL)
         btns = wx.StdDialogButtonSizer()
-        bs = wx.Button(panel, wx.ID_SAVE)
-        bc = wx.Button(panel, wx.ID_CANCEL)
+        bs = wx.Button(actions, wx.ID_SAVE, label="Save Preferences")
+        bc = wx.Button(actions, wx.ID_CANCEL)
         bs.Bind(wx.EVT_BUTTON, self.OnSave)
         btns.AddButton(bs)
         btns.AddButton(bc)
         btns.Realize()
-        vbox.Add(btns, flag=wx.ALIGN_RIGHT | wx.ALL, border=10)
         panel.SetSizer(vbox)
+        panel.FitInside()
+        action_row = wx.BoxSizer(wx.HORIZONTAL)
+        action_row.AddStretchSpacer()
+        action_row.Add(btns, 0, wx.ALL, 10)
+        actions.SetSizer(action_row)
+        dialog_sizer = wx.BoxSizer(wx.VERTICAL)
+        dialog_sizer.Add(panel, 1, wx.EXPAND)
+        dialog_sizer.Add(actions, 0, wx.EXPAND)
+        self.SetSizer(dialog_sizer)
+        self.Bind(wx.EVT_SHOW, self.OnShowPreferences)
+
+    def OnShowPreferences(self, event):
+        if event.IsShown():
+            wx.CallAfter(self.FocusFirstPreference)
+        event.Skip()
+
+    def FocusFirstPreference(self):
+        if self.IsShown() and not self.IsBeingDeleted():
+            self.dp.SetFocus()
 
     def OnSave(self, event):
         trev = {0: "none", 1: "both", 2: "english_only"}
         crev = {0: "skip", 1: "overwrite", 2: "auto"}
         frev = {0: "endnotes", 1: "inline", 2: "strict"}
         arev = {0: "inline", 1: "endnotes", 2: "strict"}
-        prev = {i: key for i, (key, _) in enumerate(PROFILE_CHOICES)}
+        prev = {i: key for i, (key, _) in enumerate(self.profile_choices)}
         selected_target = self.tgt.GetStringSelection().strip() or "English"
         selected_profile = prev.get(self.dp.GetSelection(), "standard")
         self.cfg.update(
             {
                 "doc_profile": selected_profile,
+                "webpage_reading_mode": "article" if self.webpage_mode.GetSelection() == 1 else "full",
                 "model_override": self.model_override_choices[self.mo.GetSelection()][0],
                 "translate_mode": trev.get(self.ct.GetSelection(), "none"),
                 "translate_target": selected_target,
@@ -854,7 +936,7 @@ class PrefsDialog(wx.Dialog):
         self.EndModal(wx.ID_OK)
 
     def OnProfileChanged(self, event):
-        key = PROFILE_CHOICES[self.dp.GetSelection()][0]
+        key = self.profile_choices[self.dp.GetSelection()][0]
         preset = dict(self.cfg)
         self._apply_profile_preset(
             preset,
@@ -890,7 +972,7 @@ class PrefsDialog(wx.Dialog):
             event.Skip()
 
     def UpdateAcademicControlState(self):
-        selected_profile = PROFILE_CHOICES[self.dp.GetSelection()][0]
+        selected_profile = self.profile_choices[self.dp.GetSelection()][0]
         is_academic = selected_profile == "academic"
         self.cf.Enable(is_academic)
         self.can.Enable(is_academic)

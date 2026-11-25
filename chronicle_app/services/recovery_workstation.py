@@ -3,6 +3,7 @@ import json
 import os
 import re
 import time
+from urllib.parse import quote
 
 from chronicle_app.services.output_quality import analyze_output_quality
 from chronicle_app.services.runtime_policies import FLASH_ARGON_MODE
@@ -26,7 +27,7 @@ CAPABILITY_REGISTRY = [
 ]
 
 
-SENSITIVE_PROFILES = {"forms", "legal", "medical", "office", "government", "tabular"}
+SENSITIVE_PROFILES = {"forms", "legal", "medical", "office", "government", "reports", "tabular"}
 HARD_VISUAL_PROFILES = {
     "academic",
     "archival",
@@ -50,10 +51,10 @@ def _sidecar_path(output_path, suffix):
     return f"{root}{suffix}"
 
 
-def _read_output_excerpt(path, *, max_chars=5000):
+def _read_output_excerpt(path, *, max_chars=None):
     try:
         with open(path, "r", encoding="utf-8", errors="ignore") as fh:
-            return fh.read(max_chars)
+            return fh.read() if max_chars is None else fh.read(max_chars)
     except Exception:
         return ""
 
@@ -107,7 +108,8 @@ def classify_triage(path, job_cfg, *, ext=None, total_units=0, routing=None):
 def build_batch_economics(job_cfg, *, selected_model="", total_units=0, file_size_mb=None):
     total_units = max(0, int(total_units or 0))
     model = str(selected_model or (job_cfg or {}).get("model_name") or "automatic")
-    provider = "offline" if "offline" in model.lower() or "ollama" in model.lower() else model.split("-", 1)[0]
+    provider = ("offline" if "offline" in model.lower() or "ollama" in model.lower()
+                or model == "local-webpage-article" else model.split("-", 1)[0])
     if total_units >= 120:
         effort = "very long"
     elif total_units >= 40:
@@ -230,13 +232,12 @@ def build_book_reconstruction_plan(profile):
 
 def build_confidence_heatmap(qa_report, *, total_units=0):
     warnings = list((qa_report or {}).get("warnings") or [])
-    units = max(0, int(total_units or 0))
     if not warnings:
         return {"summary": "No output QA warnings.", "review_points": []}
     review_points = []
     for idx, warning in enumerate(warnings, start=1):
-        unit_hint = min(units, idx) if units else idx
-        review_points.append({"label": f"Review point {idx}", "unit_hint": unit_hint, "warning": warning})
+        points = (qa_report or {}).get("warning_pages", {}).get(warning, [])
+        review_points.append({"label": f"Review point {idx}", "source_pages": points, "warning": warning})
     return {"summary": f"{len(review_points)} review point(s) need attention.", "review_points": review_points}
 
 
@@ -375,10 +376,25 @@ def build_review_workbench_html(receipt):
     review_points = plan.get("confidence_heatmap", {}).get("review_points", [])
     warnings = qa.get("warnings") or []
     warning_items = "\n".join(f"<li>{html.escape(str(item))}</li>" for item in warnings) or "<li>No warnings.</li>"
-    review_items = "\n".join(
-        f"<li><strong>{html.escape(point['label'])}</strong>: {html.escape(point['warning'])}</li>"
-        for point in review_points
-    ) or "<li>No review points were generated.</li>"
+    source_href = quote(receipt.get("source_link", ""), safe="")
+    output_href = quote(receipt.get("output_name", ""), safe="")
+    def page_link(page):
+        if not source_href:
+            return f"Source page {page}"
+        return f'<a href="{source_href}#page={page}">Open source page {page}</a>'
+
+    review_items = []
+    for point in review_points:
+        links = ", ".join(page_link(page) for page in point.get("source_pages", []))
+        detail = f" <span>{links}</span>" if links else ""
+        review_items.append(f"<li><strong>{html.escape(point['label'])}</strong>: "
+                            f"{html.escape(point['warning'])}{detail}</li>")
+    article_pages = ", ".join(
+        f'<a href="{output_href}#source-page-{page}">Reading copy at source page {page}</a>'
+        + (f" ({page_link(page)})" if source_href else "")
+        for page in receipt.get("article_source_pages", [])
+    ) if receipt.get("format") == "html" else ""
+    review_items = "\n".join(review_items) or "<li>No review points were generated.</li>"
     capability_items = "\n".join(
         f"<li><strong>{html.escape(label)}</strong>: {html.escape(purpose)}</li>"
         for _key, label, purpose in CAPABILITY_REGISTRY
@@ -424,6 +440,9 @@ def build_review_workbench_html(receipt):
         <dt>Engine</dt><dd>{html.escape(receipt.get('engine_label', ''))}</dd>
         <dt>Format</dt><dd>{html.escape(str(receipt.get('format', '')).upper())}</dd>
       </dl>
+      <p><a href="{output_href}">Open reading output</a></p>
+      {f'<p><a href="{source_href}">Open source PDF</a></p>' if source_href else ''}
+      {f'<p>{article_pages}</p>' if article_pages else ''}
     </section>
     <section id="warnings" aria-labelledby="warnings-heading">
       <h2 id="warnings-heading">Accessibility QA Warnings</h2>
@@ -471,6 +490,7 @@ def write_recovery_workstation_artifacts(
         qa_report['ok'] = False
         qa_report['warnings'].append(warning)
         qa_report['summary'] = warning
+        qa_report["warning_pages"] = {warning: [int(page) for page in review_pages]}
     plan = build_workstation_plan(
         path=source_path,
         output_path=output_path,
@@ -497,6 +517,10 @@ def write_recovery_workstation_artifacts(
         "qa_report": qa_report,
         "plan": plan,
         "review_workbench_name": os.path.basename(workbench_path),
+        "article_source_pages": list((job_cfg or {}).get("article_source_pages", [])),
+        "source_link": os.path.basename(source_path) if source_path and source_path.lower().endswith(".pdf")
+                       and os.path.dirname(os.path.abspath(source_path)) == os.path.dirname(os.path.abspath(output_path))
+                       else "",
     }
     _write_text(workbench_path, build_review_workbench_html(receipt))
     _write_text(receipt_path, build_extraction_receipt_text(receipt))

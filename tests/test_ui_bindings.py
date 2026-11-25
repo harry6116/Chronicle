@@ -42,7 +42,7 @@ class BindNamedTest(unittest.TestCase):
     def test_every_menu_bar_command_uses_deferred_dispatch_on_mac_and_windows(self):
         from chronicle_app.ui import menus
 
-        for system, count in (("Darwin", 18), ("Windows", 17)):
+        for system, count in (("Darwin", 20), ("Windows", 19)):
             with self.subTest(system=system):
                 queued = []
                 ids = iter(range(100, 200))
@@ -69,7 +69,7 @@ class BindNamedTest(unittest.TestCase):
                 labels = [call.args[1] for call in menu.Append.call_args_list]
                 self.assertIn("Check for &Updates...\tShift+F1", labels)
                 self.assertIn("Context &Help\tF1", labels)
-                self.assertIn("&Preferences...\tAlt+P", labels)
+                self.assertIn("Settings...\tCtrl+," if system == "Darwin" else "&Preferences...\tAlt+P", labels)
                 self.assertEqual(any("Mac Folder" in label for label in labels), system == "Darwin")
 
     def test_binds_only_requested_handler(self):

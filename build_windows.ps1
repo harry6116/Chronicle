@@ -125,6 +125,9 @@ foreach ($candidate in $venvCandidates) {
         break
     }
 }
+if ($env:CHRONICLE_BUILD_PYTHON) {
+    $pythonBin = $env:CHRONICLE_BUILD_PYTHON
+}
 
 Write-Log "Python: $pythonBin"
 try {
@@ -155,21 +158,7 @@ foreach ($item in $requiredPaths) {
 }
 
 $buildStamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-Set-Content -Path (Join-Path $rootDir "build_stamp.txt") -Value $buildStamp -Encoding UTF8
 Write-Log "Build stamp: $buildStamp"
-
-$staleArtifacts = @(
-    (Join-Path $rootDir "build"),
-    (Join-Path $rootDir "dist"),
-    (Join-Path $rootDir "Chronicle.spec"),
-    (Join-Path $rootDir ".pyinstaller-cache")
-)
-foreach ($artifact in $staleArtifacts) {
-    if (Test-Path $artifact) {
-        Write-Log "Removing stale build artifact: $artifact"
-        Remove-Item -Recurse -Force $artifact
-    }
-}
 
 Write-Log "Latest slim resource roots will be bundled from the current workspace:"
 Write-Log "- Assets: $(Join-Path $rootDir 'assets')"
@@ -181,8 +170,13 @@ if (($env:CHRONICLE_BUNDLE_OFFLINE_PACK -eq "1") -or ($env:CHRONICLE_REQUIRE_OFF
 }
 
 Write-Log ""
-Write-Log "Installing requirements..."
-$pipExit = Invoke-NativeLogged -Command $pythonBin -Arguments @("-m", "pip", "install", "-r", (Join-Path $rootDir "requirements.txt"))
+if ($env:CHRONICLE_BUILD_PYTHON) {
+    Write-Log "Checking the selected Python environment..."
+    $pipExit = Invoke-NativeLogged -Command $pythonBin -Arguments @("-m", "pip", "check")
+} else {
+    Write-Log "Installing requirements..."
+    $pipExit = Invoke-NativeLogged -Command $pythonBin -Arguments @("-m", "pip", "install", "-r", (Join-Path $rootDir "requirements.txt"))
+}
 if ($pipExit -ne 0) {
     Fail-Build "Dependency install failed."
 }
@@ -196,7 +190,14 @@ if ($pyinstallerVersionExit -ne 0) {
 
 $iconPath = Join-Path $rootDir "assets\icons\chronicle_option3.ico"
 $hooksDir = Join-Path $rootDir "hooks"
-$pyinstallerCache = Join-Path $rootDir ".pyinstaller-cache"
+$verifiedDist = Join-Path $rootDir "dist\Chronicle"
+$stagingRoot = Join-Path $rootDir ("build\Chronicle_" + [guid]::NewGuid().ToString("N"))
+$pyinstallerCache = Join-Path $stagingRoot "cache"
+$stagingDist = Join-Path $stagingRoot "dist"
+$stagedApp = Join-Path $stagingDist "Chronicle"
+$sourceReceipt = Join-Path $stagingRoot "source.json"
+$stagedStamp = Join-Path $stagingRoot "build_stamp.txt"
+$provenance = Join-Path $rootDir "tools\release_provenance.py"
 $setuptoolsPath = & $pythonBin -c "import pathlib, setuptools; print(pathlib.Path(setuptools.__file__).resolve().parent)" 2>$null
 $jaracoPath = $null
 if ($LASTEXITCODE -eq 0 -and $setuptoolsPath) {
@@ -207,6 +208,9 @@ $pyArgs = [System.Collections.Generic.List[string]]::new()
 $pyArgs.AddRange([string[]]@(
     "-m", "PyInstaller",
     "--noconfirm",
+    "--distpath", $stagingDist,
+    "--workpath", (Join-Path $stagingRoot "work"),
+    "--specpath", $stagingRoot,
     "--windowed",
     "--disable-windowed-traceback",
     "--name", "Chronicle"
@@ -236,7 +240,7 @@ if ($docsExit -ne 0) {
 $pyArgs.Add("--add-data")
 $pyArgs.Add("$publicDocsDir;docs")
 $pyArgs.Add("--add-data")
-$pyArgs.Add("$rootDir\build_stamp.txt;.")
+$pyArgs.Add("$stagedStamp;.")
 if ($jaracoPath -and (Test-Path $jaracoPath)) {
     $pyArgs.Add("--add-data")
     $pyArgs.Add("$jaracoPath;setuptools/_vendor/jaraco")
@@ -309,21 +313,33 @@ Write-Log "PyInstaller command:"
 Write-Log "$pythonBin $($pyArgs -join ' ')"
 Push-Location $rootDir
 try {
-    New-Item -ItemType Directory -Force -Path (Join-Path $rootDir "dist\Chronicle\_internal\wx") | Out-Null
+    New-Item -ItemType Directory -Force -Path (Join-Path $stagedApp "_internal\wx") | Out-Null
+    Set-Content -LiteralPath $stagedStamp -Value $buildStamp -Encoding UTF8
+    if ((Invoke-NativeLogged -Command $pythonBin -Arguments @($provenance, $rootDir, "source", $sourceReceipt)) -ne 0) {
+        Fail-Build "Could not record the source identity."
+    }
     $buildExit = Invoke-PyInstallerBuild -PythonBin $pythonBin -Arguments $pyArgs.ToArray() -Environment $pyinstallerEnv
     if ($buildExit -ne 0) {
         Write-Log ""
         Write-Log "First PyInstaller pass failed (exit $buildExit). Retrying once after re-priming wx path..."
-        New-Item -ItemType Directory -Force -Path (Join-Path $rootDir "dist\Chronicle\_internal\wx") | Out-Null
+        Remove-Item -LiteralPath $stagedApp -Recurse -Force -ErrorAction SilentlyContinue
+        New-Item -ItemType Directory -Force -Path (Join-Path $stagedApp "_internal\wx") | Out-Null
         $buildExit = Invoke-PyInstallerBuild -PythonBin $pythonBin -Arguments $pyArgs.ToArray() -Environment $pyinstallerEnv
     }
     if ($buildExit -ne 0) {
         Fail-Build "PyInstaller build failed."
     }
-    Assert-NoEmbeddedOfflinePayload -AppDir (Join-Path $rootDir "dist\Chronicle")
+    Assert-NoEmbeddedOfflinePayload -AppDir $stagedApp
+    if ((Invoke-NativeLogged -Command $pythonBin -Arguments @($provenance, $rootDir, "record-build", "windows", $stagedApp, $sourceReceipt, $buildStamp)) -ne 0) {
+        Fail-Build "Could not verify the completed Windows build."
+    }
+    if ((Invoke-NativeLogged -Command $pythonBin -Arguments @($provenance, $rootDir, "install-windows", $stagedApp, $verifiedDist)) -ne 0) {
+        Fail-Build "Could not install the verified Windows build."
+    }
 } finally {
     Pop-Location
     Remove-Item -LiteralPath $publicDocsDir -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $stagingRoot -Recurse -Force -ErrorAction SilentlyContinue
 }
 
 Write-Log ""

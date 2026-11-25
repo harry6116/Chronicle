@@ -33,7 +33,6 @@ Publish_GitHub_Release.command
 README.md
 SECURITY.md
 Update_GitHub_Release_Notes_Only.command
-api_keys.template.json
 assets/README.md
 assets/icons/chronicle.iconset/icon_128x128.png
 assets/icons/chronicle.iconset/icon_128x128@2x.png
@@ -80,6 +79,7 @@ chronicle_app/services/book_cleanup.py
 chronicle_app/services/comic_images.py
 chronicle_app/services/dense_newspaper_rendering.py
 chronicle_app/services/diagnostics.py
+chronicle_app/services/document_preflight.py
 chronicle_app/services/document_processors.py
 chronicle_app/services/exporters.py
 chronicle_app/services/file_cleanup.py
@@ -91,6 +91,7 @@ chronicle_app/services/html_page_navigation.py
 chronicle_app/services/legacy_pdf_runtime.py
 chronicle_app/services/local_provider_runtime.py
 chronicle_app/services/mac_activity_runtime.py
+chronicle_app/services/model_discovery.py
 chronicle_app/services/newspaper_processing.py
 chronicle_app/services/nla_newspaper.py
 chronicle_app/services/offline_prompting.py
@@ -104,6 +105,8 @@ chronicle_app/services/pdf_processor.py
 chronicle_app/services/pdf_rendering.py
 chronicle_app/services/processing_runtime.py
 chronicle_app/services/prompting.py
+chronicle_app/services/provider_credentials.py
+chronicle_app/services/provider_transport.py
 chronicle_app/services/queue_runtime.py
 chronicle_app/services/queue_state_runtime.py
 chronicle_app/services/recovery_workstation.py
@@ -118,6 +121,7 @@ chronicle_app/services/security.py
 chronicle_app/services/session_runtime.py
 chronicle_app/services/text_transforms.py
 chronicle_app/services/update_service.py
+chronicle_app/services/webpage_article.py
 chronicle_app/services/worker_execute_runtime.py
 chronicle_app/services/worker_finalize_runtime.py
 chronicle_app/services/worker_runtime.py
@@ -125,6 +129,7 @@ chronicle_app/ui/__init__.py
 chronicle_app/ui/bindings.py
 chronicle_app/ui/context_help.py
 chronicle_app/ui/dialogs.py
+chronicle_app/ui/keychain_window.py
 chronicle_app/ui/main_frame_sections.py
 chronicle_app/ui/menus.py
 chronicle_app/ui/queue_panel.py
@@ -136,16 +141,10 @@ chronicle_gui.py
 chronicle_runtime.py
 docs/README.md
 docs/github_rollout/CONTRIBUTING_GITHUB.md
-docs/github_rollout/LAUNCH_RUNBOOK.md
 docs/github_rollout/LEGAL_DISCLAIMER_GITHUB.md
-docs/github_rollout/MIGRATION_NOTES_OLD_TO_NEW.md
-docs/github_rollout/PROJECT_OVERVIEW_GITHUB.md
 docs/github_rollout/PROVIDER_PRIVACY_AND_TIER_GUIDE.md
-docs/github_rollout/PUBLIC_REPO_BOOTSTRAP.md
-docs/github_rollout/README_GITHUB_ROLLOUT_PACK.md
 docs/github_rollout/README_PUBLIC_FINAL.md
 docs/github_rollout/RELEASE_NOTES_CURRENT.md
-docs/github_rollout/REPOSITORY_OVERHAUL_CHECKLIST.md
 docs/github_rollout/SECURITY_GITHUB.md
 docs/policies/CODE_OF_CONDUCT.md
 docs/policies/CONTRIBUTING.md
@@ -155,12 +154,12 @@ docs/policies/SECURITY.md
 docs/public/.nojekyll
 docs/public/CHRONICLE_BLURBS.md
 docs/public/CHRONICLE_ONE_PAGE.md
-docs/public/DEPLOY_STATIC_SITE.md
 docs/public/README.md
-docs/public/WEBSITE_LAUNCH_PLAN.md
 docs/public/WHY_CHRONICLE.md
 docs/public/_headers
 docs/public/index.html
+docs/public/showcase_assets/astounding-1945-05-cover.jpg
+docs/public/showcase_assets/astounding-1945-05-page-7.jpg
 docs/public/showcase_assets/chronicle-showcase-cromwell.png
 docs/public/showcase_assets/chronicle-showcase-newspaper.png
 docs/public/showcase_assets/chronicle-showcase-varus.png
@@ -169,6 +168,8 @@ docs/public/showcase_assets/newspaper-source.png
 docs/public/showcase_assets/war-diary-source.jpg
 docs/public/showcase_assets/wwi-letter-source.png
 docs/public/showcase_samples/README.md
+docs/public/showcase_samples/astounding-1945-05-reading-copy.html
+docs/public/showcase_samples/astounding-1945-05.html
 docs/public/showcase_samples/comics/README.md
 docs/public/showcase_samples/comics/little_nemo_before_after.md
 docs/public/showcase_samples/comics/little_nemo_chronicle_after.html
@@ -206,6 +207,7 @@ tests/test_comic_panel_audit.py
 tests/test_context_help.py
 tests/test_dense_newspaper_rendering.py
 tests/test_diagnostics.py
+tests/test_document_preflight.py
 tests/test_document_processors.py
 tests/test_exporters.py
 tests/test_flash_argon_routing.py
@@ -215,12 +217,14 @@ tests/test_handwriting_forms.py
 tests/test_html_heading_cleanup.py
 tests/test_html_page_navigation.py
 tests/test_image_upload_cleanup.py
+tests/test_keychain_window_lifecycle.py
 tests/test_local_provider_runtime.py
 tests/test_mac_activity_runtime.py
 tests/test_mac_dist_refresh.py
 tests/test_mac_updater_integration.py
 tests/test_main_frame_sections.py
 tests/test_military_abbreviations.py
+tests/test_model_discovery.py
 tests/test_newspaper_processing.py
 tests/test_newspaper_prompt_rules.py
 tests/test_nla_newspaper.py
@@ -235,13 +239,16 @@ tests/test_pdf_processor.py
 tests/test_pdf_rendering.py
 tests/test_processing_runtime.py
 tests/test_prompt_fidelity.py
+tests/test_provider_credentials.py
 tests/test_public_docs_security.py
 tests/test_queue_runtime.py
 tests/test_queue_state_runtime.py
+tests/test_reading_flow.py
 tests/test_recovery_workstation.py
 tests/test_release_checksums.py
 tests/test_release_notes_ui.py
 tests/test_release_packaging_guards.py
+tests/test_release_provenance.py
 tests/test_run_control_runtime.py
 tests/test_run_start_runtime.py
 tests/test_runtime_policies.py
@@ -270,5 +277,6 @@ tools/precommit_secret_scan.sh
 tools/prepare_public_repo_snapshot.py
 tools/refresh_mac_dist.py
 tools/release_fileset_check.py
+tools/release_provenance.py
 tools/release_regression_offline.py
 tools/stage_windows_bundle.py

@@ -1,6 +1,6 @@
 # Public Docs
 
-This folder contains Chronicle's public-facing summaries and reusable messaging.
+This folder contains Chronicle's public-facing summaries and getting-started guides.
 
 Key public docs:
 
@@ -13,10 +13,9 @@ Use these files for:
 
 - public-facing product explanation
 - demo/support material
-- public repo positioning drafts
 - short-form copy reuse
 - public guidance on when Private Offline Mode is appropriate
 
 For user-facing setup and usage guidance, see `docs/user/`.
 
-Website hosting and custom domains: [Deployment guide](DEPLOY_STATIC_SITE.md).
+[Visit the Chronicle website](https://chroniclevir.com/).

@@ -11,6 +11,20 @@ import subprocess
 import tempfile
 
 
+def configured_dirs(field):
+    config = Path.home() / 'Library/Application Support/ChronicleMaintainer/build_paths.json'
+    if not config.is_file():
+        return ()
+    paths = json.loads(config.read_text(encoding='utf-8')).get(field, [])
+    if not isinstance(paths, list) or any(not isinstance(path, str) or not Path(path).is_absolute() for path in paths):
+        raise ValueError(f'{field} must list absolute folder paths.')
+    return tuple(dict.fromkeys(Path(path).resolve() for path in paths))
+
+
+def configured_install_dirs():
+    return configured_dirs('mac_install_dirs')
+
+
 def resolve_dist_dir(build_root, config_file=None):
     override = os.environ.get('CHRONICLE_MAC_DIST_DIR')
     if override:
@@ -80,7 +94,7 @@ def refresh_mac_dist(source_app, dist_dir, version, build_stamp):
         raise RuntimeError('The distribution app is running. Close it before refreshing this build.')
     expected = _inventory(source_app)
     dist_dir.mkdir(parents=True, exist_ok=True)
-    temporary = Path(tempfile.mkdtemp(prefix='.chronicle-dist-', dir=dist_dir.parent))
+    temporary = Path(tempfile.mkdtemp(prefix='.chronicle-dist-', dir=dist_dir))
     cleanup = True
     try:
         staged = temporary / 'Chronicle.app'

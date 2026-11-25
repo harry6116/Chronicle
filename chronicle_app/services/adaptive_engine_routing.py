@@ -21,6 +21,7 @@ ADAPTIVE_FLASH_PROFILES = {
     "standard",
     "office",
     "government",
+    "reports",
     "archival",
     "intelligence",
     "book",

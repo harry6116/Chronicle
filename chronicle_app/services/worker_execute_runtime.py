@@ -14,6 +14,7 @@ from chronicle_app.services.document_processors import (
 )
 from chronicle_app.services.local_provider_runtime import process_offline_document
 from chronicle_app.services.runtime_policies import GEMINI_FAST_MODEL, GEMINI_REASONING_MODEL, is_offline_model
+from chronicle_app.services.webpage_article import LOCAL_ARTICLE_MODEL, build_article, write_article_document
 
 
 def build_confidence_callback(*, enabled, file_name, describe_quality_score_fn, log_cb):
@@ -132,6 +133,24 @@ def dispatch_processing_for_job(
     resume_from_unit=0,
     original_total_units=None,
 ):
+    if model == LOCAL_ARTICLE_MODEL:
+        import fitz
+        with fitz.open(path) as document:
+            if document.needs_pass:
+                raise ValueError("Article only currently requires an unlocked, text-backed PDF.")
+            indices = job_cfg["article_page_indices"]
+            article = build_article(
+                document, indices, preserve_page_references=bool(job_cfg.get("preserve_original_page_numbers")),
+                pause=pause_cb,
+            )
+        if file_obj is not None:
+            write_article_document(file_obj, article)
+            file_obj.flush()
+        if memory is not None:
+            memory.append(article["html"])
+        if page_progress_cb:
+            page_progress_cb(len(indices), len(indices), indices[-1] + 1)
+        return {"article_source_pages": article["source_pages"]}
     if is_offline_model(model):
         return process_offline_document(
             client=client,
@@ -273,7 +292,7 @@ def process_job_content(
             log_prefix="Page",
             unit_label="page",
             source_unit_label="source page",
-            persist_progress_state_fn=persist_progress_state_fn,
+            persist_progress_state_fn=None if model == LOCAL_ARTICLE_MODEL else persist_progress_state_fn,
             resume_recovered_units=resume_from_unit,
             original_total_units=original_total_units,
         )
@@ -347,6 +366,8 @@ def process_job_content(
     )
     if isinstance(processing_result, dict) and 'automatic_review_pages' in processing_result:
         cfg['automatic_review_pages'] = list(processing_result['automatic_review_pages'])
+    if isinstance(processing_result, dict) and "article_source_pages" in processing_result:
+        cfg["article_source_pages"] = processing_result["article_source_pages"]
     if memory is not None and hasattr(memory, "read_text_since") and start_mem_checkpoint is not None:
         extracted_for_file = memory.read_text_since(start_mem_checkpoint)
     else:

@@ -18,6 +18,7 @@ import urllib.error
 import urllib.request
 
 from chronicle_app.services.prompting import build_newspaper_strip_prompt
+from chronicle_app.services.provider_transport import provider_url_opener
 from chronicle_app.services.processing_runtime import CLAUDE_FILES_API_BETA
 from chronicle_app.services.processing_runtime import GEMINI_GENERATE_TIMEOUT_MS
 from chronicle_app.services.processing_runtime import PrecleanStream
@@ -77,6 +78,7 @@ SCANNED_IMAGE_ONLY_PROFILES = {
     "archival",
     "forms",
     "government",
+    "reports",
     "handwritten",
     "manual",
     "military",
@@ -281,7 +283,7 @@ def _process_pdf_pages(
         profile = str(doc_profile or "standard").lower()
         if profile in DEEP_SCAN_TEXT_FAST_PATH_BLOCKED_PROFILES:
             return False, None
-        if profile not in {"standard", "office", "government", "legal", "manual", "academic", "book", "tabular", "transcript"}:
+        if profile not in {"standard", "office", "government", "reports", "legal", "manual", "academic", "book", "tabular", "transcript"}:
             return False, None
         if file_size_mb is not None and total_document_pages > 0:
             avg_page_mb_local = file_size_mb / max(1, total_document_pages)
@@ -996,32 +998,7 @@ def _process_pdf_pages(
     def resolve_gemini_rest_api_key():
         api_client = getattr(client, "_api_client", None)
         api_key = getattr(api_client, "api_key", None)
-        if api_key:
-            return str(api_key).strip()
-        for env_name in ("GEMINI_API_KEY", "GOOGLE_API_KEY"):
-            api_key = os.environ.get(env_name)
-            if api_key:
-                return api_key.strip()
-        if getattr(sys, "frozen", False):
-            support_dir = os.path.expanduser("~/Library/Application Support/Chronicle")
-            json_path = os.path.join(support_dir, "api_keys.json")
-            try:
-                with open(json_path, "r", encoding="utf-8") as fh:
-                    saved = json.load(fh)
-                api_key = saved.get("gemini") if isinstance(saved, dict) else None
-                if api_key:
-                    return str(api_key).strip()
-            except Exception:
-                pass
-            text_path = os.path.join(support_dir, "api_key_gemini.txt")
-            try:
-                with open(text_path, "r", encoding="utf-8") as fh:
-                    api_key = fh.read().strip()
-                if api_key:
-                    return api_key
-            except Exception:
-                pass
-        return ""
+        return str(api_key).strip() if api_key else ""
 
     def post_gemini_rest_generate(model_key, payload, api_key, error_prefix):
         body = json.dumps(payload).encode("utf-8")
@@ -1037,7 +1014,7 @@ def _process_pdf_pages(
         )
         try:
             # Fixed Google HTTPS endpoint; see static security tests.
-            with urllib.request.urlopen(request, timeout=GEMINI_NONSTREAM_WALL_TIMEOUT_SEC) as response:  # nosec B310
+            with provider_url_opener().open(request, timeout=GEMINI_NONSTREAM_WALL_TIMEOUT_SEC) as response:
                 return response.read()
         except TimeoutError as timeout_ex:
             raise TimeoutError(
@@ -1063,7 +1040,7 @@ def _process_pdf_pages(
         )
         try:
             # Fixed Google HTTPS endpoint; see static security tests.
-            with urllib.request.urlopen(request, timeout=GEMINI_NONSTREAM_WALL_TIMEOUT_SEC) as response:  # nosec B310
+            with provider_url_opener().open(request, timeout=GEMINI_NONSTREAM_WALL_TIMEOUT_SEC) as response:
                 for raw_line in response:
                     line = raw_line.decode("utf-8", errors="replace").strip()
                     if not line or not line.startswith("data:"):

@@ -3,6 +3,24 @@ import re
 from urllib.parse import quote
 
 
+def strip_page_boundary_headings(cleaned):
+    cleaned = re.sub(
+        r'<nav\b[^>]*aria-label=(["\'])Page navigation\1[^>]*>.*?</nav>\s*',
+        "", cleaned, flags=re.IGNORECASE | re.DOTALL,
+    )
+
+    def replace_heading(match):
+        label = html.unescape(re.sub(r"<[^>]+>", " ", match.group(3)))
+        if not re.fullmatch(r"\s*(?:Source\s+)?Page\s+\d+[A-Za-z]?\s*", label, re.IGNORECASE):
+            return match.group(0)
+        # Keep authored fragment links usable without adding a heading stop.
+        identifier = re.search(r'\bid\s*=\s*(["\'])(.*?)\1', match.group(2), flags=re.IGNORECASE)
+        return f'<span id="{html.escape(html.unescape(identifier.group(2)), quote=True)}"></span>' if identifier else ""
+
+    return re.sub(r"<h([1-6])\b([^>]*)>(.*?)</h\1>", replace_heading, cleaned,
+                  flags=re.IGNORECASE | re.DOTALL)
+
+
 def _page_heading_id(page_number, used_ids):
     base = f"page-{page_number}"
     candidate = base

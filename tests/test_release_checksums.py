@@ -2,10 +2,13 @@ import hashlib
 import os
 from pathlib import Path
 import plistlib
+import shutil
 import subprocess
 import tempfile
 import unittest
 import zipfile
+
+from tools.release_provenance import record_build, source_identity
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -18,15 +21,28 @@ class ReleaseChecksumsTest(unittest.TestCase):
             temporary = Path(directory)
             mac = temporary / 'Chronicle.app'
             (mac / 'Contents/MacOS').mkdir(parents=True)
-            (mac / 'Contents/MacOS/Chronicle').write_bytes(b'disposable Mac fixture')
+            shutil.copyfile('/usr/bin/true', mac / 'Contents/MacOS/Chronicle')
+            (mac / 'Contents/MacOS/Chronicle').chmod(0o755)
+            (mac / 'Contents/Resources').mkdir()
+            stamp = 'test build'
+            (mac / 'Contents/Resources/build_stamp.txt').write_text(stamp)
             notes = ROOT / 'docs/github_rollout/RELEASE_NOTES_CURRENT.md'
             version = notes.read_text().splitlines()[0].split()[-1]
-            (mac / 'Contents/Info.plist').write_bytes(plistlib.dumps({'CFBundleShortVersionString': version}))
+            (mac / 'Contents/Info.plist').write_bytes(plistlib.dumps({
+                'CFBundleIdentifier': 'org.example.chronicle-fixture',
+                'CFBundleExecutable': 'Chronicle', 'CFBundlePackageType': 'APPL',
+                'CFBundleShortVersionString': version, 'CFBundleVersion': version,
+            }))
+            subprocess.run(['/usr/bin/codesign', '--force', '--sign', '-', str(mac)], check=True)
             windows = temporary / 'Chronicle'
             embedded = windows / '_internal/docs/github_rollout/RELEASE_NOTES_CURRENT.md'
             embedded.parent.mkdir(parents=True)
             embedded.write_bytes(notes.read_bytes())
             (windows / 'Chronicle.exe').write_bytes(b'disposable Windows fixture')
+            (windows / '_internal/build_stamp.txt').write_text(stamp)
+            identity = source_identity(ROOT)
+            record_build(ROOT, mac, 'mac', identity, stamp)
+            record_build(ROOT, windows, 'windows', identity, stamp)
             release = temporary / 'releases'
             release.mkdir()
             (release / 'checksums.sha256').write_text('obsolete checksum\n')
@@ -42,10 +58,11 @@ class ReleaseChecksumsTest(unittest.TestCase):
                 archive = release / name
                 with zipfile.ZipFile(archive) as package:
                     self.assertIsNone(package.testzip())
+                    self.assertFalse(any(path.endswith('chronicle-build.json') for path in package.namelist()))
                 expected[name] = hashlib.sha256(archive.read_bytes()).hexdigest()
             actual = {}
             for line in (release / 'checksums.sha256').read_text().splitlines():
                 checksum, name = line.split()
                 actual[name] = checksum
             self.assertEqual(actual, expected)
-            self.assertFalse((release / '.packaging-staging').exists())
+            self.assertEqual(list(release.glob('.packaging-staging.*')), [])

@@ -71,62 +71,7 @@ fi
 echo "📦 Bundling into standalone Mac App..."
 "$PYTHON_BIN" "$SCRIPT_DIR/build_mac.py"
 
-# 3. Verify and deploy the fresh app bundle
-APP_BUNDLE="$ROOT_DIR/dist/Chronicle.app"
-APP_STAMP="$APP_BUNDLE/Contents/Resources/build_stamp.txt"
-if [[ ! -d "$APP_BUNDLE" ]]; then
-    echo "❌ Error: expected app bundle was not created at $APP_BUNDLE"
-    exit 1
-fi
-if [[ -f "$APP_STAMP" ]]; then
-    APP_STAMP_VALUE="$(cat "$APP_STAMP")"
-    echo "Embedded app build stamp: $APP_STAMP_VALUE"
-else
-    APP_STAMP_VALUE="missing"
-    echo "⚠️ Warning: embedded build stamp not found at $APP_STAMP"
-fi
-if [[ -d "$APP_BUNDLE" ]]; then
-    echo "App bundle modified: $(stat -f "%Sm" -t "%Y-%m-%d %H:%M:%S" "$APP_BUNDLE")"
-fi
-
-copy_app_bundle() {
-    local target="$1"
-    local label="$2"
-    local target_parent
-    target_parent="$(dirname "$target")"
-
-    if [[ ! -d "$target_parent" ]]; then
-        echo "ℹ️ Skipping $label (parent directory missing): $target_parent"
-        return
-    fi
-
-    if [[ -e "$target" ]]; then
-        echo "♻️ Replacing existing $label: $target"
-        rm -rf "$target"
-    else
-        echo "➕ Creating fresh $label: $target"
-    fi
-
-    ditto "$APP_BUNDLE" "$target"
-    local deployed_stamp="$target/Contents/Resources/build_stamp.txt"
-    if [[ -f "$deployed_stamp" ]]; then
-        echo "✅ Updated $label build stamp: $(cat "$deployed_stamp")"
-    else
-        echo "⚠️ Updated $label but build stamp was not found in the copied app."
-    fi
-}
-
-copy_app_bundle "$ROOT_DIR/Chronicle.app" "workspace app copy"
-copy_app_bundle "$HOME/Desktop/Chronicle.app" "Desktop app copy"
-if [[ -w "/Applications" ]] || [[ -e "/Applications/Chronicle.app" && -w "/Applications/Chronicle.app" ]]; then
-    copy_app_bundle "/Applications/Chronicle.app" "Applications app copy"
-else
-    echo "ℹ️ Skipping /Applications/Chronicle.app (no writable existing app copy or Applications permissions unavailable)."
-fi
-
-echo "--------------------------------------------------"
-echo "✅ SUCCESS: Fresh build is ready at $APP_BUNDLE"
-echo "--------------------------------------------------"
+echo "Build and configured installation checks passed."
 if [[ -t 0 ]]; then
     echo "Press any key to close..."
     read -k 1 -s

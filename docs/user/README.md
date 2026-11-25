@@ -243,33 +243,40 @@ Chronicle includes page-import workflow support in the GUI:
 
 Chronicle includes document presets tuned for different source classes:
 
-- Everyday Mixed Documents
-- Work Reports / Office Documents
-- Government Reports / Public Records
-- Letters / Memos / Notices
-- Archives / Ledgers / Manuscripts
-- Handwritten Notes / Personal Diaries
-- Medical Notes / Clinical Forms / Doctor Handwriting
-- War Diaries / Military Orders / Service Records
-- Cables / Intelligence Briefings / Signals
-- Historical Newspapers
+- Miscellaneous / Mixed Files
+- Letters / Correspondence
+- Business / Government Reports
+- Legal / Contracts / Laws
+- Forms / Checklists
+- Tables / Spreadsheets
+- Manuals / Procedures
+- Slides / Presentations
+- Flyers / Brochures / Catalogues
 - Modern Newspapers / E-Papers
 - Magazines / Periodicals
-- Books / Novels / Long-Form Prose
 - Comics / Manga / Graphic Novels
-- Manuals / Instructions / SOPs
-- Forms / Checklists / Worksheets
-- Flyers / Posters / Event Notices
-- Brochures / Catalogues / Pamphlets
-- Slides / Decks / Handouts
-- Spreadsheets / CSV / Registers
-- Research Papers / Equations / Footnotes
-- Transcripts / Interviews / Plays
-- Poetry / Verse / Line-Break Layouts
-- Laws / Regulations / Contracts
-- Museum Labels / Captions / Exhibit Text
+- Books / Novels
+- Historical Newspapers
+- Academic / Research
+- Scripts / Dialogue / Transcripts
+- Poetry / Verse
+- Handwritten Notes / Personal Diaries
+- Archives / Historical
+- Medical Records / Clinical Handwriting
+- Unit War Diaries / Military Records
+- Intelligence / Cables
+- Museum Labels / Captions
 
 These presets pre-fill recommended behavior and automatically select the most suitable reading engine behind the scenes. When automatic routing is active, Chronicle can keep easier PDFs moving on the faster engine while still escalating hard pages or hard documents when needed.
+
+### Choose a preset for an everyday PDF or webpage printout
+
+Start with **Miscellaneous / Mixed Files** when a document fits several categories, when you are unsure about its type, or when you want the full content of a webpage printout. The general preset preserves wording and recovers accessible headings and reading order where the source supports them. Preferences lets you control punctuation cleanup, abbreviation expansion, and source page references.
+
+For a PDF exported from a news or magazine website, select the file and run **Preflight**. If Chronicle identifies a supported webpage capture, choose **Use article only** to create a local HTML or EPUB reading copy with the headline, byline and body headings. Chronicle omits recognised navigation, sidebar promotions and related links. Choose **Use full extraction** to keep the wider capture or if the PDF has no usable embedded text or unclear article boundaries. Some captures need manual review.
+
+
+Use **Unit War Diaries / Military Records** for official unit diaries and logs. Use **Handwritten Notes / Personal Diaries** for personal writing. Saved jobs and preferences that use an older report, flyer or brochure preset display that name as a saved preset. To switch, choose and apply a current preset.
 
 ### Magazines and Periodicals
 
@@ -394,11 +401,17 @@ File handling behavior in Preferences:
 
 ### Diagnostics and QA Features
 
+Select a queued PDF and choose **Run Preflight** for a local inspection. Chronicle reports which pages and regions it inspected, suggests a preset based on the evidence, and shows which data may be sent to a provider. Use **Estimate token charge** with your expected input and output token counts and the model's prices. The report can queue a representative trial. The next run processes queued trials first, leaving the full documents for a separate run.
+
+For a text-backed webpage PDF, choose **Use article only** from preflight or set the default in Preferences. This creates a local reading copy and removes recognizable webpage furniture. A PDF with an uncertain headline or competing article columns may need **Full extraction**. Choose **File > Review Workbench** to open saved review links, queue flagged pages, or apply a continuous HTML, chapter-based EPUB, or source reference export to a queued item.
+
+Use **File > Save Collection Project** to checkpoint the current queue, per-file settings and review links to a project file. Open it later with **File > Open Collection Project**. Keep source and output files at the locations used by the project.
+
 Chronicle includes:
 
 - processing log export
 - support bundle export with redacted configuration, queue, session, provider status, and processing-log data
-- provider capability matrix for configured Gemini, Claude, and OpenAI keys
+- Provider Models with an optional model-list check for configured Gemini, Claude, and OpenAI keys
 - resume center summary for saved recoverable sessions
 - output comparison helper for checking two Chronicle outputs from the same source
 - PDF text-layer omission audit
@@ -558,7 +571,7 @@ Google One AI credits are separate from Gemini API billing and do not fund Chron
 
 Paste only the key, without quotes or an HTTP header such as `Authorization: Bearer`. Chronicle removes surrounding whitespace and checks for unsupported characters, without requiring a fixed prefix or length. Leave unused provider fields blank; all three may be blank for Private Offline Mode.
 
-Use **Show API keys** only when you want the characters visible. **Save API Keys** stores the entries locally; **Cancel** discards edits. Saving does not contact a provider or verify the key, permissions, model access, quota or billing. Run a short extraction to check provider access; online extraction can incur provider charges. Existing saved keys do not need to be re-entered unless you are replacing them. Known Google, OpenAI and Claude key formats are redacted from Chronicle’s logs and support bundles; keep your keys private.
+Use **Show API keys** when you need to verify the text. **Save API Keys** saves to macOS Keychain or Windows Credential Manager. To reuse a compatible generic entry, choose **Import from system credential store**, identify the entry, and save. The operating system may ask for access. Saving uses the local credential store. In **File > Provider Models**, select a provider to check its model list and get recommendations for your API plan. The check sends no documents and cannot confirm billing or quota.
 
 Chronicle supports API keys for Gemini, Claude, and OpenAI models.
 
@@ -572,9 +585,8 @@ Provider key mapping:
 
 Important behavior:
 
-- Chronicle stores keys locally in the user app-data profile.
-- When supported, keys can be stored in the OS keychain/keyring and this is the preferred path.
-- If keychain/keyring is unavailable, Chronicle falls back to local app-data storage.
+- The first launch after the secure-storage update asks you to remove API keys previously saved by Chronicle. Confirm to clear Chronicle’s vault entries and legacy key files. Then enter the keys you want to use in **File > API Keys**. Choose **Later** to continue offline and return to **API Keys** to complete the reset. If cleanup fails, follow the vault prompt and retry before using online providers.
+- Backups made with older versions may still contain legacy key files. Rotating a key in the provider’s console invalidates its old copies.
 - Chronicle does not maintain a local document-content database.
 - Document content is transmitted to the selected AI provider for processing.
 - Chronicle cannot override provider retention, training, or confidentiality policies.
@@ -593,6 +605,14 @@ If confidentiality matters:
 - verify the provider's current terms yourself
 - use plans/settings that meet your privacy and compliance requirements
 - avoid free tiers for sensitive or regulated material unless the provider explicitly guarantees the needed protections
+
+## Preflight, review and collection projects
+
+- Run **Preflight** on a selected PDF to check the pages inspected, usable source text, reading layout and the evidence behind any suggested preset. You choose whether to apply the suggestion. A workload estimate is based on the selected pages. For online jobs, **Estimate token charge** uses the token counts and prices you enter. Chronicle does not know your remaining quota.
+- Use **Queue suggested pages as trial** or **Choose trial pages** to test part of a long PDF. The next run processes queued trials first and saves separately named results. Review the trial before extracting the full document.
+- Open **File > Review Workbench** to review warnings and follow available source page links. Choose continuous HTML for uninterrupted reading, chaptered EPUB for navigation in an ebook reader, or source-reference HTML for reading alongside the original.
+- Use **File > Save Collection Project** and **Open Collection Project** to return to a queue with its saved settings and progress. Keep the original files available at their saved locations.
+- Open **Preferences** with **Command+Comma** on macOS or **Alt+P** on Windows. Use Tab to move through each setting, then Save or Cancel.
 
 ## Recommended Workflow
 
@@ -641,7 +661,7 @@ Recommended Windows validation areas:
 Recommended menu shortcut checks:
 
 - `F1`: help for the current control; `Escape` closes it and returns focus
-- `Alt+P`: Preferences
+- **Command–Comma**: Settings on macOS. **Alt+P**: Preferences on Windows.
 - `Alt+K`: API Keys
 - `Alt+S`: Find Connected Devices
 - `Alt+N`: Scan via NAPS2

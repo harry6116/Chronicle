@@ -2,6 +2,7 @@ import copy
 import os
 
 from chronicle_app.services.runtime_policies import FLASH_ARGON_MODE, get_model_vendor, is_offline_model
+from chronicle_app.services.webpage_article import article_only_enabled
 
 
 def begin_run_start(*, resume_incomplete_only, scheduled_start_ts):
@@ -63,8 +64,14 @@ def prepare_queue_for_start(queue, *, resume_mode, normalize_row_settings_fn):
     return {}
 
 
+def is_targeted_trial(row):
+    return bool((row.get("settings") or {}).get("targeted_trial"))
+
+
 def collect_pending_rows(queue):
-    return [row for row in queue if row.get("status", "Queued") == "Queued"]
+    pending = [row for row in queue if row.get("status", "Queued") == "Queued"]
+    trials = [row for row in pending if is_targeted_trial(row)]
+    return trials or pending
 
 
 def expand_multi_range_pdf_rows(
@@ -81,7 +88,8 @@ def expand_multi_range_pdf_rows(
             expanded.append(row)
             continue
         settings = normalize_row_settings_fn(row)
-        if bool(settings.get("merge_files", False)):
+        if (bool(settings.get("merge_files", False)) or settings.get("targeted_trial")
+                or article_only_enabled(".pdf", settings)):
             expanded.append(row)
             continue
         page_scope = normalize_pdf_page_scope_text_fn(settings.get("pdf_page_scope", ""))
@@ -157,6 +165,8 @@ def find_missing_api_key_requirement(
 ):
     for row in pending_rows:
         settings = normalize_row_settings_fn(row)
+        if article_only_enabled(os.path.splitext(row.get("path", ""))[1].lower(), settings):
+            continue
         model = str(settings.get("model_name") or model_from_label_fn(row["engine"]))
         if is_offline_model(model):
             continue

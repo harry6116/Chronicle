@@ -6,6 +6,7 @@ import zlib
 import base64
 
 from chronicle_app.services.adaptive_engine_routing import select_execution_model_for_job
+from chronicle_app.services.webpage_article import LOCAL_ARTICLE_MODEL, article_only_enabled
 from chronicle_app.services.document_processors import (
     EPUB_EXTENSIONS,
     FITZ_TEXT_EXTENSIONS,
@@ -38,11 +39,13 @@ def build_worker_run_plan(cfg, jobs, *, normalize_row_settings_fn, streamable_fo
     low_memory_mode = bool(cfg.get("low_memory_mode", False))
     memory_telemetry = bool(cfg.get("memory_telemetry", False))
     queued_jobs = [job for job in jobs if str(job.get("status", "Queued")) == "Queued"]
-    queued_formats = {
-        str(normalize_row_settings_fn(job).get("format_type", cfg.get("format_type", "html")))
-        for job in queued_jobs
-    }
+    settings = [normalize_row_settings_fn(job) for job in queued_jobs]
+    queued_formats = {str(item.get("format_type", cfg.get("format_type", "html"))) for item in settings}
     messages = []
+    if merge_mode and any(article_only_enabled(os.path.splitext(job.get("path", ""))[1].lower(), item)
+                          for job, item in zip(queued_jobs, settings)):
+        merge_mode = False
+        messages.append("[Merge] Disabled because Article only requires its own reading copy.")
     if merge_mode and len(queued_formats) > 1:
         merge_mode = False
         messages.append("[Merge] Disabled for this run because queued files have mixed assigned output formats.")
@@ -107,6 +110,10 @@ def resolve_output_path(base, fmt, target_dir, *, collision_mode, path_exists=os
         if collision_mode == "auto":
             stamp = int(time.time() if now is None else now)
             output_path = os.path.join(target_dir, f"{base}_{stamp}.{fmt}")
+            sequence = 2
+            while os.path.exists(output_path):
+                output_path = os.path.join(target_dir, f"{base}_{stamp}_{sequence}.{fmt}")
+                sequence += 1
     return {"output_path": output_path, "should_skip": False}
 
 
@@ -666,7 +673,21 @@ def prepare_job_execution_context(
     job_cfg.update(row_settings)
     fmt = str(job_cfg.get('format_type', cfg.get('format_type', 'html')))
     model = str(job_cfg.get('model_name') or model_from_label_fn(job['engine']))
-    routing = select_execution_model_for_job(
+    article_only = article_only_enabled(ext, job_cfg)
+    if article_only and (fmt not in {"html", "epub"} or merge_mode):
+        raise ValueError("Article only requires an individual HTML or EPUB output.")
+    if article_only:
+        reader = pdf_reader_factory(fp)
+        try:
+            job_cfg["article_page_indices"] = parse_pdf_page_scope_spec_fn(job_cfg.get("pdf_page_scope"), len(reader.pages))
+        finally:
+            close = getattr(reader, "close", None)
+            if close:
+                close()
+        job_cfg.update(translate_mode="none", modernize_punctuation=False,
+                       unit_conversion=False, abbrev_expansion=False)
+    routing = {"model_name": LOCAL_ARTICLE_MODEL, "routing_mode": "local",
+               "routing_reason": "Article-only text extraction stays on this computer."} if article_only else select_execution_model_for_job(
         fp,
         ext,
         job_cfg,
@@ -676,12 +697,14 @@ def prepare_job_execution_context(
         parse_pdf_page_scope_spec_fn=parse_pdf_page_scope_spec_fn,
     )
     model = str(routing.get("model_name") or model)
+    if article_only:
+        job_cfg["model_name"] = model
     job_cfg["selected_model_name"] = model
     job_cfg["routing_mode"] = routing.get("routing_mode", "automatic")
     job_cfg["routing_reason"] = routing.get("routing_reason", "")
     job_cfg["auto_escalation_model"] = routing.get("auto_escalation_model")
-    client = get_client_fn(model)
-    needs_pdf_audit, file_size_mb = determine_needs_pdf_audit_fn(
+    client = None if article_only else get_client_fn(model)
+    needs_pdf_audit, file_size_mb = (False, 0) if article_only else determine_needs_pdf_audit_fn(
         ext,
         cfg,
         low_memory_mode=low_memory_mode,
@@ -715,11 +738,15 @@ def prepare_job_execution_context(
             job_cfg,
             normalize_pdf_page_scope_text_fn=normalize_pdf_page_scope_text_fn,
         )
+        if article_only:
+            output_base += " - Article"
+        if job_cfg.get("targeted_trial"):
+            output_base += " - Trial"
         output_plan = resolve_output_path_fn(
             output_base,
             fmt,
             target_dir,
-            collision_mode=cfg.get('collision_mode'),
+            collision_mode="auto" if job_cfg.get("targeted_trial") else cfg.get('collision_mode'),
         )
         output_path = output_plan['output_path']
         if output_plan['should_skip']:
@@ -769,7 +796,7 @@ def prepare_job_execution_context(
                 }
         resume_info = {"recovered_units": 0, "original_total_units": None, "resume_state_path": _build_progress_state_path(progress_temp_path), "resume_from_unit": 0}
         if (
-            resume_existing_progress
+            resume_existing_progress and not article_only
             and ext == '.pdf'
             and pdf_reader_factory is not None
             and normalize_pdf_page_scope_text_fn is not None
@@ -862,7 +889,7 @@ def prepare_job_execution_context(
         raw_file_obj = open_fn(temp_path, 'a' if preserve_progress else 'w', encoding='utf-8') if fmt in streamable_formats else None
         file_obj = MirroredTextWriter(raw_file_obj, progress_file_obj) if raw_file_obj else None
         log_cb(f"[Progress] In-progress recovery file: {progress_temp_path}")
-        if file_obj and not preserve_progress:
+        if file_obj and not preserve_progress and not article_only:
             write_header_fn(file_obj, base, fmt, get_output_lang_code_fn(job_cfg), get_output_text_direction_fn(job_cfg))
         if fmt in streamable_formats:
             if needs_pdf_audit:

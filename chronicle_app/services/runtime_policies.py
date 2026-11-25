@@ -282,6 +282,8 @@ def get_processing_speed_warning(profile_key, model_name):
 
     slow_profiles = {
         "office": "Warning: Reports / Business Files can take longer when Chronicle reconstructs headings, lists, and damaged tables for accessible output.",
+        "reports": "Warning: Business / Government Reports can take longer on dense tables and appendices.",
+        "promotional": "Warning: Flyers / Brochures / Catalogues can take longer when reconstructing panels or product grids.",
         "government": "Warning: Government Reports / Records can take longer on dense tables, appendices, and repeated headers or footers.",
         "letters": "Warning: Letters / Correspondence can slow down when Chronicle is preserving routing lines, annotations, and sign-off structure faithfully.",
         "newspaper": "Warning: Historical Newspapers can be much slower, especially on long scanned PDFs, degraded OCR, and dense multi-column layouts.",
@@ -290,7 +292,7 @@ def get_processing_speed_warning(profile_key, model_name):
         "archival": "Warning: Archives / Historical can take noticeably longer on handwriting, ledgers, and degraded pages.",
         "handwritten": "Warning: Handwritten Notes / Personal Diaries can be slow because Chronicle reads them conservatively and avoids guessing unclear words.",
         "medical": "Warning: Medical Records / Clinical Handwriting can be slow because Chronicle treats abbreviations, uncertain handwriting, and medication-like shorthand conservatively.",
-        "military": "Warning: Military Records can take longer on dense metadata, chronology, and marginal notes.",
+        "military": "Warning: Unit War Diaries / Military Records can take longer on dense metadata, chronology, and marginal notes.",
         "academic": "Warning: Academic / Research can be much slower because Chronicle reads dense references, equations, and note structure more conservatively.",
         "manual": "Warning: Manuals / Procedures can take longer on long manuals, dense tables, and diagram-heavy pages.",
         "forms": "Warning: Forms / Checklists can take longer on checkbox-heavy pages and dense field grids.",
@@ -367,6 +369,8 @@ def build_profile_selection_summary(profile_key, current_model_name, *, profile_
     profile_notes = {
         "letters": "Letters / Correspondence favor sender-recipient structure, routing lines, salutations, and sign-off recovery without forcing a report layout.",
         "office": "Reports / Business Files favor accessible heading recovery, list repair, and cleaner business-document structure from messy inputs.",
+        "reports": "Business / Government Reports preserve numbered sections, appendix structure, and tables.",
+        "promotional": "Flyers / Brochures / Catalogues preserve event details, prices, and panel reading order.",
         "government": "Government Reports / Records favor repeated-header cleanup, appendix structure, and accessible table reading order.",
         "legal": "Legal / Contracts / Laws favor the slower deep-reading path for clause hierarchy, defined terms, and strict cross-reference fidelity.",
         "forms": "Forms / Checklists favor field-by-field recovery, checkbox states, and explicit blank-value handling.",
@@ -386,7 +390,7 @@ def build_profile_selection_summary(profile_key, current_model_name, *, profile_
         "handwritten": "Handwritten Notes / Personal Diaries favor conservative reading with strong uncertainty tagging instead of guessed cleanups.",
         "archival": "Archives / Historical favor high-fidelity reading of historical handwriting and ledger structure.",
         "medical": "Medical Records / Clinical Handwriting favors conservative transcription, lab/pathology table recovery, explicit uncertainty tags, and exact preservation of clinical abbreviations.",
-        "military": "Military Records benefit from deeper reading on dense metadata, chronology, and marginal notes.",
+        "military": "Unit War Diaries / Military Records benefit from deeper reading on dense metadata, chronology, and marginal notes.",
         "intelligence": "Intelligence / Cables favor routing headers, codewords, classifications, and terse signal-style formatting.",
         "museum": "Museum Labels / Captions favor short descriptive text, object metadata, and provenance notes.",
     }

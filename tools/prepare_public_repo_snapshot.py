@@ -21,16 +21,10 @@ ROOT_DOC_REPLACEMENTS = {
 
 ALLOWED_GITHUB_ROLLOUT_DOCS = {
     "docs/github_rollout/CONTRIBUTING_GITHUB.md",
-    "docs/github_rollout/LAUNCH_RUNBOOK.md",
     "docs/github_rollout/LEGAL_DISCLAIMER_GITHUB.md",
-    "docs/github_rollout/MIGRATION_NOTES_OLD_TO_NEW.md",
-    "docs/github_rollout/PROJECT_OVERVIEW_GITHUB.md",
     "docs/github_rollout/PROVIDER_PRIVACY_AND_TIER_GUIDE.md",
-    "docs/github_rollout/PUBLIC_REPO_BOOTSTRAP.md",
-    "docs/github_rollout/README_GITHUB_ROLLOUT_PACK.md",
     "docs/github_rollout/README_PUBLIC_FINAL.md",
     "docs/github_rollout/RELEASE_NOTES_CURRENT.md",
-    "docs/github_rollout/REPOSITORY_OVERHAUL_CHECKLIST.md",
     "docs/github_rollout/SECURITY_GITHUB.md",
 }
 
@@ -42,8 +36,6 @@ ALLOWED_DOC_PATHS = {
     "docs/policies/README.md",
     "docs/policies/SECURITY.md",
     "docs/public/.nojekyll",
-    "docs/public/DEPLOY_STATIC_SITE.md",
-    "docs/public/WEBSITE_LAUNCH_PLAN.md",
     "docs/public/CHRONICLE_BLURBS.md",
     "docs/public/CHRONICLE_ONE_PAGE.md",
     "docs/public/README.md",
@@ -112,6 +104,10 @@ EXCLUDED_FILE_NAMES = {
     "nla.news-issue108507.html",
     "api_key.txt",
     "api_keys.json",
+    "api_key_gemini.txt",
+    "api_key_claude.txt",
+    "api_key_anthropic.txt",
+    "api_key_openai.txt",
     "chronicle_active_session.json",
     "legacy_extract_core.py",
     "make_prefects_party_midi.py",
@@ -151,6 +147,7 @@ EXCLUDED_RELATIVE_PATHS = {
 
 ALLOWED_TOOL_PATHS = {
     "tools/refresh_mac_dist.py",
+    "tools/release_provenance.py",
     "tools/comic_accuracy_audit.py",
     "tools/audit_handwriting_outputs.py",
     "tools/build_source_archive.py",
@@ -168,13 +165,13 @@ ALLOWED_TOOL_PATHS = {
 
 def should_exclude(rel_path: str) -> bool:
     path_obj = Path(rel_path)
+    if path_obj.name in EXCLUDED_FILE_NAMES:
+        return True
     if rel_path.startswith("docs/github_rollout/") and rel_path in ALLOWED_GITHUB_ROLLOUT_DOCS:
         return False
     if any(rel_path.startswith(prefix) for prefix in ALLOWED_DOC_PREFIXES):
         return False
     if any(part in EXCLUDED_DIR_NAMES for part in path_obj.parts):
-        return True
-    if path_obj.name in EXCLUDED_FILE_NAMES:
         return True
     if rel_path in EXCLUDED_MAC_RELATIVE_PATHS:
         return True

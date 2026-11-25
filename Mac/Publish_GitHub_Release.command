@@ -173,6 +173,25 @@ if [[ "$(normalize_answer "$OPEN_NOTES")" == "open" ]]; then
 fi
 
 REPO_SLUG="$(git -C "$DEFAULT_PUBLIC_REPO_DIR" remote get-url origin | sed -E 's#(git@github.com:|https://github.com/)##; s#\.git$##')"
+PROVENANCE="$ROOT_DIR/tools/release_provenance.py"
+RELEASE_RECEIPT="$DEFAULT_ASSET_DIR/chronicle-release.json"
+MAC_APP_DIR="${CHRONICLE_MAC_APP_DIR:-$(PYTHONPATH="$ROOT_DIR" python3 -c 'from pathlib import Path; from tools.refresh_mac_dist import resolve_dist_dir; import sys; print(resolve_dist_dir(Path(sys.argv[1])) / "Chronicle.app")' "$ROOT_DIR")}"
+WINDOWS_APP_DIR="${CHRONICLE_WINDOWS_APP_DIR:-$HOME/Documents/dist/Chronicle}"
+if [[ "$TAG" != "$(release_tag_from_notes "$NOTES_FILE")" ]]; then
+  echo "ERROR: The release notes and selected tag have different versions."
+  exit 1
+fi
+python3 "$PROVENANCE" "$ROOT_DIR" verify-release "$RELEASE_RECEIPT" "$TAG" "$MAC_ASSET" "$WINDOWS_ASSET" "$MAC_APP_DIR" "$WINDOWS_APP_DIR"
+if PUBLIC_REVISION="$(gh api "repos/$REPO_SLUG/commits/$TAG" --jq .sha 2>/dev/null)"; then
+  :
+else
+  PUBLIC_REVISION="$(gh api "repos/$REPO_SLUG/commits/main" --jq .sha)"
+fi
+if [[ ! "$PUBLIC_REVISION" =~ ^[0-9a-f]{40}$ ]]; then
+  echo "ERROR: Could not determine the public source commit."
+  exit 1
+fi
+python3 "$PROVENANCE" "$ROOT_DIR" verify-public-source "$DEFAULT_PUBLIC_REPO_DIR" "$PUBLIC_REVISION"
 
 echo ""
 echo "Repository: $REPO_SLUG"
@@ -197,6 +216,14 @@ while true; do
   echo "Please type RELEASE to publish or CANCEL to stop. Capitals are optional."
 done
 
+UPLOAD_DIR="$(mktemp -d "${TMPDIR:-/tmp}/chronicle-upload.XXXXXX")"
+trap 'rm -rf -- "$UPLOAD_DIR"' EXIT
+cp "$MAC_ASSET" "$UPLOAD_DIR/Chronicle.mac.zip"
+cp "$WINDOWS_ASSET" "$UPLOAD_DIR/Chronicle.windows.zip"
+MAC_ASSET="$UPLOAD_DIR/Chronicle.mac.zip"
+WINDOWS_ASSET="$UPLOAD_DIR/Chronicle.windows.zip"
+python3 "$PROVENANCE" "$ROOT_DIR" verify-release "$RELEASE_RECEIPT" "$TAG" "$MAC_ASSET" "$WINDOWS_ASSET" "$MAC_APP_DIR" "$WINDOWS_APP_DIR"
+
 if gh release view "$TAG" --repo "$REPO_SLUG" >/dev/null 2>&1; then
   echo ""
   echo "Release already exists. Uploading app assets with clobber enabled..."
@@ -209,7 +236,7 @@ else
     --repo "$REPO_SLUG" \
     --title "$TITLE" \
     --notes-file "$NOTES_FILE" \
-    --target main \
+    --target "$PUBLIC_REVISION" \
     --latest
 fi
 

@@ -108,7 +108,7 @@ class ReleasePackagingGuardsTest(unittest.TestCase):
         self.assertNotIn('("docs", "docs")', mac)
         self.assertIn("--docs-only", windows)
         diagnostic = (ROOT / "capture_windows_build_diagnostics.bat").read_text(encoding="utf-8")
-        self.assertIn("--docs-only", diagnostic)
+        self.assertIn(' -File "%SCRIPT_DIR%build_windows.ps1"', diagnostic)
         self.assertNotIn('--add-data "%SCRIPT_DIR%docs;docs"', diagnostic)
         self.assertIn("tools/prepare_public_repo_snapshot.py", stage_windows_bundle.REQUIRED_PATHS)
         self.assertNotIn('$pyArgs.Add("$rootDir\\docs;docs")', windows)

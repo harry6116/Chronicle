@@ -148,7 +148,7 @@ def build_settings_section(panel, *, cfg, profile_choices, get_pdf_page_items_fn
     btn_first_pages_trial = wx.Button(panel, label='First 5 Pages Trial')
     btn_first_pages_trial.SetName('First 5 Pages Trial')
     btn_first_pages_trial.SetToolTip(
-        'Set the selected queued PDF task, or all queued PDF tasks if nothing is selected, to pages 1-5 so you can test settings before a full run.'
+        'Queue up to five pages from each selected PDF for a separate trial. The next run processes queued trials only.'
     )
     bind(btn_first_pages_trial, 'first_pages_trial')
     preflight_row.Add(btn_first_pages_trial, 0, wx.ALL, 5)

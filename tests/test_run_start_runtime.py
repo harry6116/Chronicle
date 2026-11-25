@@ -92,6 +92,13 @@ class RunStartRuntimeTest(unittest.TestCase):
 
         self.assertEqual(pending, [queue[0], queue[2]])
 
+    def test_queued_trials_exclude_full_documents_from_the_next_run(self):
+        original = {"status": "Queued", "settings": {}}
+        trial = {"status": "Queued", "settings": {"targeted_trial": True}}
+        self.assertEqual(collect_pending_rows([original, trial]), [trial])
+        trial["status"] = "Done"
+        self.assertEqual(collect_pending_rows([original, trial]), [original])
+
     def test_expand_multi_range_pdf_rows_splits_disjoint_scopes_when_merge_is_off(self):
         queue = [
             {

@@ -28,21 +28,28 @@ class ChronicleMenuBar:
         resume_center_id = wx.NewIdRef()
         compare_outputs_id = wx.NewIdRef()
         recovery_workstation_id = wx.NewIdRef()
+        open_project_id = wx.NewIdRef()
+        save_project_id = wx.NewIdRef()
 
-        file_menu.Append(wx.ID_PREFERENCES, "&Preferences...\tAlt+P")
+        mac = platform.system() == "Darwin"
+        preferences_label = "Settings...\tCtrl+," if mac else "&Preferences...\tAlt+P"
+        file_menu.Append(wx.ID_PREFERENCES, preferences_label)
         file_menu.Append(api_keys_id, "API &Keys...\tAlt+K")
         file_menu.Append(save_log_id, "&Save Processing Log...\tAlt+L")
         file_menu.AppendSeparator()
         file_menu.Append(private_offline_id, "Private &Offline Mode...\tAlt+O")
         file_menu.Append(existing_ollama_id, "Set Up Local &Ollama...")
         file_menu.Append(support_bundle_id, "Export Support &Bundle...")
-        file_menu.Append(provider_matrix_id, "Provider Capability &Matrix...")
+        file_menu.Append(provider_matrix_id, "Provider &Models...")
         file_menu.Append(resume_center_id, "Open &Resume Center...")
         file_menu.Append(compare_outputs_id, "Compare Two &Outputs...")
-        file_menu.Append(recovery_workstation_id, "Recovery &Workbench Plan...")
+        file_menu.Append(recovery_workstation_id, "Review &Workbench...")
+        file_menu.AppendSeparator()
+        file_menu.Append(open_project_id, "Open Collection Project...")
+        file_menu.Append(save_project_id, "Save Collection Project...")
 
         mac_access_id = None
-        if platform.system() == "Darwin":
+        if mac:
             mac_access_id = wx.NewIdRef()
             file_menu.Append(mac_access_id, "Check Mac Folder &Access...\tAlt+M")
 
@@ -69,6 +76,8 @@ class ChronicleMenuBar:
         bind_menu_action(self.frame, wx.EVT_MENU, self.frame.OnResumeCenter, item_id=resume_center_id, call_after=wx.CallAfter)
         bind_menu_action(self.frame, wx.EVT_MENU, self.frame.OnCompareOutputs, item_id=compare_outputs_id, call_after=wx.CallAfter)
         bind_menu_action(self.frame, wx.EVT_MENU, self.frame.OnRecoveryWorkbenchPlan, item_id=recovery_workstation_id, call_after=wx.CallAfter)
+        bind_menu_action(self.frame, wx.EVT_MENU, self.frame.OnOpenCollectionProject, item_id=open_project_id, call_after=wx.CallAfter)
+        bind_menu_action(self.frame, wx.EVT_MENU, self.frame.OnSaveCollectionProject, item_id=save_project_id, call_after=wx.CallAfter)
         bind_menu_action(self.frame, wx.EVT_MENU, self.frame.OnAppQuitRequested, item_id=wx.ID_EXIT, call_after=wx.CallAfter)
         bind_menu_action(self.frame, wx.EVT_MENU, self.frame.OnContextHelp, item_id=help_open_id, call_after=wx.CallAfter)
         bind_menu_action(self.frame, wx.EVT_MENU, self.frame.OnOpenHelp, item_id=help_manual_id, call_after=wx.CallAfter)

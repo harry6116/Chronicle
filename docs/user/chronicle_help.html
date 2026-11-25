@@ -210,7 +210,7 @@
           </ul>
           <p>Google One AI credits are separate from Gemini API billing and do not fund Chronicle’s API requests. Check billing for the project associated with your key in Google AI Studio. See <a href="https://aistudio.google.com/docs/google-ai-plans">Google’s plan and credit explanation</a>.</p>
           <p>Paste only the key, without quotes, spaces within the key or an HTTP header such as <code>Authorization: Bearer</code>. Surrounding whitespace is removed; no fixed prefix or length is required. Leave unused fields blank. All fields may be blank for Private Offline Mode.</p>
-          <p><strong>Save API Keys</strong> stores entries locally and <strong>Cancel</strong> discards edits. Saving does not contact providers or verify authentication, permissions, model access, quota or billing. Use a short extraction to check access; online extraction can incur provider charges. Existing saved keys only need changing when you replace them. Known Google, OpenAI and Claude key formats are redacted from logs and support bundles; keep keys private.</p>
+          <p><strong>Save API Keys</strong> stores entries locally and <strong>Cancel</strong> discards edits. Saving does not contact providers or verify authentication, permissions, model access, quota or billing. Use a short extraction to check access; online extraction can incur provider charges. After upgrading to 2.0, confirm <strong>Remove Saved Keys</strong> to clear the old Chronicle vault entries and key files, then enter the keys you want to use again. Choose <strong>Later</strong> to continue offline until you are ready. Known Google, OpenAI and Claude key formats are redacted from logs and support bundles; keep keys private.</p>
           <ul>
             <li>Chronicle stores keys locally in your OS app-data profile.</li>
             <li>Keys can be saved to your OS keychain/keyring (Keychain on macOS) when available, and this is the recommended storage mode.</li>
@@ -518,6 +518,10 @@
 
         <section id="presets" aria-labelledby="presets-title">
           <h2 id="presets-title">6. Document Presets</h2>
+          <h3>Everyday PDFs and webpage printouts</h3>
+          <p>Start with <strong>Miscellaneous / Mixed Files</strong> for an everyday PDF, a mixed batch, or a webpage printout when you want the entire capture. The preset recovers accessible headings and reading order where the source supports them. Adjust punctuation, abbreviations and printed page references in Preferences.</p>
+          <p>For a supported text-backed webpage PDF, select it and run <strong>Preflight</strong>. Choose <strong>Use article only</strong> for a local HTML or EPUB reading copy with the headline, byline and body headings. Choose <strong>Use full extraction</strong> for the wider capture or if the article boundaries are unclear.</p>
+          <p>Preflight reports the scope of inspection and gives reasons for suggested presets. You can apply a suggestion, queue a trial of selected pages, or estimate token charges using your own prices. Use the Review Workbench to follow source links where available and compare uncertain output with the source.</p>
           <p>Presets align reading rules with document class and choose a reading engine for that type of document. When <strong>Engine Override</strong> stays on <strong>Automatic</strong>, Chronicle can start easier PDFs on the faster Gemini path and keep <strong>Gemini 3.1 Pro Preview</strong> in reserve for hard pages or hard whole-document cases. Manual engine overrides belong in Preferences and advanced settings. Gemini 4 Argon is also available as an optional engine for difficult pages. It is not a guarantee of better results on every document. Gemini 2.5 Flash and Gemini 2.5 Pro remain available for compatibility. Handwriting and comic profiles use Gemini 3.8 Flash automatically; military records use Gemini 3.1 Pro Preview. Gemini 3.1 Pro Preview availability can change; provider charges and processing time can differ from the older models.</p>
           <p>The broadest presets are now designed so that ordinary PDFs, damaged Word exports, messy HTML, and public-sector reports still come back as something cleaner and more accessible, not just as a literal copy of the source defects.</p>
           <table>
@@ -530,30 +534,29 @@
               </tr>
             </thead>
             <tbody>
-              <tr><th scope="row">Everyday Mixed Documents</th><td>General PDFs and mixed everyday documents</td><td>Best starting point when you are not sure which specialist preset fits.</td></tr>
-              <tr><th scope="row">Work Reports / Office Documents</th><td>Reports, exported HTML, Word docs, business files, meeting packs</td><td>Heading/list/table repair with Word-friendly structure.</td></tr>
-              <tr><th scope="row">Government Reports / Public Records</th><td>Agency reports, annexes, appendices, public records</td><td>Repeated-header cleanup, appendix structure, and numbered-section fidelity.</td></tr>
-              <tr><th scope="row">Letters / Memos / Notices</th><td>Letters, circulars, notices, typed correspondence</td><td>Sender/recipient/sign-off structure preserved without forcing an archival ledger layout.</td></tr>
-              <tr><th scope="row">Archives / Ledgers / Manuscripts</th><td>Ledgers, accessioned records, mixed typewritten/manuscript files</td><td>Ledger structure, docket/folio fidelity, and archival uncertainty handling.</td></tr>
-              <tr><th scope="row">Handwritten Notes / Personal Diaries</th><td>Rough handwritten notes, drafts, personal diary pages</td><td>Conservative letter-level reading with strong uncertainty tagging. Use Military Records for war diaries and unit logs.</td></tr>
-              <tr><th scope="row">Medical Notes / Clinical Forms / Doctor Handwriting</th><td>Clinical notes, referral letters, handwritten doctor notes, medical paperwork</td><td>Conservative clinical transcription with explicit uncertainty tagging and no silent abbreviation expansion.</td></tr>
-              <tr><th scope="row">War Diaries / Military Orders / Service Records</th><td>War diaries, operations logs, telegrams, service records</td><td>STOP decoding, grid refs, acronym fidelity.</td></tr>
-              <tr><th scope="row">Cables / Intelligence Briefings / Signals</th><td>Cables, routing-heavy records</td><td>FROM/TO/INFO/REF chains and classification labels preserved.</td></tr>
+              <tr><th scope="row">Miscellaneous / Mixed Files</th><td>General PDFs and mixed everyday documents</td><td>Best starting point when you are not sure which specialist preset fits.</td></tr>
+              <tr><th scope="row">Business / Government Reports</th><td>Business reports, meeting packs, agency and public reports</td><td>Headings, numbered sections, annexes and accessible tables.</td></tr>
+              <tr><th scope="row">Letters / Correspondence</th><td>Letters, circulars, notices, typed correspondence</td><td>Sender/recipient/sign-off structure preserved without forcing an archival ledger layout.</td></tr>
+              <tr><th scope="row">Archives / Historical</th><td>Ledgers, accessioned records, mixed typewritten/manuscript files</td><td>Ledger structure, docket/folio fidelity, and archival uncertainty handling.</td></tr>
+              <tr><th scope="row">Handwritten Notes / Personal Diaries</th><td>Rough handwritten notes, drafts, personal diary pages</td><td>Conservative letter-level reading with strong uncertainty tagging. Use Unit War Diaries / Military Records for war diaries and unit logs.</td></tr>
+              <tr><th scope="row">Medical Records / Clinical Handwriting</th><td>Clinical notes, referral letters, handwritten doctor notes, medical paperwork</td><td>Conservative clinical transcription with explicit uncertainty tagging and no silent abbreviation expansion.</td></tr>
+              <tr><th scope="row">Unit War Diaries / Military Records</th><td>War diaries, operations logs, telegrams, service records</td><td>STOP decoding, grid refs, acronym fidelity.</td></tr>
+              <tr><th scope="row">Intelligence / Cables</th><td>Cables, routing-heavy records</td><td>FROM/TO/INFO/REF chains and classification labels preserved.</td></tr>
               <tr><th scope="row">Historical Newspapers</th><td>Old newsprint scans, OCR-backed newspaper archives, columns, classifieds, ads</td><td>Layout flattening, table reconstruction, historical scan handling, and smaller slices for very dense short scans.</td></tr>
               <tr><th scope="row">Modern Newspapers / E-Papers</th><td>Contemporary print-edition PDFs, article cards, bylines, captions, ads, jump lines</td><td>Modern news article boundaries, section labels, timestamps, continuations, digital furniture cleanup, and caption-aware reading order.</td></tr>
-              <tr><th scope="row">Books / Novels / Long-Form Prose</th><td>Novels, memoirs, long-form scanned prose</td><td>Paragraph continuity across page turns and chapter structure.</td></tr>
+              <tr><th scope="row">Magazines / Periodicals</th><td>Features, interviews, contents and sidebars</td><td>Article boundaries and links between main text, captions and callouts.</td></tr>
+              <tr><th scope="row">Books / Novels</th><td>Novels, memoirs, long-form scanned prose</td><td>Paragraph continuity across page turns and chapter structure.</td></tr>
               <tr><th scope="row">Comics / Manga / Graphic Novels</th><td>Comic books, comic strips, manga pages, graphic novels</td><td>Panel order, balloons, captions, visible SFX, image descriptions, and right-to-left manga flow when visibly supported.</td></tr>
-              <tr><th scope="row">Manuals / Instructions / SOPs</th><td>Manuals, procedures, diagrams, maintenance guides</td><td>Step order, warnings, and specification structure preserved.</td></tr>
-              <tr><th scope="row">Forms / Checklists / Worksheets</th><td>Forms, worksheets, checklists</td><td>Checkbox state, key-value flattening, and blank-field visibility.</td></tr>
-              <tr><th scope="row">Flyers / Posters / Event Notices</th><td>Flyers, event sheets, posters, short notices</td><td>Short-form headline/date/location/call-to-action hierarchy.</td></tr>
-              <tr><th scope="row">Brochures / Catalogues / Pamphlets</th><td>Pamphlets, brochures, product or service panels</td><td>Panel order, feature grouping, and short section recovery.</td></tr>
-              <tr><th scope="row">Slides / Decks / Handouts</th><td>Presentation slides and compact handouts</td><td>Slide titles, bullets, charts, and repeated template-footers handled cleanly.</td></tr>
-              <tr><th scope="row">Spreadsheets / CSV / Registers</th><td>CSV, XLS, XLSX, score tables, ledgers</td><td>Single semantic table output, summary paragraph, row headers, and marked total rows.</td></tr>
-              <tr><th scope="row">Research Papers / Equations / Footnotes</th><td>Equations and footnotes</td><td>Strict LaTeX math and structural preservation.</td></tr>
-              <tr><th scope="row">Transcripts / Interviews / Plays</th><td>Dialogue and stage cues</td><td>Speech pacing and stage-direction retention.</td></tr>
-              <tr><th scope="row">Poetry / Verse / Line-Break Layouts</th><td>Poems and verse</td><td>Stanza and line-break fidelity.</td></tr>
-              <tr><th scope="row">Laws / Regulations / Contracts</th><td>Clauses and legal numbering</td><td>Hierarchy and defined-term fidelity.</td></tr>
-              <tr><th scope="row">Museum Labels / Captions / Exhibit Text</th><td>Captions and provenance labels</td><td>Metadata accuracy and caption-object linkage.</td></tr>
+              <tr><th scope="row">Manuals / Procedures</th><td>Manuals, procedures, diagrams, maintenance guides</td><td>Step order, warnings, and specification structure preserved.</td></tr>
+              <tr><th scope="row">Forms / Checklists</th><td>Forms, worksheets, checklists</td><td>Checkbox state, key-value flattening, and blank-field visibility.</td></tr>
+              <tr><th scope="row">Flyers / Brochures / Catalogues</th><td>Event flyers, posters, folded brochures, catalogues</td><td>Event details, panel reading order, product details and pricing.</td></tr>
+              <tr><th scope="row">Slides / Presentations</th><td>Presentation slides and compact handouts</td><td>Slide titles, bullets, charts, and repeated template-footers handled cleanly.</td></tr>
+              <tr><th scope="row">Tables / Spreadsheets</th><td>CSV, XLS, XLSX, score tables, ledgers</td><td>Single semantic table output, summary paragraph, row headers, and marked total rows.</td></tr>
+              <tr><th scope="row">Academic / Research</th><td>Equations and footnotes</td><td>Strict LaTeX math and structural preservation.</td></tr>
+              <tr><th scope="row">Scripts / Dialogue / Transcripts</th><td>Dialogue and stage cues</td><td>Speech pacing and stage-direction retention.</td></tr>
+              <tr><th scope="row">Poetry / Verse</th><td>Poems and verse</td><td>Stanza and line-break fidelity.</td></tr>
+              <tr><th scope="row">Legal / Contracts / Laws</th><td>Clauses and legal numbering</td><td>Hierarchy and defined-term fidelity.</td></tr>
+              <tr><th scope="row">Museum Labels / Captions</th><td>Captions and provenance labels</td><td>Metadata accuracy and caption-object linkage.</td></tr>
             </tbody>
           </table>
           <p class="top-link"><a href="#page-title">Back to top</a></p>
@@ -561,6 +564,9 @@
 
         <section id="prefs" aria-labelledby="prefs-title">
           <h2 id="prefs-title">7. Preferences (All Pickers)</h2>
+          <p>Open Preferences with <kbd>Command</kbd> + <kbd>,</kbd> on macOS or <kbd>Alt</kbd> + <kbd>P</kbd> on Windows. Use Tab and Shift+Tab to navigate.</p>
+          <p>Use <strong>File &gt; Save Collection Project</strong> to save the queue, settings and recorded progress. Use <strong>Open Collection Project</strong> to resume with the original files in their saved locations. Choose <strong>File &gt; Review Workbench</strong> for continuous HTML, chaptered EPUB and source-reference HTML.</p>
+
           <p>Chronicle uses picker-style controls for multi-choice settings so screen readers announce options consistently.</p>
           <p><strong>Reading fidelity:</strong> Chronicle is configured for zero guessing and no broad spelling correction. Layout repairs rejoin clearly wrapped words and paragraphs without replacing visible source letters. Uncertain words remain marked locally. If <em>Legacy Punctuation Mode</em> is enabled, only punctuation/spacing can be normalized beyond those layout repairs. Reading may also take a bit longer when punctuation modernization or abbreviation expansion is enabled, because Chronicle has to correct punctuation, suppress false punctuation from broken layouts, and expand abbreviations before finalizing the output. Spacing repair also keeps adjacent words from joining after punctuation cleanup.</p>
           <h3>Intelligent Column Splicing and Print Artifact Correction</h3>

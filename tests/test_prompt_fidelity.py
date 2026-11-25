@@ -105,9 +105,11 @@ class CurrentModelGuideTests(unittest.TestCase):
         from pathlib import Path
         from chronicle_app.config import MODEL_LABEL_BY_KEY
         from chronicle_app.services.runtime_policies import get_model_tradeoff_text
+        from chronicle_app.services.webpage_article import LOCAL_ARTICLE_MODEL
         tree = ast.parse((Path(__file__).resolve().parents[1] / 'chronicle_gui.py').read_text())
         methods = [node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef) and node.name in {'GetModelGuideText', 'LabelFromModel'}]
-        scope = {'MODEL_LABEL_BY_KEY': MODEL_LABEL_BY_KEY, 'get_model_tradeoff_text': get_model_tradeoff_text, 'OFFLINE_PRIVATE_MODE_SUITABILITY': 'Local offline capability'}
+        scope = {'MODEL_LABEL_BY_KEY': MODEL_LABEL_BY_KEY, 'get_model_tradeoff_text': get_model_tradeoff_text,
+                 'OFFLINE_PRIVATE_MODE_SUITABILITY': 'Local offline capability', 'LOCAL_ARTICLE_MODEL': LOCAL_ARTICLE_MODEL}
         for method in methods:
             exec(compile(ast.Module(body=[method], type_ignores=[]), '<model guide>', 'exec'), scope)
         for model in ('gemini-3.8-flash', 'gemini-3.1-pro-preview'):
@@ -115,3 +117,4 @@ class CurrentModelGuideTests(unittest.TestCase):
             guide = scope['GetModelGuideText'](None, label)
             self.assertNotIn('Good default for most standard', guide)
             self.assertIn(model.split('gemini-')[1].split('-')[0], guide)
+        self.assertEqual(scope['LabelFromModel'](None, LOCAL_ARTICLE_MODEL), "Local webpage article")

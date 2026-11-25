@@ -29,6 +29,7 @@ EXCLUDED_NAMES = {
     'api_key.txt',
     'api_keys.json',
     'api_key_gemini.txt',
+    'api_key_claude.txt',
     'api_key_anthropic.txt',
     'api_key_openai.txt',
     'user_config.json',

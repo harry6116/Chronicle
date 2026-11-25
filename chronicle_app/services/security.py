@@ -1,4 +1,15 @@
 import re
+from threading import Lock
+
+
+_secret_lock = Lock()
+_known_secrets = set()
+
+
+def register_sensitive_value(value):
+    if isinstance(value, str) and value:
+        with _secret_lock:
+            _known_secrets.add(value)
 
 
 SENSITIVE_KEY_PARTS = ("api", "key", "token", "secret", "password", "credential")
@@ -26,6 +37,10 @@ SECRET_PATTERNS = (
 
 def sanitize_log_text(value):
     text = str(value)
+    with _secret_lock:
+        known = sorted(_known_secrets, key=len, reverse=True)
+    if known:
+        text = re.sub("|".join(map(re.escape, known)), "[redacted]", text)
     for pattern in SECRET_PATTERNS:
         def repl(match):
             if match.lastindex:
@@ -50,3 +65,18 @@ def redact_sensitive(value):
     if isinstance(value, str):
         return sanitize_log_text(value)
     return value
+
+
+class RedactingStream:
+    def __init__(self, stream):
+        self._stream = stream
+
+    def write(self, text):
+        self._stream.write(sanitize_log_text(text))
+        return len(text)
+
+    def flush(self):
+        return self._stream.flush()
+
+    def __getattr__(self, name):
+        return getattr(self._stream, name)

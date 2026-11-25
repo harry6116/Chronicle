@@ -349,6 +349,15 @@ COMPLETENESS CHECK:
             "- Preserve declassification/release stamps (for example FOIA release lines and control numbers) verbatim.\n"
             "- Preserve routing slips, tick-box matrices, and copy/distribution indicators in explicit structured lines."
         )
+    elif profile == "reports":
+        base += (
+            "BUSINESS AND GOVERNMENT REPORT RULES:\n"
+            "- Recover title and contents pages, executive summaries, meeting agendas, action lists, numbered sections, annexes and appendices as navigable sections.\n"
+            "- Preserve authors, agencies, dates, publication metadata, section numbering and policy or consultation cross-references exactly when present.\n"
+            "- Reconstruct reports, briefing packs, schedules, timelines and ordinary tables when the source relationships are clear.\n"
+            "- For Word output, use headings and [[PAGE BREAK]] at major report divisions.\n"
+            "- Keep substantive provenance and suppress repeated headers, folios and export chrome when they are only page furniture."
+        )
     elif profile == "office":
         base += (
             "OFFICE REPORTS / BUSINESS DOCUMENTS RULES:\n"
@@ -427,6 +436,14 @@ COMPLETENESS CHECK:
             "- Keep blank fields visible where they matter so a completed or partially completed form remains faithful.\n"
             "- Device/Diagram Cues: Convert visual icons to explicit bracketed labels.\n"
             "- If identical adjacent fragments are clear overlay artifacts from layered text extraction, keep one and annotate [Duplicate OCR Artifact Removed]."
+        )
+    elif profile == "promotional":
+        base += (
+            "FLYER, BROCHURE AND CATALOGUE RULES:\n"
+            "- For a flyer or poster, keep the event headline, date/time/location, cost, contact and call-to-action distinct and in a useful reading order.\n"
+            "- For a brochure, pamphlet or catalogue, reconstruct panel order and keep features, product headings and pricing blocks as navigable sections.\n"
+            "- Preserve names, measurements, prices and comparison tables exactly when present. Never invent sales copy.\n"
+            "- Describe useful graphics such as maps, product images and logos when image descriptions are enabled. Suppress decoration and repeated layout fragments without unique meaning."
         )
     elif profile == "flyer":
         base += (

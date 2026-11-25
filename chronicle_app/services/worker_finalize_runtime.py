@@ -1,6 +1,7 @@
 import os
 import re
 import shutil
+import tempfile
 import threading
 import time
 
@@ -8,6 +9,7 @@ from chronicle_app.services.nla_newspaper import should_skip_cleanup_for_nla_ocr
 from chronicle_app.services.output_quality import analyze_output_quality, build_run_health_summary
 from chronicle_app.services.recovery_workstation import write_recovery_workstation_artifacts
 from chronicle_app.services.security import sanitize_log_text
+from chronicle_app.services.html_page_navigation import strip_page_boundary_headings
 
 
 FINALIZE_FILESYSTEM_OPERATION_TIMEOUT_SECONDS = 2.0
@@ -260,6 +262,27 @@ def should_run_post_save_cleanup(job_cfg):
     return bool((job_cfg or {}).get("post_save_cleanup", FINALIZE_POST_SAVE_CLEANUP_DEFAULT))
 
 
+def _apply_html_reading_preferences(path, fmt, cfg):
+    if fmt != "html" or cfg.get("preserve_original_page_numbers") is not False:
+        return
+    original = _read_text_file(path)
+    updated = strip_page_boundary_headings(original)
+    if updated == original:
+        return
+    with tempfile.NamedTemporaryFile(
+        mode="w", encoding="utf-8", dir=os.path.dirname(os.path.abspath(path)),
+        prefix=".chronicle-reading-", delete=False,
+    ) as stream:
+        staging = stream.name
+        try:
+            stream.write(updated)
+            stream.close()
+            os.replace(staging, path)
+        finally:
+            if os.path.exists(staging):
+                os.unlink(staging)
+
+
 def _cleanup_saved_output(
     output_path,
     *,
@@ -482,6 +505,7 @@ def finalize_single_output(
             operation_timeout_s=operation_timeout_s,
         )
     if path_exists(temp_path):
+        _apply_html_reading_preferences(temp_path, fmt, job_cfg)
         log_cb(f"[Finalize] {original_label}: promoting temp output into place.")
         output_path = _promote_temp_output(
             temp_path,
@@ -588,6 +612,7 @@ def finalize_merged_output(
             operation_timeout_s=operation_timeout_s,
         )
         if path_exists(master_temp_path):
+            _apply_html_reading_preferences(master_temp_path, merge_fmt, cfg)
             log_cb(f"[Finalize] {label}: promoting merged temp output into place.")
             master_output_path = _promote_temp_output(
                 master_temp_path,
@@ -742,7 +767,8 @@ def finalize_job_success(
         )
     maybe_delete_source_file(
         source_path,
-        delete_source_on_success=bool(delete_source_on_success),
+        delete_source_on_success=bool(delete_source_on_success and not job_cfg.get("targeted_trial")
+                                      and job_cfg.get("webpage_reading_mode") != "article"),
         needs_review=bool(job_cfg.get("automatic_review_pages")),
         is_protected_path_fn=is_protected_path_fn,
         log_cb=log_cb,
@@ -752,6 +778,7 @@ def finalize_job_success(
         'set_page_done_to_total': ext != '.pdf',
         'page_total_increment': max(1, current_file_page_total) if ext != '.pdf' else 0,
         'completion_message': f'Merged: {file_name}' if merge_mode else f'Saved: {output_path}',
+        'output_path': output_path,
     }
     log_cb(result['completion_message'])
     log_cb(
@@ -777,6 +804,7 @@ def finalize_job_success(
                 total_units=current_file_page_total,
             )
             if artifacts:
+                result["review_workbench_path"] = artifacts.get("review_workbench_path")
                 log_cb(
                     "[Review] "
                     f"Receipt: {artifacts.get('receipt_path', '')} | "

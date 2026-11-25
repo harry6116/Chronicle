@@ -19,19 +19,24 @@ from tools.local_benchmark_pack_accessibility import (
 
 
 class BenchmarkScorecardTest(unittest.TestCase):
-    def test_blank_saved_app_key_does_not_silently_use_obsolete_key(self):
+    def test_pending_upgrade_blocks_legacy_key_and_vault(self):
         from tools.local_benchmark_pack_accessibility import load_gemini_client
 
         with TemporaryDirectory() as directory:
-            app_data = Path(directory) / "Library/Application Support/Chronicle"
-            app_data.mkdir(parents=True)
-            (app_data / "api_keys.json").write_text('{"gemini": ""}')
+            app_data = Path(directory)
+            (app_data / "api_keys.json").write_text('{"gemini": "disposable-obsolete-key"}')
             google = types.ModuleType("google")
             google.genai = types.SimpleNamespace(Client=Mock())
-            with patch.dict("os.environ", {}, clear=True), patch("sys.platform", "darwin"), patch("pathlib.Path.home", return_value=Path(directory)), patch.dict("sys.modules", {"google": google}), patch("tools.local_benchmark_pack_accessibility.resolve_gemini_key_path") as legacy:
-                with self.assertRaisesRegex(SystemExit, "No Gemini API key is saved"):
+            runtime = types.SimpleNamespace(APP_DATA_DIR=app_data)
+            with (
+                patch.dict("os.environ", {}, clear=True),
+                patch.dict("sys.modules", {"google": google}),
+                patch("tools.local_benchmark_pack_accessibility._load_chronicle", return_value=runtime),
+                patch("chronicle_app.services.provider_credentials.CredentialStore") as vault,
+            ):
+                with self.assertRaisesRegex(SystemExit, "Complete the Chronicle API key reset"):
                     load_gemini_client()
-                legacy.assert_not_called()
+                vault.assert_not_called()
                 google.genai.Client.assert_not_called()
 
     def test_html_audit_recognizes_main_with_accessible_label_and_reordered_attributes(self):
@@ -42,21 +47,26 @@ class BenchmarkScorecardTest(unittest.TestCase):
         self.assertTrue(checks["has_main_landmark"])
         self.assertTrue(checks["has_lang_dir_root"])
 
-    def test_live_client_uses_current_saved_app_key_before_legacy_file(self):
+    def test_live_client_uses_verified_vault_key_after_upgrade(self):
+        from chronicle_app.services.provider_credentials import RESET_MARKER
         from tools.local_benchmark_pack_accessibility import load_gemini_client
 
         with TemporaryDirectory() as directory:
-            home = Path(directory)
-            app_data = home / "Library/Application Support/Chronicle"
-            app_data.mkdir(parents=True)
-            (app_data / "api_keys.json").write_text('{"gemini": "disposable-current-key"}')
-            legacy = home / "legacy.txt"
-            legacy.write_text("disposable-obsolete-key")
+            app_data = Path(directory)
+            (app_data / RESET_MARKER).touch()
             client = Mock()
             google = types.ModuleType("google")
             google.genai = types.SimpleNamespace(Client=client)
-            with patch.dict("os.environ", {}, clear=True), patch.dict("sys.modules", {"google": google}), patch("sys.platform", "darwin"), patch("pathlib.Path.home", return_value=home), patch("tools.local_benchmark_pack_accessibility.resolve_gemini_key_path", return_value=legacy):
+            runtime = types.SimpleNamespace(APP_DATA_DIR=app_data)
+            with (
+                patch.dict("os.environ", {}, clear=True),
+                patch.dict("sys.modules", {"google": google}),
+                patch("tools.local_benchmark_pack_accessibility._load_chronicle", return_value=runtime),
+                patch("chronicle_app.services.provider_credentials.CredentialStore") as vault,
+            ):
+                vault.return_value.get.return_value = "disposable-current-key"
                 load_gemini_client()
+            vault.return_value.get.assert_called_once_with("gemini")
             client.assert_called_once_with(api_key="disposable-current-key")
 
     def test_explicit_benchmark_key_file_overrides_saved_app_key(self):

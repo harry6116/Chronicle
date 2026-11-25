@@ -46,7 +46,17 @@ except ImportError:  # pragma: no cover - optional dependency in lightweight tes
 import wx
 import wx.adv as wxadv
 import signal
-from chronicle_app.services.security import sanitize_log_text
+from chronicle_app.services.security import RedactingStream, sanitize_log_text
+from chronicle_app.services.provider_credentials import (
+    CredentialError, CredentialStore, RESET_MARKER, RESET_NOTICE, credential_reset_pending,
+)
+from chronicle_app.ui.keychain_window import run_credential_operation
+from chronicle_app.services.document_preflight import estimate_token_charge, inspect_pdf, privacy_cost_preview
+from chronicle_app.services.model_discovery import describe_models, discover_models
+from chronicle_app.services.provider_transport import PROVIDER_ORIGINS, secure_httpx_options
+from chronicle_app.services.session_runtime import build_project_payload, read_project_payload
+from chronicle_app.services.run_start_runtime import is_targeted_trial
+from chronicle_app.services.webpage_article import LOCAL_ARTICLE_MODEL, article_only_enabled, build_article
 try:
     import winsound
 except ImportError:
@@ -78,6 +88,7 @@ from chronicle_app.config import (
     PROFILE_CHOICES,
     PROFILE_KEY_TO_LABEL,
     PROFILE_LABEL_TO_KEY,
+    profile_choices_for_key,
     PROFILE_PRESETS,
     RTL_LANGUAGE_CODES,
     TRANSLATION_TARGETS,
@@ -422,7 +433,6 @@ def _install_runtime_crash_capture():
 
         def _sys_excepthook(exc_type, exc_value, exc_traceback):
             _write_uncaught("Unhandled exception", exc_type, exc_value, exc_traceback)
-            sys.__excepthook__(exc_type, exc_value, exc_traceback)
 
         sys.excepthook = _sys_excepthook
 
@@ -440,14 +450,16 @@ _install_runtime_crash_capture()
 if getattr(sys, 'frozen', False):
     try:
         crash_log_path = shared_resolve_runtime_crash_log_path()
-        sys.stdout = _CRASH_LOG_STREAM or open(crash_log_path, 'a', buffering=1, encoding='utf-8', errors='replace')
+        sys.stdout = RedactingStream(
+            _CRASH_LOG_STREAM or open(crash_log_path, 'a', buffering=1, encoding='utf-8', errors='replace')
+        )
         sys.stderr = sys.stdout
     except Exception:
         pass
 
 # --- CONSTANTS ---
 APP_NAME = "Chronicle"
-APP_VERSION = "1.1.9"
+APP_VERSION = "2.0.0"
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
@@ -468,8 +480,8 @@ if os.name != "nt":
         os.chmod(APP_DATA_DIR, 0o700)
     except Exception:
         pass
-KEYS_FILE = os.path.join(APP_DATA_DIR, "api_keys.json")
 CONFIG_FILE = os.path.join(APP_DATA_DIR, "user_config.json")
+CREDENTIAL_RESET_FILE = os.path.join(APP_DATA_DIR, RESET_MARKER)
 SESSION_FILE = os.path.join(APP_DATA_DIR, "chronicle_active_session.json")
 HELP_FILE = os.path.join(SCRIPT_DIR, "docs", "user", "chronicle_help.html")
 DONATE_BUYMEACOFFEE_URL = "https://buymeacoffee.com/thevoiceguy"
@@ -516,6 +528,8 @@ ROW_SETTING_KEYS = (
     "merge_files",
     "large_print",
     "pdf_page_scope",
+    "webpage_reading_mode",
+    "targeted_trial",
 )
 _api_request_lock = threading.Lock()
 _last_api_request_ts = 0.0
@@ -589,8 +603,9 @@ def legacy_punctuation_text(enabled):
 
 def profile_tooltip_text(profile_key):
     guides = {
-        "standard": "Use this when the batch is mixed, miscellaneous, or genuinely hard to classify. This is the fallback preset when no other label clearly fits.",
+        "standard": "Start here for everyday PDFs, webpage printouts, mixed batches, or documents with no clear specialist match. For a supported text-backed webpage PDF, run Preflight and choose Article only for the main article, or keep Full extraction for the whole capture.",
         "letters": "Use this for personal or business correspondence: letters, memos, notices, circulars, and sign-off-driven documents. Do not use it for full reports.",
+        "reports": "Use this for business reports, meeting packs, public-sector publications and consultation papers. Preserves tables, numbered sections and annexes.",
         "office": "Use this for ordinary business files such as reports, meeting packs, proposals, briefings, and Word exports. Do not use it for letters or formal government publications.",
         "government": "Use this for public-sector reports, consultation papers, committee papers, appendices, and official record PDFs with repeated government headers or footers.",
         "legal": "Use this for contracts, legislation, regulations, policies, and other clause-heavy legal documents.",
@@ -598,6 +613,7 @@ def profile_tooltip_text(profile_key):
         "tabular": "Use this for tables, spreadsheets, CSV exports, registers, and row-and-column documents.",
         "manual": "Use this for manuals, procedures, instructions, SOPs, maintenance guides, and technical how-to documents.",
         "slides": "Use this for slide decks, presentations, lecture slides, and speaker handouts.",
+        "promotional": "Use this for event flyers, posters, folded brochures and catalogues. Preserves event details, offers and product or panel order.",
         "flyer": "Use this for flyers, posters, one-page notices, event sheets, and short announcements.",
         "brochure": "Use this for brochures, catalogues, pamphlets, and folded or multi-panel handouts.",
         "modern_newspaper": "Use this for contemporary newspapers, e-papers, clean print-edition PDFs, article cards, section labels, bylines, captions, ads, and jump lines. Use Historical Newspapers for old OCR/newsprint scans.",
@@ -608,7 +624,7 @@ def profile_tooltip_text(profile_key):
         "academic": "Use this for research papers, journal articles, citations, equations, and footnotes.",
         "transcript": "Use this for scripts, plays, screenplays, interviews, hearings, speaker turns, and dialogue-heavy text.",
         "poetry": "Use this when line breaks, indentation, and stanza shape must be preserved.",
-        "handwritten": "Use this for handwritten notes, personal diary pages, drafts, and photographed handwritten pages. Use Military Records for war diaries and unit logs; use Medical only when the page is clearly clinical.",
+        "handwritten": "Use this for handwritten notes, personal diary pages, drafts, and photographed handwritten pages. Use Unit War Diaries / Military Records for war diaries and unit logs; use Medical only when the page is clearly clinical.",
         "archival": "Use this for historical papers, archives, manuscripts, ledgers, and older source material.",
         "medical": "Use this for clinical notes, referral letters, charts, forms, lab results, pathology reports, blood results, and doctor handwriting when the content is clearly medical.",
         "military": "Use this for war diaries, unit logs, operational orders, service records, casualty rolls, and other military files.",
@@ -858,7 +874,6 @@ def save_json(filepath, data):
 
 def migrate_legacy_gui_app_data():
     legacy_paths = {
-        os.path.join(SCRIPT_DIR, "api_keys.json"): KEYS_FILE,
         os.path.join(SCRIPT_DIR, "user_config.json"): CONFIG_FILE,
         os.path.join(SCRIPT_DIR, "chronicle_active_session.json"): SESSION_FILE,
     }
@@ -1401,6 +1416,7 @@ class MainFrame(wx.Frame):
         self.autorun_active = bool(self.autorun_spec_path)
         self.autorun_close_on_finish = False
         self.autorun_original_cfg = None
+        self._existing_credential_profile = os.path.isfile(CONFIG_FILE)
         self.cfg = load_json(CONFIG_FILE, {
             'format_type': 'html', 'model_name': GEMINI_FAST_MODEL, 'model_override': '', 'doc_profile': 'standard',
             'translate_mode': 'none', 'collision_mode': 'auto', 'merge_files': False,
@@ -1433,7 +1449,13 @@ class MainFrame(wx.Frame):
             'ollama_setup_first_launch_offered': False,
             'offline_runtime_mode': OFFLINE_RUNTIME_MODE_EXISTING_OLLAMA,
         })
-        self.keys = load_json(KEYS_FILE, {})
+        self.keys = {}
+        self.credential_store = None
+        self.credential_issue = ""
+        try:
+            self.credential_store = CredentialStore()
+        except CredentialError as error:
+            self.credential_issue = str(error)
         # One-time migration for legacy default config: TXT + output_txt => HTML default.
         if self.cfg.get('format_type') == 'txt' and str(self.cfg.get('output_dir', '')).endswith('output_txt'):
             self.cfg['format_type'] = 'html'
@@ -1445,6 +1467,7 @@ class MainFrame(wx.Frame):
         self.resume_incomplete_only = False
         self.current_processing_index = -1
         self.queue = []
+        self.collection_project_path = ""
         self.clients = {}
         self.processing_log_lines = []
         self.total_pages_processed = 0
@@ -1468,7 +1491,6 @@ class MainFrame(wx.Frame):
         self._session_lock = threading.Lock()
         self.session_timer = wx.Timer(self)
         self.Bind(wx.EVT_TIMER, self.OnSessionCheckpoint, self.session_timer)
-        self.session_timer.Start(2000)
         self.Bind(wx.EVT_CLOSE, self.OnMainClose)
         if hasattr(wx, "EVT_CHAR_HOOK"):
             self.Bind(wx.EVT_CHAR_HOOK, self.OnFrameCharHook)
@@ -1476,14 +1498,13 @@ class MainFrame(wx.Frame):
         ACTIVE_FRAME = self
         self.InitUI()
         self._context_help_filter = install_context_help_filter(wx, self, self.ShowContextHelpForWindow)
-        if self.autorun_active:
-            wx.CallAfter(self.StartAutomationRunIfRequested)
-        else:
-            wx.CallAfter(self.EnsureRiskNoticeAcknowledged)
-        if platform.system() == "Darwin" and not self.autorun_active:
-            wx.CallAfter(self.EnsureMacFolderAccessOnLaunch)
-        if not self.autorun_active:
-            wx.CallAfter(self.ShowPendingUpdateReminder)
+        self.Bind(wx.EVT_SHOW, self.OnFirstShow)
+
+    def OnFirstShow(self, event):
+        if event.IsShown():
+            self.Unbind(wx.EVT_SHOW, handler=self.OnFirstShow)
+            wx.CallAfter(self.InitializeCredentialsAndWelcome)
+        event.Skip()
 
     def ShowWelcome(self):
         dlg = wx.Dialog(self, title="Welcome to Chronicle", size=(620, 300))
@@ -1551,7 +1572,8 @@ class MainFrame(wx.Frame):
             return True
         if self.cfg.get("risk_notice_acknowledged") and self.cfg.get("risk_notice_dont_show_again"):
             if not any(self.keys.values()):
-                wx.CallAfter(self.ShowWelcome)
+                if self.credential_store is not None and not self.CredentialResetPending():
+                    wx.CallAfter(self.ShowWelcome)
             else:
                 wx.CallAfter(self.MaybeOfferOllamaSetupOnFirstLaunch)
             return True
@@ -1563,7 +1585,8 @@ class MainFrame(wx.Frame):
             save_json(CONFIG_FILE, self.cfg)
             dlg.Destroy()
             if not any(self.keys.values()):
-                wx.CallAfter(self.ShowWelcome)
+                if self.credential_store is not None and not self.CredentialResetPending():
+                    wx.CallAfter(self.ShowWelcome)
             else:
                 wx.CallAfter(self.MaybeOfferOllamaSetupOnFirstLaunch)
             return True
@@ -1584,6 +1607,8 @@ class MainFrame(wx.Frame):
         payload = self._session_payload()
         try:
             shared_save_active_session_file(SESSION_FILE, payload, session_lock=self._session_lock)
+            if self.collection_project_path:
+                self.SaveCollectionProject(self.collection_project_path)
         except Exception as ex:
             self.Log(f"Warning: could not save active session ({ex})", engine_event=True)
 
@@ -1667,9 +1692,7 @@ class MainFrame(wx.Frame):
         self.txt_dest.SetValue(self.cfg.get('custom_dest', ''))
         self.chk_preserve_structure.SetValue(bool(self.cfg.get('preserve_source_structure', True)))
         self.chk_delete_originals.SetValue(bool(self.cfg.get('delete_source_on_success', False)))
-        selected_profile = self.cfg.get('doc_profile', 'standard')
-        profile_index = next((i for i, (k, _) in enumerate(PROFILE_CHOICES) if k == selected_profile), 0)
-        self.choice_profile.SetSelection(profile_index)
+        self.SelectDocumentProfile(self.cfg.get("doc_profile", "standard"))
         self.scheduled_start_ts = self._normalize_future_timestamp(self.cfg.get('scheduled_start_ts'))
         if self.scheduled_start_ts is None and self.cfg.get('scheduled_start_ts') is not None:
             self.cfg['scheduled_start_ts'] = None
@@ -1919,7 +1942,7 @@ class MainFrame(wx.Frame):
         settings_section = build_settings_section(
             panel,
             cfg=self.cfg,
-            profile_choices=PROFILE_CHOICES,
+            profile_choices=profile_choices_for_key(self.cfg.get("doc_profile", "standard")),
             get_pdf_page_items_fn=self.GetPdfPageScopeChoiceItems,
             bind=lambda widget, name: bind_named(widget, name, settings_bindings),
         )
@@ -1990,8 +2013,6 @@ class MainFrame(wx.Frame):
         self.UpdateQueueButtons()
         self.UpdateProgressIndicators(force_status=True)
         self.file_list.SetFocus()
-        if not self.autorun_active:
-            wx.CallAfter(self.CheckForRecoverableSession)
 
     def StartAutomationRunIfRequested(self):
         if not self.autorun_active:
@@ -2082,6 +2103,8 @@ class MainFrame(wx.Frame):
         return GEMINI_FAST_MODEL
 
     def LabelFromModel(self, model_name):
+        if model_name == LOCAL_ARTICLE_MODEL:
+            return "Local webpage article"
         return MODEL_LABEL_BY_KEY.get(model_name, str(model_name or 'Automatic'))
 
     def EngineLabelForSettings(self, settings):
@@ -2134,7 +2157,7 @@ class MainFrame(wx.Frame):
 
     def UpdateModelGuide(self):
         if hasattr(self, 'choice_profile'):
-            profile_key = PROFILE_CHOICES[self.choice_profile.GetSelection()][0]
+            profile_key = self.SelectedDocumentProfile()
         else:
             profile_key = self.cfg.get('doc_profile', 'standard')
         preferred_model_name = self.GetPreferredModelName(profile_key)
@@ -2183,8 +2206,9 @@ class MainFrame(wx.Frame):
             return 0
         return -1
 
-    def BuildPreflightReport(self, path, settings):
+    def BuildPreflightReport(self, path, settings, *, inspect_content=False):
         ext = os.path.splitext(path)[1].lower()
+        article_mode = article_only_enabled(ext, settings)
         preferred_model_name = str(settings.get("model_name") or self.GetPreferredModelName(settings.get("doc_profile", "standard")))
         routing = select_execution_model_for_job(
             path,
@@ -2196,7 +2220,10 @@ class MainFrame(wx.Frame):
             parse_pdf_page_scope_spec_fn=parse_pdf_page_scope_spec,
         )
         selected_model = str(routing.get("model_name") or preferred_model_name)
-        if routing.get("routing_mode") != "adaptive":
+        if article_mode:
+            selected_model = LOCAL_ARTICLE_MODEL
+            routing = {"routing_mode": "local", "routing_reason": "Article only uses the source text locally."}
+        elif routing.get("routing_mode") != "adaptive":
             selected_model = self.ResolveModelNameForAvailableKeys(selected_model)
         profile_label = PROFILE_KEY_TO_LABEL.get(settings.get("doc_profile", "standard"), "Standard")
         unit_estimate = shared_estimate_current_file_total_units(
@@ -2232,6 +2259,9 @@ class MainFrame(wx.Frame):
             reason = "Chronicle will render this file to page images and use the visual scan path for faithful extraction."
         elif "text layer" in reason.lower() or "born-digital" in reason.lower():
             strategy = "Direct text-first PDF path"
+        if article_mode:
+            mode_label = "article only"
+            strategy = "Local article reading copy"
         scope_detail = ""
         if unit_estimate.get("selected_scope"):
             scope_detail = (
@@ -2252,13 +2282,32 @@ class MainFrame(wx.Frame):
             file_size_mb=file_size_mb,
         )
         readiness_notes = []
-        if not self.HasProviderKey(shared_get_model_vendor(selected_model)):
+        if not article_mode and not self.HasProviderKey(shared_get_model_vendor(selected_model)):
             readiness_notes.append(f"{self.LabelFromModel(selected_model)} key is not configured.")
-        output_dir = settings.get("output_dir") or self.cfg.get("output_dir") or ""
-        if output_dir and not os.access(output_dir, os.W_OK):
-            readiness_notes.append("Output folder may not be writable.")
-        if effort in {"long", "very long"} and "gemini" in selected_model:
-            readiness_notes.append("Long Gemini runs can hit free-tier quota limits; a higher-quota Gemini setup is safer for sustained hard PDFs.")
+        destination_row = next((row for row in self.queue if row.get("path") == path), {"path": path})
+        dest_mode = self.dest_choice.GetSelection()
+        custom_dest = self.txt_dest.GetValue().strip()
+        merge_output = bool(settings.get("merge_files")) and not article_mode
+        output_dir = (custom_dest if merge_output and dest_mode == 1 else shared_compute_target_dir(
+            destination_row, custom_dest=custom_dest, dest_mode=dest_mode,
+            preserve_source_structure=self.chk_preserve_structure.GetValue(),
+        ))
+        if dest_mode == 1 and not os.path.isdir(custom_dest):
+            readiness_notes.append("Choose an existing custom output folder.")
+        elif not output_dir:
+            readiness_notes.append("Choose an output folder.")
+        else:
+            from pathlib import Path
+            existing = Path(output_dir).resolve()
+            while not existing.exists() and existing != existing.parent:
+                existing = existing.parent
+            if not existing.is_dir() or not os.access(existing, os.W_OK):
+                readiness_notes.append(f"Chronicle may be unable to write to {output_dir}.")
+        quota_note = (
+            "Account quota and remaining allowance are unverified for this key. "
+            "A long run can reach provider limits."
+            if effort in {"long", "very long"} and "gemini" in selected_model else ""
+        )
         readiness = "Ready" if not readiness_notes else "Needs attention: " + " ".join(readiness_notes)
         summary = (
             f"Preflight for {file_name}: {profile_label}, {mode_label}. "
@@ -2272,8 +2321,9 @@ class MainFrame(wx.Frame):
                 f"Chosen engine: {self.LabelFromModel(selected_model)}",
                 f"Estimated effort: {effort}",
                 f"Readiness: {readiness}",
+                f"Output folder: {output_dir or 'Unselected'}",
                 f"Strategy: {strategy}",
-                f"Reason: {reason}",
+                f"Engine selection: {reason}",
                 (
                     f"Selected PDF scope: {unit_estimate['selected_scope']} "
                     f"({unit_estimate['selected_count']} of {unit_estimate['source_total']} pages)"
@@ -2282,12 +2332,82 @@ class MainFrame(wx.Frame):
                 ),
             ]
         )
-        return {
+        report = {
             "summary": summary,
             "details": details,
             "routing": routing,
             "selected_model": selected_model,
         }
+        if inspect_content:
+            if quota_note:
+                report["details"] += f"\n\nQuota: {quota_note}"
+            report["details"] += "\n\n" + privacy_cost_preview(
+                shared_get_model_vendor(selected_model), unit_estimate.get("total_units", 0),
+                article_only=article_mode, adaptive=routing.get("routing_mode") == "adaptive",
+            )
+            if ext == ".pdf":
+                reader = PdfReader(path)
+                try:
+                    doc = reader._document
+                    indices = parse_pdf_page_scope_spec(settings.get("pdf_page_scope"), len(doc))
+                    evidence = inspect_pdf(doc, indices)
+                    report["evidence"] = evidence
+                    pages = ", ".join(map(str, evidence.inspected_pages))
+                    regions = f" including {evidence.regions} regions on extra-tall pages" if evidence.regions else ""
+                    coverage = (
+                        f"Document inspection covered {len(evidence.inspected_pages)} of {evidence.selected_pages} "
+                        f"selected pages{regions}. Pages: {pages}."
+                    )
+                    text_layer = (
+                        f"{evidence.text_pages} inspected pages have enough embedded text to use as body text. "
+                        "This inspection did not test scan transcription."
+                    )
+                    if evidence.archive_reference_pages:
+                        text_layer += f" {evidence.archive_reference_pages} inspected pages have embedded archive labels."
+                    if evidence.image_pages:
+                        text_layer += f" {evidence.image_pages} inspected pages contain a full-page image."
+                    if not evidence.text_pages and evidence.image_pages and not article_mode:
+                        report["details"] = report["details"].replace(
+                            f"Strategy: {strategy}", "Strategy: Read the scanned page images.", 1,
+                        )
+                        text_layer += " The page images are available for transcription."
+                    suggestion = (
+                        f"Suggested preset: {PROFILE_KEY_TO_LABEL[evidence.recommended_profile]}."
+                        if evidence.recommended_profile != "standard" else "No specialist preset suggested."
+                    )
+                    if evidence.unit_war_diary:
+                        suggestion = f"Detected document type: unit war diary. {suggestion}"
+                        report["summary"] = suggestion
+                    recommendation = (
+                        f"{suggestion} {evidence.reason}\n"
+                        "Preflight recommendations are estimates. Check the source and use a different preset if it fits better."
+                    )
+                    report["details"] += f"\n\n{recommendation}\n\n{coverage}\n\nSource text: {text_layer}"
+                    if evidence.recommended_profile in {"newspaper", "modern_newspaper"}:
+                        report["summary"] = recommendation.split("\n", 1)[0]
+                    if evidence.narrow_columns >= 3:
+                        report["details"] += (
+                            f"\n\nReading order: The layout has up to {evidence.narrow_columns} narrow columns. "
+                            "Text extraction can read across columns or mix separate articles."
+                        )
+                    if evidence.trials:
+                        report["details"] += "\n\nSuggested trial pages: " + ", ".join(map(str, evidence.trials)) + "."
+                    if evidence.webpage:
+                        report["details"] += "\nSuggested reading mode: Article only. Full extraction remains available."
+                        try:
+                            article = build_article(doc, indices)
+                            report["details"] += f"\nArticle preview: {article['title']}."
+                            if article["end_label"]:
+                                report["details"] += f" Stops before {article['end_label']}."
+                        except ValueError as error:
+                            report["details"] += f"\n{error}"
+                        report["summary"] = (
+                            f"Webpage PDF detected. {evidence.text_pages} inspected pages contain source text. "
+                            "Article only is available as a local reading option."
+                        )
+                finally:
+                    reader.close()
+        return report
 
     def UpdatePreflightSummary(self):
         if not hasattr(self, "preflight_summary"):
@@ -2317,11 +2437,50 @@ class MainFrame(wx.Frame):
                 event.Skip()
             return
         try:
-            settings = self.BuildSettingsFromControls()
-            report = self.BuildPreflightReport(self.queue[idx]["path"], settings)
+            settings = self.NormalizeRowSettings(self.queue[idx])
+            report = self.BuildPreflightReport(self.queue[idx]["path"], settings, inspect_content=True)
             self.preflight_summary.SetLabel(report["summary"])
             self.Log(f"[Preflight] {report['summary']}", engine_event=True)
-            wx.MessageBox(report["details"], "Document Preflight", wx.OK | wx.ICON_INFORMATION)
+            evidence = report.get("evidence")
+            actions = []
+            if evidence and self.queue[idx].get("status", "Queued") in {"Queued", "Paused"}:
+                if evidence.recommended_profile not in {"standard", settings.get("doc_profile")}:
+                    actions.append((f"Apply {PROFILE_KEY_TO_LABEL[evidence.recommended_profile]}", "preset"))
+                if evidence.webpage:
+                    selected = settings.get("webpage_reading_mode") == "article"
+                    actions.append(("Use full extraction" if selected else "Use article only", "full" if selected else "article"))
+                if evidence.trials:
+                    actions.append(("Queue suggested pages as trial", "trial"))
+                actions.append(("Choose trial pages", "custom trial"))
+            if (report["selected_model"] != LOCAL_ARTICLE_MODEL
+                    and not shared_is_offline_model(report["selected_model"])):
+                actions.append(("Estimate token charge", "cost"))
+            choice = self.ShowReadingReport("Document Preflight", report["details"], actions)
+            if choice == "preset":
+                settings = dict(settings)
+                profile = evidence.recommended_profile
+                settings.update(build_control_settings_for_profile(settings, profile))
+                settings["doc_profile"] = profile
+                if not settings.get("model_override"):
+                    settings["model_name"] = self.ResolveModelNameForAvailableKeys(
+                        self.GetPreferredModelName(profile)
+                    )
+                self.ApplySettingsToRows([idx], settings, "suggested preset")
+                self.SyncRuntimeControlsFromSelection()
+            elif choice in {"full", "article"}:
+                settings = dict(settings, webpage_reading_mode=choice)
+                if choice == "article" and settings.get("format_type") not in {"html", "epub"}:
+                    settings["format_type"] = "html"
+                self.ApplySettingsToRows([idx], settings, f"{choice} reading mode")
+                self.SyncRuntimeControlsFromSelection()
+            elif choice == "trial":
+                self.QueueTargetedPdfTrial(idx, ",".join(map(str, evidence.trials)))
+            elif choice == "custom trial":
+                scope = self.PromptForCustomPdfPageScope()
+                if scope and scope.lower() not in {"all", "*"}:
+                    self.QueueTargetedPdfTrial(idx, scope)
+            elif choice == "cost":
+                self.OnEstimateTokenCharge()
         except Exception as ex:
             wx.MessageBox(
                 f"Chronicle could not complete document preflight.\n\nDetails: {ex}",
@@ -2330,6 +2489,81 @@ class MainFrame(wx.Frame):
             )
         if event:
             event.Skip()
+
+    def ShowReadingReport(self, title, text, actions=()):
+        dialog = wx.Dialog(self, title=title, size=(760, 490))
+        panel = wx.Panel(dialog)
+        root = wx.BoxSizer(wx.VERTICAL)
+        output = wx.TextCtrl(panel, value=text, style=wx.TE_MULTILINE | wx.TE_READONLY)
+        output.SetName(title + " details")
+        root.Add(output, 1, wx.EXPAND | wx.ALL, 10)
+        buttons = wx.WrapSizer(wx.HORIZONTAL)
+        commands = {}
+        for label, action in actions:
+            button = wx.Button(panel, label=label)
+            button_id = button.GetId()
+            commands[button_id] = action
+            button.Bind(wx.EVT_BUTTON, lambda event, value=button_id: dialog.EndModal(value))
+            buttons.Add(button, 0, wx.RIGHT, 8)
+        close = wx.Button(panel, wx.ID_CANCEL, label="Close")
+        buttons.Add(close)
+        root.Add(buttons, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
+        panel.SetSizer(root)
+        outer = wx.BoxSizer(wx.VERTICAL)
+        outer.Add(panel, 1, wx.EXPAND)
+        dialog.SetSizer(outer)
+        output.SetFocus()
+        output.SetInsertionPoint(0)
+        try:
+            return commands.get(dialog.ShowModal())
+        finally:
+            dialog.Destroy()
+
+    def QueueTargetedPdfTrial(self, index, scope):
+        row = self.queue[index]
+        try:
+            reader = PdfReader(row["path"])
+            try:
+                if not parse_pdf_page_scope_spec(scope, len(reader.pages)):
+                    raise ValueError("The selected PDF has no pages.")
+            finally:
+                reader.close()
+        except Exception as error:
+            wx.MessageBox(sanitize_log_text(error), "Could Not Set Trial Pages", wx.OK | wx.ICON_WARNING)
+            return
+        settings = dict(self.NormalizeRowSettings(row), pdf_page_scope=scope, targeted_trial=True,
+                        webpage_reading_mode="full", merge_files=False)
+        self.queue.append(dict(path=row["path"], source_root=row.get("source_root"), status="Queued",
+                               engine=self.EngineLabelForSettings(settings), settings=settings))
+        self.RefreshQueue()
+        self.SaveActiveSession()
+        self.SafeSetStatusText(f"PDF trial queued for pages {scope}. The next run will process queued trials only.")
+
+    def OnEstimateTokenCharge(self):
+        prompts = (
+            "Expected input tokens", "Expected output tokens",
+            "Provider price per million input tokens", "Provider price per million output tokens",
+        )
+        values = []
+        for label in prompts:
+            dialog = wx.TextEntryDialog(self, label, "Estimate Token Charge")
+            try:
+                if dialog.ShowModal() != wx.ID_OK:
+                    return
+                values.append(dialog.GetValue().strip())
+            finally:
+                dialog.Destroy()
+        try:
+            charge = estimate_token_charge(*values)
+        except ValueError as error:
+            wx.MessageBox(str(error), "Invalid Estimate Inputs", wx.OK | wx.ICON_WARNING)
+            return
+        wx.MessageBox(
+            f"Estimated token charge: {charge:.6f} in the currency of the rates you entered.\n\n"
+            "Use provider rates for the selected model and input type. Actual usage, retries, fixed fees "
+            "and changes in your account's free allowance can affect the bill.",
+            "Estimated Token Charge", wx.OK | wx.ICON_INFORMATION,
+        )
 
     def OnFirstPagesTrial(self, event):
         if self.is_running:
@@ -2361,10 +2595,18 @@ class MainFrame(wx.Frame):
                 event.Skip()
             return
 
-        settings = self.BuildSettingsFromControls()
-        settings["pdf_page_scope"] = "1-5"
-        self.SetPdfPageScopeSelection("1-5")
-        self.ApplySettingsToRows(target_indices, settings, "first 5 pages trial settings")
+        for index in target_indices:
+            try:
+                reader = PdfReader(self.queue[index]["path"])
+                try:
+                    count = min(5, len(reader.pages))
+                finally:
+                    reader.close()
+            except Exception as error:
+                wx.MessageBox(sanitize_log_text(error), "Could Not Set Trial Pages", wx.OK | wx.ICON_WARNING)
+                continue
+            if count:
+                self.QueueTargetedPdfTrial(index, "1" if count == 1 else f"1-{count}")
         self.UpdatePreflightSummary()
         self.Log(
             f"[Trial] First 5 Pages Trial prepared for {len(target_indices)} PDF task(s). Press Start Reading to run the trial.",
@@ -2453,7 +2695,7 @@ class MainFrame(wx.Frame):
     def BuildSettingsFromControls(self):
         fmt_map = {0: 'html', 1: 'txt', 2: 'docx', 3: 'md', 4: 'pdf', 5: 'json', 6: 'csv', 7: 'epub'}
         t_rev = {0: 'none', 1: 'both', 2: 'english_only'}
-        selected_profile = PROFILE_CHOICES[self.choice_profile.GetSelection()][0]
+        selected_profile = self.SelectedDocumentProfile()
         mode_is_offline = hasattr(self, "processing_mode_choice") and self.processing_mode_choice.GetSelection() == 1
         mode_cfg = dict(self.cfg)
         if mode_is_offline:
@@ -2482,6 +2724,7 @@ class MainFrame(wx.Frame):
         cfg['merge_files'] = self.run_merge_choice.GetSelection() == 1
         cfg['large_print'] = self.run_largeprint_choice.GetSelection() == 1
         cfg['pdf_page_scope'] = self.GetSelectedPdfPageScope()
+        cfg['webpage_reading_mode'] = self.cfg.get("webpage_reading_mode", "full")
         return {key: cfg.get(key) for key in ROW_SETTING_KEYS}
 
     def NormalizeRowSettings(self, row):
@@ -2510,6 +2753,8 @@ class MainFrame(wx.Frame):
         page_refs = "printed page refs on" if settings.get("preserve_original_page_numbers", False) else "printed page refs off"
         page_links = "page links on" if settings.get("page_navigation_links", True) else "page links off"
         parts = [fmt, profile_label, punct, trans, units, page_refs, page_links]
+        if settings.get("webpage_reading_mode") == "article":
+            parts.append("webpage article only")
         pdf_scope = normalize_pdf_page_scope_text(settings.get("pdf_page_scope", ""))
         if pdf_scope:
             parts.append(f"PDF pages {pdf_scope}")
@@ -2532,11 +2777,10 @@ class MainFrame(wx.Frame):
         tmap = {'none': 0, 'both': 1, 'english_only': 2}
         fmt_map = {'html': 0, 'txt': 1, 'docx': 2, 'md': 3, 'pdf': 4, 'json': 5, 'csv': 6, 'epub': 7}
         profile_key = settings.get('doc_profile', 'standard')
-        profile_index = next((i for i, (k, _) in enumerate(PROFILE_CHOICES) if k == profile_key), 0)
         self.format_choice.SetSelection(fmt_map.get(settings.get('format_type', 'html'), 0))
         self.processing_mode_choice.SetSelection(1 if shared_is_offline_model(settings.get('model_override') or settings.get('model_name')) else 0)
         self.UpdateProcessingModeTooltip()
-        self.choice_profile.SetSelection(profile_index)
+        self.SelectDocumentProfile(profile_key)
         self.run_translate_choice.SetSelection(tmap.get(settings.get('translate_mode', 'none'), 0))
         self.run_punct_choice.SetSelection(1 if settings.get('modernize_punctuation', False) else 0)
         self.run_units_choice.SetSelection(1 if settings.get('unit_conversion', False) else 0)
@@ -2610,24 +2854,41 @@ class MainFrame(wx.Frame):
         if not indices:
             self.Log(f"No queued/paused rows available to apply {reason_label}.", engine_event=True)
             return
-        shared_apply_settings_to_rows(
-            self.queue,
-            indices,
-            settings,
-            row_setting_keys=ROW_SETTING_KEYS,
-            label_from_model_fn=self.LabelFromModel,
-        )
+        for index in indices:
+            updated = dict(settings)
+            previous = self.queue[index].get("settings", {})
+            for key in ("webpage_reading_mode", "targeted_trial"):
+                if previous.get(key) is not None and (
+                    updated.get(key) is None or key == "webpage_reading_mode" and reason_label not in
+                    {"article reading mode", "full reading mode"}
+                ):
+                    updated[key] = previous[key]
+            shared_apply_settings_to_rows(
+                self.queue, [index], updated, row_setting_keys=ROW_SETTING_KEYS,
+                label_from_model_fn=self.LabelFromModel,
+            )
         self.RefreshQueueRows(indices)
         self.SaveActiveSession()
         selection_scope = "selected rows" if self.GetSelectedIndices() else "all queued/paused rows"
         self.Log(f"Applied {reason_label} to {len(indices)} {selection_scope}.", engine_event=True)
 
+    def SelectDocumentProfile(self, profile_key):
+        choices = profile_choices_for_key(profile_key)
+        labels = [label for _, label in choices]
+        if self.choice_profile.GetItems() != labels:
+            self.choice_profile.SetItems(labels)
+        self.choice_profile.SetSelection(next((i for i, (key, _) in enumerate(choices) if key == profile_key), 0))
+
+    def SelectedDocumentProfile(self):
+        label = self.choice_profile.GetStringSelection()
+        return PROFILE_LABEL_TO_KEY.get(label.removesuffix(" (saved preset)"), "standard")
+
     def GetProfileGuideText(self, profile_key):
         return profile_tooltip_text(profile_key).splitlines()[0]
 
     def UpdateProfileGuide(self):
-        profile_key = PROFILE_CHOICES[self.choice_profile.GetSelection()][0]
-        profile_label = PROFILE_CHOICES[self.choice_profile.GetSelection()][1]
+        profile_key = self.SelectedDocumentProfile()
+        profile_label = PROFILE_KEY_TO_LABEL[profile_key]
         preferred_model_name = self.GetPreferredModelName(profile_key)
         model_name = self.ResolveModelNameForAvailableKeys(preferred_model_name)
         speed_warning = get_processing_speed_warning(profile_key, model_name)
@@ -2651,7 +2912,7 @@ class MainFrame(wx.Frame):
             self.btn_start.SetToolTip(start_tooltip)
 
     def OnProfileChoiceChanged(self, event):
-        profile_key = PROFILE_CHOICES[self.choice_profile.GetSelection()][0]
+        profile_key = self.SelectedDocumentProfile()
         self.ApplyProfilePresetToControls(profile_key)
         self.UpdateModelGuide()
         self.UpdateProfileGuide()
@@ -2673,6 +2934,11 @@ class MainFrame(wx.Frame):
 
     def OnProcessingModeChanged(self, event):
         offline = self.processing_mode_choice.GetSelection() == 1
+        if not offline and not self.is_running and self.credential_store is not None:
+            try:
+                self.RefreshProviderCredentials()
+            except CredentialError as error:
+                self.credential_issue = str(error)
         self.cfg["model_override"] = OFFLINE_PRIVATE_MODEL if offline else ""
         save_json(CONFIG_FILE, self.cfg)
         self.UpdateProcessingModeTooltip()
@@ -2994,9 +3260,38 @@ class MainFrame(wx.Frame):
         )
 
     def OnProviderCapabilityMatrix(self, e):
-        text = self.BuildProviderCapabilityMatrix()
-        wx.MessageBox(text, "Provider Capability Matrix", wx.OK | wx.ICON_INFORMATION)
-        self.Log("Opened provider capability matrix.")
+        providers = [("Google Gemini", "gemini"), ("Anthropic Claude", "claude"), ("OpenAI", "openai")]
+        actions = [(f"Check {label} models", provider) for label, provider in providers
+                   if self.keys.get(provider) and not self.is_running]
+        provider = self.ShowReadingReport(
+            "Provider Models", self.BuildProviderCapabilityMatrix() +
+            "\n\nA model check sends your key to the selected provider's official API. "
+            "It sends no documents and runs no generation.", actions,
+        )
+        if not provider:
+            return
+        plan_dialog = wx.SingleChoiceDialog(
+            self, "Choose your API plan for recommendations. This setting is only used for this check.",
+            "API Plan", ["Unknown", "Free API", "Paid API"],
+        )
+        try:
+            if plan_dialog.ShowModal() != wx.ID_OK:
+                return
+            plan = plan_dialog.GetStringSelection()
+        finally:
+            plan_dialog.Destroy()
+        key = self.keys[provider]
+        self.SafeSetStatusText("Checking the provider's model list.")
+
+        def fetch():
+            try:
+                text = describe_models(provider, discover_models(provider, key), plan)
+            except Exception:
+                text = ("Chronicle could not read the model list. Verify the key's access to the "
+                        "provider's model-list endpoint and check your connection.")
+            wx.CallAfter(self.ShowReadingReport, "Provider Model Results", text)
+
+        threading.Thread(target=fetch, daemon=True, name="provider-model-list").start()
 
     def OnPrivateOfflineMode(self, e):
         self.cfg["offline_runtime_mode"] = OFFLINE_RUNTIME_MODE_EXISTING_OLLAMA
@@ -3210,9 +3505,96 @@ class MainFrame(wx.Frame):
             total_units=total_units,
             routing=routing,
         )
-        text = format_workstation_plan_text(plan)
-        wx.MessageBox(text[:5000], "Recovery Workbench Plan", wx.OK | wx.ICON_INFORMATION)
+        actions = []
+        review_path = self.queue[idx].get("review_workbench_path", "") if 0 <= idx < len(self.queue) else ""
+        review_scope = ""
+        if review_path and os.path.isfile(review_path):
+            actions.append(("Open source-linked review", "review"))
+            json_path = review_path.removesuffix(".chronicle_review.html") + ".chronicle_receipt.json"
+            receipt = load_json(json_path, {})
+            warnings = receipt.get("qa_report", {}).get("warning_pages", {})
+            if isinstance(warnings, dict):
+                pages = sorted({page for group in warnings.values() if isinstance(group, list)
+                                for page in group if type(page) is int and page > 0})
+                review_scope = ",".join(map(str, pages))
+            if review_scope and not self.is_running:
+                actions.append(("Queue flagged pages for retry", "retry"))
+        if path and not self.is_running and self.queue[idx].get("status") in {"Queued", "Paused"}:
+            actions.append(("Choose reading export", "export"))
+        choice = self.ShowReadingReport("Recovery Workbench", format_workstation_plan_text(plan), actions)
+        if choice == "review":
+            from pathlib import Path
+            wx.LaunchDefaultBrowser(Path(review_path).resolve().as_uri())
+        elif choice == "retry":
+            self.QueueTargetedPdfTrial(idx, review_scope)
+        elif choice == "export":
+            self.OnChooseReadingExport(idx, settings)
         self.Log("Opened Recovery Workbench plan.")
+
+    def OnChooseReadingExport(self, index, settings):
+        dialog = wx.SingleChoiceDialog(
+            self, "Choose how to read the resulting document.", "Reading Export",
+            ["Continuous reading HTML", "Chapter-based EPUB", "Source reference HTML"],
+        )
+        try:
+            if dialog.ShowModal() != wx.ID_OK:
+                return
+            selection = dialog.GetSelection()
+        finally:
+            dialog.Destroy()
+        updated = dict(settings, format_type="epub" if selection == 1 else "html",
+                       preserve_original_page_numbers=selection == 2, page_navigation_links=selection == 2)
+        self.ApplySettingsToRows([index], updated, "reading export")
+        self.SyncRuntimeControlsFromSelection()
+
+    def SaveCollectionProject(self, path):
+        payload = build_project_payload(self.cfg, self.queue, row_setting_keys=ROW_SETTING_KEYS)
+        shared_save_active_session_file(path, payload, session_lock=self._session_lock)
+
+    def OnSaveCollectionProject(self, event):
+        if self.is_running:
+            return
+        with wx.FileDialog(self, "Save Collection Project", wildcard="Chronicle projects (*.chronicle-project)|*.chronicle-project",
+                           style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as dialog:
+            if dialog.ShowModal() != wx.ID_OK:
+                return
+            path = dialog.GetPath()
+        try:
+            self.SaveCollectionProject(path)
+            self.collection_project_path = path
+            self.SafeSetStatusText("Collection project saved. Queue changes will be checkpointed here.")
+        except OSError as error:
+            wx.MessageBox(sanitize_log_text(error), "Project Save Error", wx.OK | wx.ICON_WARNING)
+
+    def OnOpenCollectionProject(self, event):
+        if self.is_running:
+            return
+        with wx.FileDialog(self, "Open Collection Project", wildcard="Chronicle projects (*.chronicle-project)|*.chronicle-project",
+                           style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST) as dialog:
+            if dialog.ShowModal() != wx.ID_OK:
+                return
+            path = dialog.GetPath()
+        try:
+            rows, options = read_project_payload(path)
+            if self.queue and wx.MessageBox(
+                "Opening this project replaces the current queue. Continue?", "Open Collection Project",
+                wx.YES_NO | wx.NO_DEFAULT,
+            ) != wx.YES:
+                return
+            if self.collection_project_path:
+                self.SaveCollectionProject(self.collection_project_path)
+            self.cfg.update(options)
+            self.queue = shared_restore_session_queue(
+                rows, self.cfg, row_setting_keys=ROW_SETTING_KEYS, label_from_model_fn=self.LabelFromModel,
+            )
+        except (OSError, ValueError) as error:
+            wx.MessageBox(sanitize_log_text(error), "Project Open Error", wx.OK | wx.ICON_WARNING)
+            return
+        self.collection_project_path = path
+        self._sync_controls_from_cfg()
+        self.RefreshQueue()
+        self.SaveActiveSession()
+        self.SafeSetStatusText("Collection opened. Review the queue before starting or resuming extraction.")
 
     def SetQueueStatus(self, index, status):
         if 0 <= index < len(self.queue):
@@ -3585,7 +3967,7 @@ class MainFrame(wx.Frame):
     def GetOrderedJobsForProcessing(self):
         jobs, sequence_lock = shared_get_ordered_jobs_for_processing(
             self.queue,
-            merge_files=bool(self.cfg.get('merge_files', False)),
+            merge_files=bool(self.cfg.get('merge_files', False) and not getattr(self, "current_run_trials_only", False)),
             page_sequence_fn=self.GetPageSequenceNumber,
         )
         if sequence_lock:
@@ -3681,13 +4063,119 @@ class MainFrame(wx.Frame):
         self.Log(f"Cleared file list ({count} item(s) removed).")
         self.file_list.SetFocus()
 
+    def InitializeCredentialsAndWelcome(self):
+        offline = shared_is_offline_model(self.cfg.get("model_override") or self.cfg.get("model_name"))
+        if self.credential_store is not None:
+            try:
+                ready = self.EnsureCredentialReset() if not self.autorun_active else not self.CredentialResetPending()
+                if ready and not offline:
+                    self.RefreshProviderCredentials()
+            except CredentialError as error:
+                self.credential_issue = str(error)
+                if not self.autorun_active:
+                    wx.MessageBox(
+                        self.credential_issue + "\n\nOpen File > API Keys to try again.",
+                        "API Keys Need Attention", wx.OK | wx.ICON_WARNING, parent=self,
+                    )
+            self._sync_controls_from_cfg()
+        self.session_timer.Start(2000)
+        if self.autorun_active:
+            self.StartAutomationRunIfRequested()
+            return
+        self.CheckForRecoverableSession()
+        if self.EnsureRiskNoticeAcknowledged():
+            if platform.system() == "Darwin":
+                wx.CallAfter(self.EnsureMacFolderAccessOnLaunch)
+            wx.CallAfter(self.ShowPendingUpdateReminder)
+
+    def CredentialResetPending(self):
+        return credential_reset_pending(CREDENTIAL_RESET_FILE, APP_DATA_DIR, SCRIPT_DIR)
+
+    def EnsureCredentialReset(self):
+        if not self.CredentialResetPending():
+            return True
+        self.keys = {}
+        self.credential_issue = "Complete the API key reset in File > API Keys to use online providers."
+        reset = lambda **options: self.credential_store.reset_for_upgrade(
+            CREDENTIAL_RESET_FILE, APP_DATA_DIR, SCRIPT_DIR, **options,
+        )
+        if not self._existing_credential_profile and not os.path.lexists(CREDENTIAL_RESET_FILE):
+            if run_credential_operation(
+                self, "Checking API Key Storage", lambda: reset(only_if_empty=True), fallback_focus=self.file_list,
+            ):
+                self.credential_issue = ""
+                return True
+        legacy_only = os.path.isfile(CREDENTIAL_RESET_FILE) and not os.path.islink(CREDENTIAL_RESET_FILE)
+        message = (
+            "Chronicle found older API key files. Remove those files to finish cleaning up. "
+            "Keys saved in the system vault after the reset will stay available."
+            if legacy_only else RESET_NOTICE + " Choose Later to continue in Private Offline Mode."
+        )
+        dialog = wx.MessageDialog(
+            self, message, "Remove Previously Saved API Keys", wx.YES_NO | wx.NO_DEFAULT | wx.ICON_WARNING,
+        )
+        dialog.SetYesNoLabels("Remove Saved Keys", "Later")
+        try:
+            if dialog.ShowModal() != wx.ID_YES:
+                return False
+        finally:
+            dialog.Destroy()
+        run_credential_operation(self, "Removing Saved API Keys", reset, fallback_focus=self.file_list)
+        self.credential_issue = ""
+        wx.MessageBox(
+            "Older key files were removed." if legacy_only else
+            "The reset is complete. To use online models again, enter your keys in File > API Keys.",
+            "API Key Reset Complete", wx.OK | wx.ICON_INFORMATION, parent=self,
+        )
+        return True
+
+    def RefreshProviderCredentials(self):
+        if self.CredentialResetPending():
+            self.keys = {}
+            self.credential_issue = "Complete the API key reset in File > API Keys to use online providers."
+            return
+        self.keys = run_credential_operation(
+            self, "Accessing API Keys", self.credential_store.load, fallback_focus=self.file_list,
+        )
+        self.credential_issue = ""
+
     def OnApiKeys(self, e):
-        d = ApiKeyDialog(self, initial_keys=self.keys, save_keys=lambda keys: save_json(KEYS_FILE, keys))
+        if self.is_running:
+            wx.MessageBox("Pause or finish the current run before changing API keys.", "API Keys", wx.OK)
+            return
+        try:
+            if self.credential_store is None:
+                self.credential_store = CredentialStore()
+            if not self.EnsureCredentialReset():
+                return
+            self.RefreshProviderCredentials()
+        except CredentialError as error:
+            self.credential_issue = str(error)
+            wx.MessageBox(self.credential_issue, "API Keys Need Attention", wx.OK | wx.ICON_WARNING, parent=self)
+            return
+
+        def save(keys):
+            return run_credential_operation(d, "Saving API Keys", lambda: self.credential_store.save(keys))
+
+        def import_key(service, account):
+            return run_credential_operation(
+                d, "Reading Keychain Item",
+                lambda: self.credential_store.read_external(service, account),
+            )
+
+        d = ApiKeyDialog(self, initial_keys=self.keys, save_keys=save, import_key=import_key)
         result = d.ShowModal()
         if result == wx.ID_OK:
             self.keys = dict(d.keys)
         d.Destroy()
-        self.clients = {}
+        if result != wx.ID_OK:
+            return
+        for client in self.clients.values():
+            try:
+                client.close()
+            except Exception:
+                pass
+        self.clients.clear()
         if not self.is_running:
             self.cfg["model_name"] = self.ResolveModelNameForAvailableKeys(
                 self.GetPreferredModelName(self.cfg.get("doc_profile", "standard"))
@@ -4110,6 +4598,7 @@ class MainFrame(wx.Frame):
         dlg.Destroy()
 
     def OnPrefs(self, e):
+        previous_focus = wx.Window.FindFocus()
         d = PrefsDialog(
             self,
             self.cfg,
@@ -4131,6 +4620,8 @@ class MainFrame(wx.Frame):
             self.RefreshQueue()
         self._sync_controls_from_cfg()
         self.SaveActiveSession()
+        if previous_focus and previous_focus.IsEnabled() and previous_focus.IsShownOnScreen():
+            wx.CallAfter(previous_focus.SetFocus)
 
     def GetClient(self, model):
         if shared_is_offline_model(model):
@@ -4141,19 +4632,35 @@ class MainFrame(wx.Frame):
         vendor = "anthropic" if "claude" in model else "openai" if "gpt" in model else "gemini"
         key_vendor = "claude" if vendor == "anthropic" else vendor
         key = self.keys.get(key_vendor)
-        cache_key = f"{vendor}:{key}"
-        if cache_key in self.clients:
-            return self.clients[cache_key]
+        if not key:
+            raise CredentialError(self.credential_issue or "Add this provider's API key in the API Keys dialog.")
+        if vendor in self.clients:
+            return self.clients[vendor]
+        if vendor == "gemini":
+            client = genai.Client(
+                api_key=key, vertexai=False,
+                http_options={
+                    "base_url": PROVIDER_ORIGINS[vendor],
+                    "client_args": secure_httpx_options(vendor),
+                },
+            )
+        else:
+            import httpx
+            http_client = httpx.Client(**secure_httpx_options(key_vendor))
+            try:
+                client = self.MakeProviderSDKClient(vendor, key, http_client)
+            except Exception:
+                http_client.close()
+                raise
+        self.clients[vendor] = client
+        return client
+
+    def MakeProviderSDKClient(self, vendor, key, http_client):
         if vendor == "anthropic":
             import anthropic
-            client = anthropic.Anthropic(api_key=key)
-        elif vendor == "openai":
-            import openai
-            client = openai.OpenAI(api_key=key)
-        else:
-            client = genai.Client(api_key=key)
-        self.clients[cache_key] = client
-        return client
+            return anthropic.Anthropic(api_key=key, base_url=PROVIDER_ORIGINS["claude"], http_client=http_client)
+        import openai
+        return openai.OpenAI(api_key=key, base_url=PROVIDER_ORIGINS["openai"] + "/v1", http_client=http_client)
 
     def OnStart(self, e):
         if self.is_running:
@@ -4167,6 +4674,11 @@ class MainFrame(wx.Frame):
             scheduled_start_ts=self.scheduled_start_ts,
         )
         resume_mode = start_context["resume_mode"]
+        trials_only = any(is_targeted_trial(row) for row in shared_collect_pending_rows(self.queue))
+        start_rows = (
+            [row for row in self.queue if is_targeted_trial(row) and row.get("status", "Queued") == "Queued"]
+            if trials_only else [row for row in self.queue if not is_targeted_trial(row)]
+        )
         self.resume_incomplete_only = start_context["next_resume_incomplete_only"]
         if start_context["should_clear_schedule"]:
             self._set_scheduled_start(None)
@@ -4174,7 +4686,7 @@ class MainFrame(wx.Frame):
 
         if resume_mode:
             queue_state = shared_prepare_queue_for_start(
-                self.queue,
+                start_rows,
                 resume_mode=True,
                 normalize_row_settings_fn=self.NormalizeRowSettings,
             )
@@ -4205,11 +4717,11 @@ class MainFrame(wx.Frame):
             if not self.autorun_active:
                 save_json(CONFIG_FILE, self.cfg)
             shared_prepare_queue_for_start(
-                self.queue,
+                start_rows,
                 resume_mode=False,
                 normalize_row_settings_fn=self.NormalizeRowSettings,
             )
-            split_result = shared_expand_multi_range_pdf_rows(
+            split_result = {"changed": False} if trials_only else shared_expand_multi_range_pdf_rows(
                 self.queue,
                 normalize_row_settings_fn=self.NormalizeRowSettings,
                 normalize_pdf_page_scope_text_fn=normalize_pdf_page_scope_text,
@@ -4244,7 +4756,7 @@ class MainFrame(wx.Frame):
             )
             return
 
-        if self.cfg.get('delete_source_on_success', False):
+        if self.cfg.get('delete_source_on_success', False) and not trials_only:
             source_dirs = sorted({os.path.dirname(row.get('path', '')) for row in pending_rows if row.get('path')})
             folder_count = len(source_dirs)
             folder_phrase = f"{folder_count} folder(s)" if folder_count else "the queued source folders"
@@ -4279,6 +4791,7 @@ class MainFrame(wx.Frame):
         )
         if missing_key:
             wx.MessageBox(
+                self.credential_issue or
                 f"Missing API Key for {missing_key['vendor'].upper()} (required by {missing_key['label']}).",
                 "Error",
                 wx.OK | wx.ICON_ERROR,
@@ -4308,6 +4821,7 @@ class MainFrame(wx.Frame):
         for key, value in shared_build_run_reset_state().items():
             setattr(self, key, value)
         self.current_run_resume_mode = bool(resume_mode)
+        self.current_run_trials_only = trials_only
         self.current_file_name = ""
         self.current_run_started_ts = time.time()
         self._last_engine_activity_ts = self.current_run_started_ts
@@ -4359,9 +4873,11 @@ class MainFrame(wx.Frame):
         try:
             resume_mode = bool(getattr(self, "current_run_resume_mode", False))
             jobs = self.GetOrderedJobsForProcessing()
+            trial_run = getattr(self, "current_run_trials_only", False)
+            jobs = [job for job in jobs if is_targeted_trial(job) == trial_run]
             processing_log = lambda message: self.Log(message, engine_event=True)
             run_plan = shared_build_worker_run_plan(
-                self.cfg,
+                dict(self.cfg, merge_files=False) if trial_run else self.cfg,
                 jobs,
                 normalize_row_settings_fn=self.NormalizeRowSettings,
                 streamable_formats=STREAMABLE_FORMATS,
@@ -4672,6 +5188,10 @@ class MainFrame(wx.Frame):
                         progress_file_obj=progress_file_obj,
                         resume_state_path=resume_state_path,
                     )
+                    if success.get("review_workbench_path"):
+                        self.queue[qidx]["review_workbench_path"] = success["review_workbench_path"]
+                        self.queue[qidx]["output_path"] = success["output_path"]
+                        self.SaveActiveSession()
                     if success['set_page_done_to_total']:
                         self.current_file_page_done = self.current_file_page_total
                         self.total_pages_processed += success['page_total_increment']

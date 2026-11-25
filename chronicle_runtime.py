@@ -187,34 +187,6 @@ _api_pending_requests = 0
 _chunk_cache = OrderedDict()
 _chunk_cache_lock = threading.Lock()
 
-def _secure_chmod(path, mode=0o600):
-    if os.name == "nt":
-        return
-    try:
-        os.chmod(path, mode)
-    except Exception:
-        pass
-
-def migrate_legacy_cli_key_files():
-    for vendor in ("gemini", "anthropic", "openai"):
-        legacy = os.path.join(SCRIPT_DIR, f"api_key_{vendor}.txt")
-        target = os.path.join(APP_DATA_DIR, f"api_key_{vendor}.txt")
-        if os.path.exists(legacy) and not os.path.exists(target):
-            try:
-                shutil.copy2(legacy, target)
-                _secure_chmod(target, 0o600)
-            except Exception:
-                pass
-        if os.path.exists(legacy) and os.path.exists(target):
-            try:
-                os.remove(legacy)
-            except Exception:
-                try:
-                    with open(legacy, "w", encoding="utf-8") as fh:
-                        fh.write("")
-                except Exception:
-                    pass
-
 def get_translation_target(config):
     target = str(config.get("translate_target", "English")).strip()
     lookup = {name.lower(): (name, code) for name, code in TRANSLATION_TARGETS}
@@ -251,24 +223,40 @@ def is_path_within_protected_input_dirs(path):
     return False
 
 def get_api_key(model_name):
+    from getpass import getpass
+    from chronicle_app.services.provider_credentials import (
+        CredentialError, CredentialStore, RESET_MARKER, RESET_NOTICE, credential_reset_pending,
+    )
+
     vendor = "claude" if "claude" in model_name else "openai" if "gpt" in model_name else "gemini"
-    candidate_files = [os.path.join(APP_DATA_DIR, f"api_key_{vendor}.txt")]
-    if vendor == "claude":
-        candidate_files.append(os.path.join(APP_DATA_DIR, "api_key_anthropic.txt"))
-    for key_file in candidate_files:
-        if os.path.exists(key_file):
-            with open(key_file, "r") as f:
-                key = f.read().strip()
-                if key:
-                    return key
-    print(f"\nFIRST TIME SETUP - {vendor.upper()}")
-    new_key = input(f"Please paste your {vendor.upper()} API Key here and press Enter: ").strip()
-    if new_key:
-        key_file = candidate_files[0]
-        with open(key_file, "w") as f: f.write(new_key)
-        _secure_chmod(key_file, 0o600)
-        return new_key
-    exit()
+    store = CredentialStore()
+    marker = os.path.join(APP_DATA_DIR, RESET_MARKER)
+    if credential_reset_pending(marker, APP_DATA_DIR, SCRIPT_DIR) and (
+        os.path.lexists(marker) or os.path.isfile(CONFIG_FILE)
+        or not store.reset_for_upgrade(marker, APP_DATA_DIR, SCRIPT_DIR, only_if_empty=True)
+    ):
+        if not sys.stdin.isatty():
+            raise CredentialError("Open Chronicle and complete the API key reset in File > API Keys.")
+        warning = (
+            "Remove older Chronicle key files? Keys saved in the system vault after the reset will stay available."
+            if os.path.isfile(marker) and not os.path.islink(marker) else RESET_NOTICE
+        )
+        try:
+            confirmed = input(f"{warning}\nType RESET to confirm: ") == "RESET"
+        except (EOFError, OSError):
+            confirmed = False
+        if not confirmed:
+            raise CredentialError("Complete the API key reset before using an online provider.")
+        store.reset_for_upgrade(marker, APP_DATA_DIR, SCRIPT_DIR)
+    key = store.get(vendor)
+    if key:
+        return key
+    key = getpass(f"Enter your {vendor.upper()} API key: ").strip()
+    if not key:
+        raise CredentialError("A provider API key is required.")
+    store.save({vendor: key})
+    return key
+
 
 def get_prompt(config):
     return build_shared_prompt(

@@ -11,7 +11,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from tools.prepare_public_repo_snapshot import stage_public_app_docs
-from tools.refresh_mac_dist import refresh_mac_dist, resolve_dist_dir
+from tools.refresh_mac_dist import configured_install_dirs, refresh_mac_dist, resolve_dist_dir
+from tools.release_provenance import record_build, source_identity, verify_build
 
 def safe_rmtree(path, retries=5, delay=0.25):
     last_err = None
@@ -59,6 +60,8 @@ def finalize_app_metadata(app_bundle, source_file):
 
 def _run_build(build_workspace):
     build_dist = build_workspace / "dist"
+    source_root = Path.cwd()
+    source = source_identity(source_root)
     print("--- Chronicle Sledgehammer Build: Mac ---")
     build_stamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
     build_stamp_file = os.path.abspath("build_stamp.txt")
@@ -213,10 +216,17 @@ def _run_build(build_workspace):
     assert_no_embedded_offline_payload(str(build_dist / "Chronicle.app"))
     app_path = (build_dist / "Chronicle.app")
     metadata = plistlib.loads((app_path / "Contents/Info.plist").read_bytes())
-    verified_dist_app = refresh_mac_dist(
-        app_path, resolve_dist_dir(Path.cwd()), metadata["CFBundleShortVersionString"], build_stamp,
-    )
-    print(f"Verified distribution app: {verified_dist_app}")
+    distribution = resolve_dist_dir(source_root)
+    version = metadata["CFBundleShortVersionString"]
+    record_build(source_root, app_path, "mac", source, build_stamp)
+    verified_dist_app = refresh_mac_dist(app_path, distribution, version, build_stamp)
+    record_build(source_root, verified_dist_app, "mac", source, build_stamp)
+    install_dirs = () if os.environ.get("CHRONICLE_MAC_DIST_DIR") else configured_install_dirs()
+    for directory in install_dirs:
+        if directory != distribution:
+            installed = refresh_mac_dist(verified_dist_app, directory, version, build_stamp)
+            print(f"Verified installed app: {installed}")
+    verify_build(source_root, verified_dist_app, "mac")
     print(f"\nBUILD COMPLETE! Verified Mac application: {verified_dist_app}")
 
 def run_build():

@@ -306,9 +306,9 @@ CASES = [
     Case(
         key="gold_hamfest_before",
         relative_path="gold mix samples/hamfest_flyer_before.pdf",
-        profile="office",
+        profile="promotional",
         model=GEMINI_DEEP_MODEL,
-        notes="Messy flyer PDF sample for layout cleanup and accessible restructuring.",
+        notes="Flyer layout sample with event details, a pricing grid and a map.",
     ),
     Case(
         key="gold_middle_egyptian_opening",
@@ -390,57 +390,25 @@ CASES = [
 ]
 
 
-def resolve_gemini_key_path() -> Path:
-    env_value = os.environ.get("CHRONICLE_GEMINI_API_KEY_FILE")
-    if env_value:
-        return Path(env_value).expanduser()
-
-    candidates = [
-        BASE_DIR / "api_key_gemini.txt",
-        BASE_DIR / "api_keys" / "gemini.txt",
-    ]
-
-    if sys.platform == "darwin":
-        candidates.append(Path.home() / "Library/Application Support/Chronicle/api_key_gemini.txt")
-    elif os.name == "nt":
-        appdata = os.environ.get("APPDATA")
-        if appdata:
-            candidates.append(Path(appdata) / "Chronicle" / "api_key_gemini.txt")
-    else:
-        candidates.append(Path.home() / ".config" / "Chronicle" / "api_key_gemini.txt")
-
-    for candidate in candidates:
-        if candidate.exists():
-            return candidate
-    return candidates[0]
-
-
 def load_gemini_client() -> Any:
     from google import genai
+    from chronicle_app.services.provider_credentials import (
+        CredentialError, CredentialStore, RESET_MARKER, credential_reset_pending,
+    )
 
-    # An explicit benchmark credential overrides the app, otherwise use the
-    # same saved provider key as the GUI before considering legacy text files.
-    if not os.environ.get("CHRONICLE_GEMINI_API_KEY_FILE"):
-        if sys.platform == "darwin":
-            app_data = Path.home() / "Library/Application Support/Chronicle"
-        elif os.name == "nt":
-            appdata = os.environ.get("APPDATA")
-            app_data = (Path(appdata) if appdata else Path.home()) / "Chronicle"
-        else:
-            app_data = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "Chronicle"
-        saved_keys = app_data / "api_keys.json" if app_data else None
-        if saved_keys and saved_keys.exists():
-            api_key = json.loads(saved_keys.read_text(encoding="utf-8")).get("gemini", "")
-            if not isinstance(api_key, str) or not api_key.strip():
-                raise SystemExit("No Gemini API key is saved in Chronicle. Save one in the app or set CHRONICLE_GEMINI_API_KEY_FILE.")
-            return genai.Client(api_key=api_key.strip())
-
-    key_path = resolve_gemini_key_path()
-    if not key_path.exists():
-        raise SystemExit(f"Gemini API key not found: {key_path}")
-    api_key = key_path.read_text(encoding="utf-8").strip()
+    explicit_key_file = os.environ.get("CHRONICLE_GEMINI_API_KEY_FILE")
+    if explicit_key_file:
+        api_key = Path(explicit_key_file).expanduser().read_text(encoding="utf-8").strip()
+    else:
+        app_data = Path(_load_chronicle().APP_DATA_DIR)
+        if credential_reset_pending(app_data / RESET_MARKER, app_data, BASE_DIR):
+            raise SystemExit("Complete the Chronicle API key reset before running an online benchmark.")
+        try:
+            api_key = CredentialStore().get("gemini")
+        except CredentialError as error:
+            raise SystemExit(str(error)) from None
     if not api_key:
-        raise SystemExit(f"Gemini API key file is empty: {key_path}")
+        raise SystemExit("No Gemini API key is saved. Enter one in Chronicle API Keys or supply a benchmark credential.")
     return genai.Client(api_key=api_key)
 
 

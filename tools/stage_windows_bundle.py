@@ -19,8 +19,10 @@ REQUIRED_PATHS = [
     "run_a11y_harness.bat",
     "LICENSE",
     "assets",
+    "hooks",
     "docs",
     "tools/prepare_public_repo_snapshot.py",
+    "tools/release_provenance.py",
 ]
 
 

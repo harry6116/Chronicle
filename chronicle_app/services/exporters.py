@@ -1,4 +1,5 @@
 import json
+from html import escape
 import os
 import re
 import time
@@ -124,30 +125,59 @@ def save_docx(path, content, *, docx_module):
 
 
 def save_epub(path, title, content, lang_code="en", text_dir="ltr", *, epub_module, time_module=time):
+    from lxml import etree, html
+
     book = epub_module.EpubBook()
     book.set_identifier(f"chron_{int(time_module.time())}")
     book.set_title(title)
     book.set_language(lang_code)
-    chapters = re.split(r"(<h2.*?>.*?</h2>)", content, flags=re.IGNORECASE)
-    epub_chapters, current_title, current_content, idx = [], title, "", 1
-    for segment in chapters:
-        if segment.lower().startswith("<h2"):
-            if current_content.strip():
-                chapter = epub_module.EpubHtml(title=current_title, file_name=f"chap_{idx}.xhtml", lang=lang_code)
-                chapter.content = f'<h1>{current_title}</h1><div dir="{text_dir}">{current_content}</div>'
-                epub_chapters.append(chapter)
-                idx += 1
-            current_title = re.sub(r"<[^>]+>", "", segment)
-            current_content = segment
-        else:
-            current_content += segment
-    if current_content.strip():
-        chapter = epub_module.EpubHtml(title=current_title, file_name=f"chap_{idx}.xhtml", lang=lang_code)
-        chapter.content = f'<h1>{current_title}</h1><div dir="{text_dir}">{current_content}</div>'
-        epub_chapters.append(chapter)
+    root = html.fragment_fromstring(content or "", create_parent="div")
+    chapters = []
+    current = []
+    chapter_title = title
+    heading_present = False
+
+    def nodes(container):
+        if container.text:
+            yield container.text
+        for node in container:
+            if node.tag in {"main", "article", "section", "div"} and node.find(".//h2") is not None:
+                yield from nodes(node)
+                if node.tail:
+                    yield node.tail
+            else:
+                yield node
+
+    def append_chapter():
+        if not "".join(current).strip():
+            return
+        heading = "" if heading_present else f"<h1>{escape(chapter_title)}</h1>"
+        chapter = epub_module.EpubHtml(
+            title=chapter_title, file_name=f"chap_{len(chapters) + 1}.xhtml", lang=lang_code,
+        )
+        chapter.content = f'<div dir="{escape(text_dir, quote=True)}">{heading}{"".join(current)}</div>'
+        chapters.append(chapter)
+
+    for node in nodes(root):
+        if isinstance(node, str):
+            current.append(escape(node))
+            continue
+        if node.tag == "h2":
+            append_chapter()
+            current = []
+            chapter_title = " ".join(node.text_content().split()) or title
+            node.tag = "h1"
+            heading_present = True
+        elif node.tag == "h1" and not heading_present:
+            chapter_title = " ".join(node.text_content().split()) or title
+            heading_present = True
+        current.append(etree.tostring(node, encoding="unicode", method="xml"))
+    append_chapter()
+    epub_chapters = chapters
     for chapter in epub_chapters:
         book.add_item(chapter)
     book.spine = ["nav"] + epub_chapters
+    book.toc = tuple(epub_chapters)
     book.add_item(epub_module.EpubNcx())
     book.add_item(epub_module.EpubNav())
     epub_module.write_epub(path, book, {})

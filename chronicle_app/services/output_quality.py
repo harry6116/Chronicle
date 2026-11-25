@@ -14,8 +14,12 @@ def analyze_output_quality(content, *, fmt, doc_profile="standard"):
     if fmt in {"html", "epub"}:
         if _count(r"<h[1-6][^>]*>\s*</h[1-6]>", text):
             warnings.append("empty heading")
-        if _count(r"<!doctype\s+html|<html\b|<body\b", text) > 1:
+        if any(_count(pattern, text) > 1 for pattern in (r"<!doctype\s+html", r"<html\b", r"<head\b", r"<body\b")):
             warnings.append("nested document wrapper")
+        if _count(r"<title\b", text) > 1:
+            warnings.append("multiple document titles")
+        if _count(r"<h1\b", text) > 1 and profile == "standard":
+            warnings.append("multiple top-level headings")
         if _count(r"\bIMAGE_(?:URL|PLACEHOLDER)\b", text):
             warnings.append("image placeholder token")
         if _count(r"<img\b[^>]*(?:src=[\"']\s*[\"']|src=[\"']about:blank)", text):

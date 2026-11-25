@@ -1,3 +1,4 @@
+from types import SimpleNamespace
 import io
 import json
 import os
@@ -382,16 +383,56 @@ class AccessibilityContractsTest(unittest.TestCase):
             self.assertIn("[[PAGE BREAK]]", prompt)
 
     def test_key_specialist_presets_exist(self):
-        self.assertIn(("office", "Reports / Business Files"), chronicle_gui.PROFILE_CHOICES)
-        self.assertIn(("government", "Government Reports / Records"), chronicle_gui.PROFILE_CHOICES)
+        self.assertIn(("reports", "Business / Government Reports"), chronicle_gui.PROFILE_CHOICES)
+        self.assertIn(("military", "Unit War Diaries / Military Records"), chronicle_gui.PROFILE_CHOICES)
         self.assertIn(("medical", "Medical Records / Clinical Handwriting"), chronicle_gui.PROFILE_CHOICES)
-        self.assertIn(("flyer", "Flyers / Posters"), chronicle_gui.PROFILE_CHOICES)
+        self.assertIn(("promotional", "Flyers / Brochures / Catalogues"), chronicle_gui.PROFILE_CHOICES)
         self.assertIn(("forms", "Forms / Checklists"), chronicle_gui.PROFILE_CHOICES)
         self.assertIn(("slides", "Slides / Presentations"), chronicle_gui.PROFILE_CHOICES)
         self.assertIn(("modern_newspaper", "Modern Newspapers / E-Papers"), chronicle_gui.PROFILE_CHOICES)
         self.assertIn(("magazine", "Magazines / Periodicals"), chronicle_gui.PROFILE_CHOICES)
         self.assertIn(("newspaper", "Historical Newspapers"), chronicle_gui.PROFILE_CHOICES)
         self.assertIn(("comic", "Comics / Manga / Graphic Novels"), chronicle_gui.PROFILE_CHOICES)
+
+    def test_saved_preset_can_round_trip_through_queue_picker(self):
+        from chronicle_app.config import SAVED_PROFILE_LABELS, profile_choices_for_key
+
+        class Choice:
+            def __init__(self):
+                self.items = []
+                self.index = 0
+
+            def GetItems(self):
+                return self.items
+
+            def SetItems(self, labels):
+                self.items = labels
+
+            def SetSelection(self, index):
+                self.index = index
+
+            def GetStringSelection(self):
+                return self.items[self.index]
+
+        owner = SimpleNamespace(choice_profile=Choice())
+        self.assertTrue(set(SAVED_PROFILE_LABELS).isdisjoint(dict(profile_choices_for_key("reports"))))
+        for key in (*SAVED_PROFILE_LABELS, "reports", "promotional", "military"):
+            with self.subTest(profile=key):
+                chronicle_gui.MainFrame.SelectDocumentProfile(owner, key)
+                self.assertEqual(chronicle_gui.MainFrame.SelectedDocumentProfile(owner), key)
+                self.assertEqual(
+                    [label for label in owner.choice_profile.GetItems() if label.endswith("(saved preset)")],
+                    [f"{SAVED_PROFILE_LABELS[key]} (saved preset)"] if key in SAVED_PROFILE_LABELS else [],
+                )
+
+    def test_consolidated_prompts_cover_both_layouts(self):
+        reports = chronicle_gui.build_prompt(self._base_cfg(doc_profile="reports"))
+        promos = chronicle_gui.build_prompt(self._base_cfg(doc_profile="promotional"))
+        self.assertIn("meeting agendas", reports)
+        self.assertIn("annexes and appendices", reports)
+        self.assertIn("date/time/location", promos)
+        self.assertIn("reconstruct panel order", promos)
+        self.assertIn("comparison tables", promos)
 
     def test_every_preset_has_a_distinct_tooltip_summary(self):
         summaries = {}

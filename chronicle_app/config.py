@@ -14,15 +14,13 @@ RTL_LANGUAGE_CODES = {"ar", "fa", "he", "ur", "yi", "ps", "sd", "ug"}
 PROFILE_CHOICES = [
     ("standard", "Miscellaneous / Mixed Files"),
     ("letters", "Letters / Correspondence"),
-    ("office", "Reports / Business Files"),
-    ("government", "Government Reports / Records"),
+    ("reports", "Business / Government Reports"),
     ("legal", "Legal / Contracts / Laws"),
     ("forms", "Forms / Checklists"),
     ("tabular", "Tables / Spreadsheets"),
     ("manual", "Manuals / Procedures"),
     ("slides", "Slides / Presentations"),
-    ("flyer", "Flyers / Posters"),
-    ("brochure", "Brochures / Catalogues"),
+    ("promotional", "Flyers / Brochures / Catalogues"),
     ("modern_newspaper", "Modern Newspapers / E-Papers"),
     ("magazine", "Magazines / Periodicals"),
     ("comic", "Comics / Manga / Graphic Novels"),
@@ -34,7 +32,7 @@ PROFILE_CHOICES = [
     ("handwritten", "Handwritten Notes / Personal Diaries"),
     ("archival", "Archives / Historical"),
     ("medical", "Medical Records / Clinical Handwriting"),
-    ("military", "Military Records"),
+    ("military", "Unit War Diaries / Military Records"),
     ("intelligence", "Intelligence / Cables"),
     ("museum", "Museum Labels / Captions"),
 ]
@@ -367,8 +365,25 @@ PROFILE_PRESETS = {
     },
 }
 
-PROFILE_LABEL_TO_KEY = {label: key for key, label in PROFILE_CHOICES}
-PROFILE_KEY_TO_LABEL = {key: label for key, label in PROFILE_CHOICES}
+PROFILE_PRESETS["reports"] = PROFILE_PRESETS["office"].copy()
+PROFILE_PRESETS["promotional"] = PROFILE_PRESETS["flyer"].copy()
+
+SAVED_PROFILE_LABELS = {
+    "office": "Reports / Business Files",
+    "government": "Government Reports / Records",
+    "flyer": "Flyers / Posters",
+    "brochure": "Brochures / Catalogues",
+}
+PROFILE_KEY_TO_LABEL = dict(PROFILE_CHOICES) | SAVED_PROFILE_LABELS
+PROFILE_LABEL_TO_KEY = {label: key for key, label in PROFILE_KEY_TO_LABEL.items()}
+
+
+def profile_choices_for_key(profile_key):
+    """Offer a retired preset only when displaying a job or default that uses it."""
+    if profile_key in SAVED_PROFILE_LABELS:
+        return [*PROFILE_CHOICES, (profile_key, f"{SAVED_PROFILE_LABELS[profile_key]} (saved preset)")]
+    return PROFILE_CHOICES
+
 
 MODEL_LABEL_BY_KEY = {
     FLASH_ARGON_MODE: "Automatic Flash/Argon (PDFs and images)",

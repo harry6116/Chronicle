@@ -2,7 +2,7 @@
 
 Chronicle is an accessibility-first document recovery tool for difficult real-world material.
 
-Current public release line: **Chronicle 1.1.9**.
+Current public release line: **Chronicle 2.0.0**.
 
 It is especially strong on degraded scans, long-form books, archival records, legal and policy material, tables, handwriting, multi-column layouts, comics, manga, graphic novels, and mixed-format batches where preserving reading order, usable structure, and review workflow matters more than raw one-click speed.
 
@@ -103,7 +103,9 @@ Full guidance: `docs/user/PRIVATE_OFFLINE_MODE.md`.
 
 ## Current Public Release
 
-Chronicle `1.1.9` adds a separate automatic Flash/Argon option for PDF and image pages while keeping the existing Automatic setting available.
+Chronicle 2.0 adds secure API-key storage, explainable document preflight, and Article Only for supported webpage PDFs.
+
+Start with **Miscellaneous / Mixed Files** for ordinary PDFs, mixed batches, or webpage printouts. Run **Preflight** and choose **Article only** for a supported text-backed webpage PDF when you want just the article. Keep **Full extraction** for the complete capture.
 
 Current release downloads:
 
@@ -166,11 +168,11 @@ Google One AI credits are separate from Gemini API billing and do not fund Chron
 
 Paste only the key, without quotes or an HTTP header such as `Authorization: Bearer`. Chronicle removes surrounding whitespace and checks for unsupported characters, without requiring a fixed prefix or length. Leave unused provider fields blank; all three may be blank for Private Offline Mode.
 
-Use **Show API keys** only when you want the characters visible. **Save API Keys** stores the entries locally; **Cancel** discards edits. Saving does not contact a provider or verify the key, permissions, model access, quota or billing. Run a short extraction to check provider access; online extraction can incur provider charges. Existing saved keys do not need to be re-entered unless you are replacing them. Known Google, OpenAI and Claude key formats are redacted from Chronicle’s logs and support bundles; keep your keys private.
+Use **Show API keys** only when you want the characters visible. **Save API Keys** stores the entries locally; **Cancel** discards edits. Saving does not contact a provider or verify the key, permissions, model access, quota or billing. Run a short extraction to check provider access; online extraction can incur provider charges. On the first launch after upgrading to 2.0, confirm the one-time key reset and enter the keys you want to use again. Known Google, OpenAI and Claude key formats are redacted from Chronicle’s logs and support bundles; keep your keys private.
 
 Chronicle stores API keys locally, but extracted content is sent to the selected provider API for processing.
 
-- Keys are stored locally on the user's own machine in Chronicle app-data storage.
+- Chronicle saves provider API keys in macOS Keychain or Windows Credential Manager. The secure-storage update asks you to clear previously saved Chronicle API keys and enter the keys you want to use again.
 - Keys are not intended to be embedded in release artifacts or committed to the repository.
 - Chronicle cannot enforce provider retention/training policy.
 - Provider privacy/confidentiality behavior depends on account tier and provider settings.

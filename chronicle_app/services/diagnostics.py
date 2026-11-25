@@ -5,6 +5,8 @@ import time
 import zipfile
 
 from chronicle_app.services.security import redact_sensitive, sanitize_log_text
+from chronicle_app.config import MODEL_OVERRIDE_CHOICES
+from chronicle_app.services.runtime_policies import get_model_vendor
 
 
 PATH_KEY_NAMES = {"path", "source_root", "output_dir", "custom_dest", "scan_output_dir", "last_browse_dir"}
@@ -35,13 +37,15 @@ def redact_support_bundle_paths(value):
 
 def build_provider_capability_matrix(keys, *, has_provider_key_fn=None):
     provider_rows = [
-        ("Google Gemini", "gemini", "Gemini 2.5 Flash / Gemini 2.5 Pro", "Best default path for PDFs; higher-quota setup is safer for sustained hard batches."),
-        ("Anthropic Claude", "claude", "Claude Sonnet 4.6", "Strong structured fallback; API billing is separate from Claude chat plans."),
-        ("OpenAI", "openai", "GPT-4o", "General multimodal fallback; Chronicle still treats OpenAI PDF handling as a fallback path."),
+        ("Google Gemini", "gemini", "Start with a Flash engine for clean documents. Test deeper engines with a small sample of difficult pages."),
+        ("Anthropic Claude", "claude", "Useful for structured extracts. API billing is separate from Claude chat plans."),
+        ("OpenAI", "openai", "Multimodal fallback. API billing is separate from ChatGPT plans."),
     ]
     lines = ["Provider Capability Matrix", ""]
-    for label, vendor, models, note in provider_rows:
+    for label, vendor, note in provider_rows:
         configured = has_provider_key_fn(vendor) if has_provider_key_fn else bool((keys or {}).get(vendor))
+        models = ", ".join(display for model, display in MODEL_OVERRIDE_CHOICES
+                           if model and get_model_vendor(model) == vendor)
         lines.append(f"{label}: {'configured' if configured else 'not configured'}")
         lines.append(f"  Models: {models}")
         lines.append(f"  Notes: {note}")
@@ -100,7 +104,7 @@ def create_support_bundle(
     ]
     with zipfile.ZipFile(bundle_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
         zf.writestr("diagnostic_summary.txt", "\n".join(summary) + "\n")
-        zf.writestr("provider_matrix.txt", str(provider_matrix_text or "").rstrip() + "\n")
+        zf.writestr("provider_matrix.txt", sanitize_log_text(provider_matrix_text or "").rstrip() + "\n")
         safe_processing_log = [sanitize_log_text(line) for line in (processing_log_lines or [])]
         zf.writestr("processing_log.txt", "\n".join(safe_processing_log).rstrip() + "\n")
         safe_cfg = redact_sensitive(redact_support_bundle_paths(cfg or {}))

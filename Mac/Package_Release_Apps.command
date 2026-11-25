@@ -2,27 +2,15 @@
 set -euo pipefail
 
 WINDOWS_APP_DIR="${CHRONICLE_WINDOWS_APP_DIR:-$HOME/Documents/dist/Chronicle}"
-MAC_APP_DIR="${CHRONICLE_MAC_APP_DIR:-$HOME/Documents/Chronicle/dist/Chronicle.app}"
 RELEASE_DIR="${CHRONICLE_RELEASE_ASSET_DIR:-$HOME/Documents/Chronicle Release Apps}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+MAC_APP_DIR="${CHRONICLE_MAC_APP_DIR:-$(PYTHONPATH="$ROOT_DIR" python3 -c 'from pathlib import Path; from tools.refresh_mac_dist import resolve_dist_dir; import sys; print(resolve_dist_dir(Path(sys.argv[1])) / "Chronicle.app")' "$ROOT_DIR")}"
 . "$SCRIPT_DIR/release_helpers.sh"
 SNAPSHOT_DIR="${CHRONICLE_PUBLIC_SNAPSHOT_DIR:-$ROOT_DIR/artifacts/public_repo_stage/Chronicle}"
-RELEASE_STAGING_DIR="$RELEASE_DIR/.packaging-staging"
 
 WINDOWS_ZIP="$RELEASE_DIR/Chronicle.windows.zip"
 MAC_ZIP="$RELEASE_DIR/Chronicle.mac.zip"
-
-cleanup_stale_zip_temps() {
-  local output_path="$1"
-  local temp_parent
-  local temp_prefix
-
-  temp_parent="$(dirname "$output_path")"
-  temp_prefix="$(basename "$output_path").tmpdir."
-
-  find "$temp_parent" -maxdepth 1 -type d -name "${temp_prefix}*" -print -exec rm -rf {} +
-}
 
 cleanup_release_staging() {
   rm -rf "$RELEASE_STAGING_DIR"
@@ -69,7 +57,6 @@ zip_folder_keep_parent() {
   echo "Source: $source_path"
   echo "Output: $output_path"
 
-  cleanup_stale_zip_temps "$output_path"
   temp_dir="$(mktemp -d "${output_path}.tmpdir.XXXXXX")"
   temp_path="$temp_dir/$(basename "$output_path")"
 
@@ -95,6 +82,7 @@ zip_slim_app_package() {
   rm -rf "$staged_path"
   mkdir -p "$RELEASE_STAGING_DIR"
   rsync -a --delete \
+    --exclude '/chronicle-build.json' \
     --exclude '/_internal/offline/' \
     --exclude '/Contents/Resources/offline/' \
     --exclude '/Contents/Frameworks/offline/' \
@@ -136,6 +124,7 @@ zip_slim_mac_release_package() {
   chmod +x "$helper_dest"
 
   assert_no_embedded_offline_payload "$staged_app" "$label"
+  /usr/bin/codesign --verify --deep --strict "$staged_app"
   zip_folder_keep_parent "$stage_root" "$output_path" "$label"
 }
 
@@ -174,6 +163,9 @@ if [[ ! -f "$MAC_APP_DIR/Contents/MacOS/Chronicle" ]]; then
 fi
 
 EXPECTED_VERSION="$(release_version_from_notes "$(release_notes_file "$ROOT_DIR")")"
+PROVENANCE="$ROOT_DIR/tools/release_provenance.py"
+python3 "$PROVENANCE" "$ROOT_DIR" verify-build mac "$MAC_APP_DIR"
+python3 "$PROVENANCE" "$ROOT_DIR" verify-build windows "$WINDOWS_APP_DIR"
 MAC_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$MAC_APP_DIR/Contents/Info.plist")"
 WINDOWS_NOTES="$WINDOWS_APP_DIR/_internal/docs/github_rollout/RELEASE_NOTES_CURRENT.md"
 if [[ ! -f "$WINDOWS_NOTES" ]]; then
@@ -188,11 +180,16 @@ if [[ "$MAC_VERSION" != "$EXPECTED_VERSION" || "$WINDOWS_VERSION" != "$EXPECTED_
 fi
 
 mkdir -p "$RELEASE_DIR"
-cleanup_release_staging
+RELEASE_STAGING_DIR="$(mktemp -d "$RELEASE_DIR/.packaging-staging.XXXXXX")"
 trap cleanup_release_staging EXIT
+python3 "$PROVENANCE" "$ROOT_DIR" source "$RELEASE_STAGING_DIR/source.json"
+python3 "$PROVENANCE" "$ROOT_DIR" verify-build mac "$MAC_APP_DIR"
+python3 "$PROVENANCE" "$ROOT_DIR" verify-build windows "$WINDOWS_APP_DIR"
 
-zip_slim_app_package "$WINDOWS_APP_DIR" "$WINDOWS_ZIP" "Windows app"
-zip_slim_mac_release_package "$MAC_APP_DIR" "$MAC_ZIP" "Mac app"
+zip_slim_app_package "$WINDOWS_APP_DIR" "$RELEASE_STAGING_DIR/Chronicle.windows.zip" "Windows app"
+zip_slim_mac_release_package "$MAC_APP_DIR" "$RELEASE_STAGING_DIR/Chronicle.mac.zip" "Mac app"
+python3 "$PROVENANCE" "$ROOT_DIR" verify-build mac "$MAC_APP_DIR"
+python3 "$PROVENANCE" "$ROOT_DIR" verify-build windows "$WINDOWS_APP_DIR"
 
 echo ""
 echo "Preparing public release snapshot..."
@@ -209,12 +206,19 @@ fi
 
 echo "Verifying release ZIPs and refreshing checksums..."
 (
-  cd "$RELEASE_DIR"
+  cd "$RELEASE_STAGING_DIR"
   /usr/bin/unzip -tq Chronicle.mac.zip
   /usr/bin/unzip -tq Chronicle.windows.zip
-  /usr/bin/shasum -a 256 Chronicle.mac.zip Chronicle.windows.zip > checksums.sha256.tmp
-  mv checksums.sha256.tmp checksums.sha256
+  /usr/bin/shasum -a 256 Chronicle.mac.zip Chronicle.windows.zip > checksums.sha256
+  python3 "$PROVENANCE" "$ROOT_DIR" record-release chronicle-release.json "v$EXPECTED_VERSION" Chronicle.mac.zip Chronicle.windows.zip "$MAC_APP_DIR" "$WINDOWS_APP_DIR" source.json
+  mv Chronicle.mac.zip "$MAC_ZIP"
+  mv Chronicle.windows.zip "$WINDOWS_ZIP"
+  mv checksums.sha256 "$RELEASE_DIR/checksums.sha256"
+  mv chronicle-release.json "$RELEASE_DIR/chronicle-release.json"
 )
+if [[ -z "${CHRONICLE_RELEASE_ASSET_DIR:-}" ]]; then
+  python3 "$PROVENANCE" "$ROOT_DIR" mirror-release "$RELEASE_DIR"
+fi
 
 echo ""
 echo "Release ZIPs are ready:"

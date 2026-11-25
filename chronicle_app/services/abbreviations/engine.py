@@ -28,6 +28,7 @@ PROFILE_GLOSSARIES = {
     "medical": ("medical",),
     "legal": ("civil_titles",),
     "government": ("civil_titles",),
+    "reports": ("civil_titles",),
 }
 
 

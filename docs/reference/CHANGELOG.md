@@ -2,6 +2,13 @@
 
 This history describes changes users may notice. The desktop app release series began at 1.0.0 in April 2026. Earlier version numbers below belong to the original project and follow a different sequence.
 
+## [2.0.0] - 2026-11-25
+
+- Store API keys in macOS Keychain or Windows Credential Manager after a confirmed one-time upgrade reset.
+- Inspect PDF evidence locally before extraction, explain preset suggestions, and queue selected trial pages.
+- Create local Article Only HTML and EPUB reading copies from supported webpage PDFs.
+- Streamline document presets and improve Preferences focus, source-linked review, collection project recovery, and reading exports.
+
 ## [1.1.9] - 2026-11-10
 
 - Added the separate Automatic Flash/Argon option for PDF and image pages, preserving existing Automatic behaviour.
